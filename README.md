@@ -45,19 +45,27 @@ clients, shared sessions and notes). Help in a crisis is always free.
 ```
 .
 ├── packages/
-│   └── protocol/            # @stillpoint/protocol — the domain core
+│   ├── protocol/            # @stillpoint/protocol — the domain core
+│   │   └── src/
+│   │       ├── steps.ts     # the six steps, their prompts and completion rules
+│   │       ├── session.ts   # the session state machine (pure reducer)
+│   │       ├── feelings.ts  # the twelve feelings
+│   │       └── safety.ts    # safety levels, actions and helplines
+│   └── design-tokens/       # @stillpoint/design-tokens — Warm & Clear
 │       └── src/
-│           ├── steps.ts     # the six steps, their prompts and completion rules
-│           ├── session.ts   # the session state machine (pure reducer)
-│           ├── feelings.ts  # the twelve feelings and their colours
-│           └── safety.ts    # safety levels, actions and helplines
+│           ├── color.ts     # light and dark palettes
+│           ├── typography.ts
+│           ├── space.ts     # spacing, radii, control sizes, viewports
+│           ├── feelings.ts  # the colour each feeling carries
+│           └── css.ts       # emits the tokens as CSS custom properties
 ├── apps/                    # (empty) surfaces will live here
 └── .github/workflows/ci.yml
 ```
 
-`packages/protocol` is free of I/O — no network, no storage, no speech — so the
-rules stay testable and every surface can drive them. Nothing about a UI
-framework is decided yet; see [Open questions](#open-questions).
+`packages/protocol` is free of I/O and of presentation — no network, no storage,
+no speech, no colours — so the rules stay testable and every surface can drive
+them. `packages/design-tokens` holds everything visual, in one place, for both
+web (as CSS custom properties) and native (as plain objects).
 
 ## Getting started
 
@@ -96,32 +104,26 @@ returns an empty list elsewhere rather than something plausible but wrong.
 
 ## Design language
 
-Two directions exist in the design artifacts and they conflict — see
-[Open questions](#open-questions). Feeling colours in `feelings.ts` are taken
-from the "Dusk to Light" design language, which is the only place the twelve
-feelings are given colours at all.
+**Warm & Clear**: cream `#FBF4EC`, a single terracotta accent `#E4572E`,
+Newsreader for the guide's voice and the user's words, Hanken Grotesk for
+everything they operate. Light and dark renderings define the same roles.
 
-## Open questions
+An earlier "Dusk to Light" exploration exists in the design artifacts and is not
+current — Warm & Clear is the newest direction and the only one drawn for all
+five surfaces. The one thing carried over is the feeling palette, since nothing
+in Warm & Clear assigns the twelve feelings colours.
 
-These are unresolved and should not be guessed at:
+## Still open
 
-1. **Which design direction is current.** The most recent artifact ("Stillpoint
-   UI", the complete V3 screen set) is "Warm & Clear": cream `#FBF4EC` with a
-   terracotta accent `#E4572E`, Newsreader + Hanken Grotesk. A second direction,
-   "Dusk to Light", uses stone paper `#EFEBE5`, ink `#1A1714`, marigold
-   `#E8A33D` and Alegreya + Hanken Grotesk + Martian Mono — and its research
-   page explicitly rejects "cream + serif + terracotta" as a generic default.
-   One supersedes the other; the artifacts do not say which.
-2. **Step prompt copy.** Only step 4 "Remember" is fully specified anywhere in
-   the designs. The other five steps are missing a completion criterion and a
-   turn limit, and steps 2, 3 and 6 have no question at all. `incompleteSteps()`
-   reports exactly what is missing. The design research says this copy lives in
-   the PRD, which is not in the repository.
-3. **Client stack.** Mobile, desktop and web are all designed; no framework is
-   chosen.
-4. **Voice stack.** Speech-to-text, text-to-speech and the turn-taking loop are
-   central to the product and entirely unspecified.
-5. **Pricing.** The pricing page shows `[PRICE]/mo` placeholders for Plus and
+1. **Step prompt copy.** Only step 4 "Remember" is fully specified anywhere in
+   the designs. The other five are missing a completion criterion and a turn
+   limit, and steps 2, 3 and 6 have no question at all. `incompleteSteps()`
+   reports exactly what is missing, and these stay `null` rather than invented —
+   guessed copy would silently become the product's therapeutic voice. The
+   design research says the real copy lives in the PRD.
+2. **Voice stack.** Speech-to-text, text-to-speech and the turn-taking loop are
+   unspecified. To be kept behind an interface so the choice stays reversible.
+3. **Pricing.** The pricing page shows `[PRICE]/mo` placeholders for Plus and
    Coach. Currency is ₹.
 
 ## License

@@ -6,15 +6,10 @@ describe('feelings', () => {
     expect(FEELINGS).toHaveLength(12);
   });
 
-  it('gives every feeling a label and a hex colour', () => {
+  it('gives every feeling a label', () => {
     for (const f of FEELINGS) {
       expect(f.label).not.toBe('');
-      expect(f.color).toMatch(/^#[0-9A-F]{6}$/);
     }
-  });
-
-  it('uses a distinct colour per feeling, so history stays readable', () => {
-    expect(new Set(FEELINGS.map((f) => f.color)).size).toBe(FEELINGS.length);
   });
 
   it('uses distinct ids', () => {

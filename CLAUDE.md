@@ -56,13 +56,22 @@ TypeScript is pinned to the 6.0 line because `typescript-eslint` 8.x declares a
 ## Layout
 
 ```
-packages/protocol/   @stillpoint/protocol — domain core, no I/O
-apps/                (empty) surfaces go here
+packages/protocol/        @stillpoint/protocol — domain core, no I/O
+packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, type, space
+apps/                     (empty) surfaces go here
 ```
 
-`packages/protocol` must stay free of I/O: no network, no storage, no speech, no
-framework imports. Every surface depends on it, so anything environment-specific
+`packages/protocol` must stay free of I/O **and of presentation**: no network,
+no storage, no speech, no framework imports, no colours. Feeling ids and labels
+are domain and live there; feeling colours are presentation and live in
+`design-tokens`. Every surface depends on both, so anything environment-specific
 belongs in the surface instead.
+
+The design direction is **Warm & Clear** (cream `#FBF4EC`, terracotta accent
+`#E4572E`, Newsreader + Hanken Grotesk), taken from the newest and only complete
+artifact. The earlier "Dusk to Light" exploration is not current; do not mix its
+palette in. Only its feeling colours survive, because nothing else assigns the
+twelve feelings colours at all.
 
 ## Commands
 
@@ -103,8 +112,13 @@ it is missing from `tsconfig.test.json`'s `include`.
 - `pnpm/action-setup` must run **before** `actions/setup-node` in CI, since
   `cache: pnpm` needs the pnpm binary to exist.
 
-## Open questions
+## Decisions taken
 
-Two design directions conflict ("Warm & Clear" vs "Dusk to Light"), and the
-client and voice stacks are unchosen. See the README's Open questions section;
-ask rather than picking one.
+- **Design direction: Warm & Clear.** Settled; see above.
+- **Client stack: Expo for mobile, Next.js for web and desktop**, both consuming
+  `packages/*`. Not yet scaffolded.
+- **Step prompt copy stays `null`** until the PRD supplies it. Do not invent it.
+- **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders.
+
+Still unchosen: the voice stack (speech-to-text, text-to-speech, turn-taking).
+Keep it behind an interface so the choice stays reversible.
