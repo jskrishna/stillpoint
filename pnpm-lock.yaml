@@ -27,7 +27,7 @@ importers:
         specifier: ^3.9.9
         version: 3.9.9
       typescript:
-        specifier: ^6.0.3
+        specifier: ~6.0.3
         version: 6.0.3
       typescript-eslint:
         specifier: ^8.71.0
@@ -35,6 +35,8 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.4)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@26.6.4))
+
+  packages/protocol: {}
 
 packages:
 

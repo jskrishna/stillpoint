@@ -2,28 +2,16 @@
   "name": "stillpoint",
   "version": "0.1.0",
   "private": true,
-  "description": "Stillpoint",
+  "description": "Stillpoint — a voice guide through the six-step Choose Again process",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=22"
   },
   "packageManager": "pnpm@10.28.0",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsc --build",
-    "clean": "rm -rf dist *.tsbuildinfo coverage",
-    "dev": "tsc --build --watch",
+    "build": "pnpm -r run build",
+    "clean": "pnpm -r run clean && rm -rf coverage",
     "typecheck": "tsc -p tsconfig.test.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -41,7 +29,7 @@
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.9",
-    "typescript": "^6.0.3",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.3"
   }
