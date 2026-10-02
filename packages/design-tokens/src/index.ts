@@ -15,3 +15,5 @@ export { FONT, WEIGHT, TEXT, LEADING } from './typography.js';
 export { SPACE, RADIUS, CONTROL, VIEWPORT, GUTTER } from './space.js';
 
 export { PREFIX, stylesheet, cssVar } from './css.js';
+
+export { contrast, luminance, meetsAA, AA_TEXT, AA_LARGE_TEXT } from './contrast.js';

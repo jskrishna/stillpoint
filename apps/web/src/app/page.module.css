@@ -194,7 +194,7 @@
   height: 40px;
   border-radius: 50%;
   background: var(--sp-color-accent-wash);
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
   font-weight: var(--sp-weight-bold);
   font-size: var(--sp-text-body);
   display: flex;

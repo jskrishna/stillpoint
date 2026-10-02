@@ -34,7 +34,7 @@
 
 .navOn {
   background: var(--sp-color-accent-wash);
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
 }
 
 .main {
@@ -89,7 +89,7 @@
 }
 
 .attentionLink {
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
   font-weight: var(--sp-weight-semibold);
 }
 
@@ -115,7 +115,7 @@
 }
 
 .open {
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
   font-weight: var(--sp-weight-semibold);
   text-decoration: none;
 }

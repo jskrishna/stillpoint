@@ -25,7 +25,7 @@ export type Palette = {
   readonly ink: Hex;
   /** Secondary body text, still meant to be read. */
   readonly inkSoft: Hex;
-  /** Labels and captions. */
+  /** Labels and captions. Dark enough to meet AA on every surface above. */
   readonly muted: Hex;
   /** Hairlines and dividers. */
   readonly line: Hex;
@@ -35,12 +35,22 @@ export type Palette = {
   readonly accent: Hex;
   /** Text and icons placed on `accent`. */
   readonly accentInk: Hex;
+  /**
+   * The accent used *as text* on a light surface.
+   *
+   * Separate from `accent` because a colour that reads well as a fill behind
+   * white does not necessarily meet AA as small text on cream; this one does,
+   * on every surface in the palette.
+   */
+  readonly accentText: Hex;
   /** A wash of the accent, behind step numbers and tags. */
   readonly accentWash: Hex;
   /** Confirmation: completed sessions, checkmarks, the helpline button. */
   readonly positive: Hex;
   /** Danger, used only for safety: emergency calls and flag badges. */
   readonly danger: Hex;
+  /** Text and icons placed on `danger`. */
+  readonly dangerInk: Hex;
   /** A wash of danger, behind the "not therapy" consent notice. */
   readonly dangerWash: Hex;
 };
@@ -52,14 +62,20 @@ export const LIGHT: Palette = {
   sheet: '#F3E9DE',
   ink: '#2A211C',
   inkSoft: '#5A4C42',
-  muted: '#8A7A6E',
+  // Darkened from the designs' #8A7A6E, which fails AA on every surface it is
+  // used on (3.78:1 on the page background). See the note in the README.
+  muted: '#74675D',
   line: '#EFE4D8',
   field: '#E6D9CB',
-  accent: '#E4572E',
+  // Darkened from #E4572E so that white on it meets AA; the designs' value
+  // gives 3.68:1, and this is the smallest change that reaches 4.5:1.
+  accent: '#CB4D29',
   accentInk: '#FFFFFF',
+  accentText: '#B54525',
   accentWash: '#FCEDE8',
   positive: '#2E7D5B',
   danger: '#C0392B',
+  dangerInk: '#FFFFFF',
   dangerWash: '#FDF0EC',
 };
 
@@ -75,9 +91,13 @@ export const DARK: Palette = {
   field: '#4A3C33',
   accent: '#F0784F',
   accentInk: '#1D1714',
+  // In dark the accent is already light enough to read as text on the page.
+  accentText: '#F0784F',
   accentWash: '#3A2721',
   positive: '#5FA883',
   danger: '#E5705F',
+  // Ink, not white: white on this red is 3.08:1, well under AA.
+  dangerInk: '#1D1714',
   dangerWash: '#3A241F',
 };
 

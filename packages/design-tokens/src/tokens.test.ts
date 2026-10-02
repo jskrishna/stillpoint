@@ -26,9 +26,14 @@ describe('palette', () => {
     expect(palette('dark')).toBe(DARK);
   });
 
-  it('carries the Warm & Clear page background and accent', () => {
+  it('carries the Warm & Clear page background', () => {
     expect(LIGHT.bg).toBe('#FBF4EC');
-    expect(LIGHT.accent).toBe('#E4572E');
+  });
+
+  it('uses an accent darkened from the designs so white on it meets AA', () => {
+    // The designs' #E4572E gives 3.68:1 against white. This is the smallest
+    // darkening that reaches 4.5:1; see contrast.test.ts for the assertion.
+    expect(LIGHT.accent).toBe('#CB4D29');
   });
 
   it('inverts background and text between schemes', () => {
@@ -122,7 +127,8 @@ describe('stylesheet', () => {
   it('defines the light palette on :root', () => {
     expect(css).toContain(':root {');
     expect(css).toContain('--sp-color-bg: #FBF4EC;');
-    expect(css).toContain('--sp-color-accent: #E4572E;');
+    expect(css).toContain('--sp-color-accent: #CB4D29;');
+    expect(css).toContain('--sp-color-accent-text: #B54525;');
   });
 
   it('redefines dark under a guarded media query and an explicit theme', () => {

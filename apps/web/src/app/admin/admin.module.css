@@ -43,7 +43,7 @@
   padding: 2px var(--sp-space-sm);
   border-radius: 10px;
   background: var(--sp-color-danger);
-  color: #fff;
+  color: var(--sp-color-danger-ink);
 }
 
 .main {
@@ -137,7 +137,7 @@
 
 .stepTabOn {
   background: var(--sp-color-accent-wash);
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
 }
 
 .stepProblem {
@@ -250,7 +250,7 @@
 
 .tagHigh {
   background: var(--sp-color-danger);
-  color: #fff;
+  color: var(--sp-color-danger-ink);
 }
 
 .tagMedium {

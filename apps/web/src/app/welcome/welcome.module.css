@@ -171,11 +171,18 @@
 }
 
 .quiet {
+  /* Used on a <button> as well as a link, so the user-agent button background
+     has to be cleared — left in place it sat grey behind muted text. */
   margin-top: var(--sp-space-md);
-  text-align: center;
+  padding: var(--sp-space-sm);
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: var(--sp-text-small);
+  text-align: center;
   color: var(--sp-color-muted);
   text-decoration: none;
+  cursor: pointer;
 }
 
 .terms {

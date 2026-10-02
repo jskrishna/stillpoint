@@ -138,7 +138,7 @@
   font: inherit;
   font-size: var(--sp-text-small);
   font-weight: var(--sp-weight-semibold);
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
   cursor: pointer;
 }
 

@@ -238,7 +238,7 @@
 }
 
 .tabOn {
-  color: var(--sp-color-accent);
+  color: var(--sp-color-accent-text);
 }
 
 /* Settings rows */

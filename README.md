@@ -132,6 +132,26 @@ Helplines are resolved by country and currently cover India only
 (Tele-MANAS 14416, emergency 112), matching the designs. `helplinesFor()`
 returns an empty list elsewhere rather than something plausible but wrong.
 
+## Accessibility
+
+Every route passes axe-core at WCAG 2.1 AA, checked in light and dark at both
+390px and 1440px. `pnpm run check` also asserts the contrast of every text role
+against every surface, so a colour change that drops a pair below AA fails the
+build rather than reaching someone who cannot read it.
+
+**Three of the designs' own colours did not meet AA**, and the tokens depart
+from them deliberately:
+
+| Token                | Designs   | Here      | Why                                              |
+| -------------------- | --------- | --------- | ------------------------------------------------ |
+| `muted`              | `#8A7A6E` | `#74675D` | 3.78:1 on the page background                    |
+| `accent` (as a fill) | `#E4572E` | `#CB4D29` | white on it was 3.68:1                           |
+| `accentText` (new)   | —         | `#B54525` | the accent as small text failed on every surface |
+
+`dangerInk` is also new: white on the dark palette's red is 3.08:1, so dark mode
+puts ink on it instead. Each change is the smallest that reaches 4.5:1, so the
+palette still reads as the designs intend.
+
 ## Design language
 
 **Warm & Clear**: cream `#FBF4EC`, a single terracotta accent `#E4572E`,

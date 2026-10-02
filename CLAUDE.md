@@ -63,6 +63,21 @@ voice.
 
 The same goes for pricing: the designs show `[PRICE]/mo` placeholders.
 
+## Contrast is tested, not assumed
+
+`packages/design-tokens/src/contrast.test.ts` asserts WCAG AA for every text
+role against every surface, in both palettes. A colour change that drops a pair
+below 4.5:1 fails the build.
+
+Three of the designs' colours did not meet AA and the tokens deliberately differ
+(`muted`, `accent`, plus a new `accentText` and `dangerInk`) — the README has
+the table. **Use `accentText` when the accent is small text and `accent` when it
+is a fill**; they are not interchangeable, which is the whole reason both exist.
+
+Re-run the audit after UI work: build, `next start`, then axe-core over every
+route in light and dark at 390 and 1440. The last run was clean across all 60
+combinations.
+
 ## Stack
 
 - TypeScript 6.0.x, ESM only (`"type": "module"`)
