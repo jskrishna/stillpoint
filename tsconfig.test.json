@@ -15,6 +15,9 @@
       "@stillpoint/design-tokens": ["./packages/design-tokens/src/index.ts"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "*.config.ts"],
+  // Packages only. Each app is checked by its own tsconfig (see the root
+  // `typecheck` script), which carries the libs and jsx settings it needs —
+  // covering them here as well checked browser code against a Node-only lib.
+  "include": ["packages/*/src/**/*.ts", "*.config.ts"],
   "exclude": ["**/dist", "**/node_modules"]
 }

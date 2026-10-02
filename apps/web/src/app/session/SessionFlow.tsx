@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   BASELINE,
@@ -12,6 +13,7 @@ import {
   apply,
   canSelectMore,
   currentOrdinal,
+  entryFrom,
   forgivenessFor,
   helplinesFor,
   startSession,
@@ -24,6 +26,7 @@ import {
   type StepId,
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
+import { browserJournalStore } from '../../lib/journal-store';
 import styles from './session.module.css';
 
 const RATINGS: readonly { value: CalmerRating; label: string }[] = [
@@ -72,6 +75,30 @@ export default function SessionFlow() {
   const [answer, setAnswer] = useState('');
   const [feelings, setFeelings] = useState<readonly FeelingId[]>([]);
   const [showMore, setShowMore] = useState(false);
+  const startedAt = useRef(Date.now());
+  const router = useRouter();
+
+  const entryId = `s_${String(startedAt.current)}`;
+  const saved = useRef(false);
+
+  /**
+   * Writes the finished session to the journal, once.
+   *
+   * This is an effect of the session having ended, not of the click that ended
+   * it: running it inside a state updater fires at the wrong time and can run
+   * twice. entryFrom() returns nothing for a session that ended for safety, so
+   * a crisis is never journalled — that rule lives in the domain, not here.
+   */
+  useEffect(() => {
+    if (session.phase !== 'ended' || saved.current) return;
+    const entry = entryFrom(session, {
+      id: entryId,
+      occurredAt: new Date(startedAt.current),
+      durationMinutes: Math.max(1, Math.round((Date.now() - startedAt.current) / 60000)),
+    });
+    if (entry !== undefined) browserJournalStore.add(entry);
+    saved.current = true;
+  }, [session, entryId]);
 
   const ordinal = currentOrdinal(session);
   const definition = session.stepId === null ? null : stepIn(BASELINE, session.stepId);
@@ -95,15 +122,23 @@ export default function SessionFlow() {
     setSession((current) => apply(current, { type: 'safety_signal', level: 'crisis' }));
   }, []);
 
-  const rate = useCallback((rating: CalmerRating) => {
-    setSession((current) => apply(current, { type: 'rated', rating }));
-  }, []);
+  const rate = useCallback(
+    (rating: CalmerRating) => {
+      setSession((current) => apply(current, { type: 'rated', rating }));
+      browserJournalStore.update(entryId, (e) => ({ ...e, calmerRating: rating }));
+    },
+    [entryId],
+  );
+
+  const finish = useCallback(() => {
+    router.push('/app/journal');
+  }, [router]);
 
   if (session.phase === 'ended') {
     return session.endReason === 'safety_stop' ? (
       <SafetyPause />
     ) : (
-      <Summary session={session} onRate={rate} />
+      <Summary session={session} onRate={rate} onFinish={finish} />
     );
   }
 
@@ -234,7 +269,15 @@ function FeelingPicker({
   );
 }
 
-function Summary({ session, onRate }: { session: Session; onRate: (r: CalmerRating) => void }) {
+function Summary({
+  session,
+  onRate,
+  onFinish,
+}: {
+  session: Session;
+  onRate: (r: CalmerRating) => void;
+  onFinish: () => void;
+}) {
   const { data } = session;
   const rows = useMemo(
     () =>
@@ -298,9 +341,9 @@ function Summary({ session, onRate }: { session: Session; onRate: (r: CalmerRati
       </div>
 
       <div className={styles.actions}>
-        <Link href="/" className={`${styles.button} ${styles.primary}`}>
+        <button type="button" className={`${styles.button} ${styles.primary}`} onClick={onFinish}>
           Save and finish
-        </Link>
+        </button>
       </div>
     </div>
   );
@@ -340,7 +383,7 @@ function SafetyPause() {
       </div>
 
       <div className={styles.actions}>
-        <Link href="/" className={`${styles.button} ${styles.secondary}`}>
+        <Link href="/app" className={`${styles.button} ${styles.secondary}`}>
           I’m safe, go back home
         </Link>
       </div>
