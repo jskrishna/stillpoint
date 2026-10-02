@@ -240,3 +240,51 @@
 .tabOn {
   color: var(--sp-color-accent);
 }
+
+/* Settings rows */
+.settingRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-space-md);
+  width: 100%;
+  min-height: 54px;
+  padding: var(--sp-space-sm) 0;
+  border: 0;
+  border-bottom: 1px solid var(--sp-color-line);
+  background: none;
+  color: var(--sp-color-ink);
+  font: inherit;
+  font-size: var(--sp-text-control);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.settingValue {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-sm);
+  color: var(--sp-color-muted);
+}
+
+.select {
+  border: 0;
+  background: none;
+  color: var(--sp-color-muted);
+  font: inherit;
+  font-size: var(--sp-text-control);
+  text-align: right;
+  cursor: pointer;
+}
+
+.danger {
+  color: var(--sp-color-danger);
+}
+
+.footnote {
+  margin-top: var(--sp-space-xl);
+  font-size: var(--sp-text-caption);
+  line-height: var(--sp-leading-normal);
+  color: var(--sp-color-muted);
+}

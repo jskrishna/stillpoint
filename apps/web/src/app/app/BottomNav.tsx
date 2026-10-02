@@ -8,6 +8,7 @@ const TABS = [
   { href: '/app', label: 'Home' },
   { href: '/app/journal', label: 'Journal' },
   { href: '/app/insights', label: 'Insights' },
+  { href: '/app/settings', label: 'Settings' },
 ] as const;
 
 export default function BottomNav() {
