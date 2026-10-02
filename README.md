@@ -60,6 +60,9 @@ clients, shared sessions and notes). Help in a crisis is always free.
 │   │       ├── steps.ts     # the six steps, their prompts and completion rules
 │   │       ├── session.ts   # the session state machine (pure reducer)
 │   │       ├── version.ts   # live/draft protocol versions and publishing
+│   │       ├── conversation.ts # one turn: safety screened, then the guide
+│   │       ├── guide.ts     # the guide seam — an LLM slots in here
+│   │       ├── risk.ts      # safety phrase screen (a backstop, not the detector)
 │   │       ├── journal.ts   # entries derived from finished sessions
 │   │       ├── insights.ts  # what the journal adds up to over a window
 │   │       ├── feelings.ts  # the feelings a session can capture
@@ -139,6 +142,23 @@ An earlier "Dusk to Light" exploration exists in the design artifacts and is not
 current — Warm & Clear is the newest direction and the only one drawn for all
 five surfaces. The one thing carried over is the feeling palette, since nothing
 in Warm & Clear assigns the twelve feelings colours.
+
+## The conversation seam
+
+`guide.ts` defines what a guide may do; in the product that is a language model.
+`scriptedGuide` is a deterministic stand-in that follows the protocol's own
+prompts and backups so the turn loop can be exercised and tested today. It
+understands nothing, and extraction is left to the caller — which is exactly
+where a model slots in.
+
+`takeTurn()` screens safety **before** the guide is consulted. On a high-risk
+utterance it ends the session and the guide is never called at all. There is a
+test asserting exactly that.
+
+`risk.ts` is a deliberately over-eager phrase screen, and a **backstop rather
+than the detector**: it will miss things, it reads English phrasings only, and
+no clinical claim should rest on it. A real deployment needs a trained model and
+sign-off from someone qualified to judge it.
 
 ## Still open
 

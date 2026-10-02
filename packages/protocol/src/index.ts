@@ -149,3 +149,16 @@ export {
   type CoachSharing,
   type Preferences,
 } from './onboarding.js';
+
+export { baselineRiskScreen, noRiskScreen, type RiskAssessment, type RiskScreen } from './risk.js';
+
+export {
+  scriptedGuide,
+  toCapture,
+  type Guide,
+  type GuideContext,
+  type GuideReply,
+  type Extraction,
+} from './guide.js';
+
+export { takeTurn, openingLine, type TurnResult, type TurnDeps } from './conversation.js';

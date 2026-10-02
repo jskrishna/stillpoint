@@ -33,6 +33,26 @@ Helplines resolve by country and cover India only. `helplinesFor()` returns an
 empty list for anywhere else — leave it that way rather than substituting a
 plausible-looking number. A wrong crisis number is worse than none.
 
+## The risk screen is a backstop, not the detector
+
+`packages/protocol/src/risk.ts` is a small phrase screen. It exists so the
+obvious cases cannot be missed while a real classifier is chosen and reviewed.
+It cannot read tone, context, metaphor or code-switching, and it knows English
+phrasings only.
+
+**Never describe it as sufficient, and never let a clinical claim rest on it.**
+Shipping needs a trained model and sign-off from someone qualified to judge it.
+It is tuned for recall on purpose: a false flag costs a reviewer a minute, a
+missed one costs something that cannot be undone. Grade an ambiguous phrase up.
+
+## Safety is screened before the guide speaks
+
+`takeTurn()` assesses risk first and, on a high-risk utterance, ends the session
+**without consulting the guide at all**. A model answering someone who has just
+said they are not safe is the exact failure this ordering prevents. There is a
+test asserting the guide is never called; treat a change that breaks it as a
+bug, not a failing test to update.
+
 ## Do not invent product copy
 
 Only step 4 "Remember" is fully specified in the designs. Unspecified prompt
