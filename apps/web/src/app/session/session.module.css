@@ -333,3 +333,20 @@
   font-size: var(--sp-text-subheading);
   font-weight: var(--sp-weight-bold);
 }
+
+/* "YOU SAID": the user's last answer, echoed back as the designs show it. */
+.saidCard {
+  margin-top: var(--sp-space-xl);
+  padding: var(--sp-space-lg);
+  border-radius: var(--sp-radius-card);
+  background: var(--sp-color-panel);
+  box-shadow: var(--sp-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-xs);
+}
+
+.saidText {
+  font-size: var(--sp-text-control);
+  line-height: var(--sp-leading-normal);
+}

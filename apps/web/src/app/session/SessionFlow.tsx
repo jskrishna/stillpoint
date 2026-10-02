@@ -1,32 +1,34 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   BASELINE,
+  FEELINGS,
   MAX_FEELINGS,
   MORE_FEELINGS,
   PRIMARY_FEELINGS,
   STEP_COUNT,
   STEP_LIST,
   apply,
+  baselineRiskScreen,
   canSelectMore,
   currentOrdinal,
   entryFrom,
-  forgivenessFor,
   helplinesFor,
+  openingLine,
   startSession,
   stepIn,
+  takeTurn,
   toggleFeeling,
   type CalmerRating,
   type FeelingId,
   type Session,
-  type SessionEvent,
-  type StepId,
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
 import { browserJournalStore } from '../../lib/journal-store';
+import { webGuide } from '../../lib/guide';
 import styles from './session.module.css';
 
 const RATINGS: readonly { value: CalmerRating; label: string }[] = [
@@ -35,60 +37,37 @@ const RATINGS: readonly { value: CalmerRating; label: string }[] = [
   { value: 'no', label: 'No' },
 ];
 
-type Capture = NonNullable<Extract<SessionEvent, { type: 'step_satisfied' }>['capture']>;
+const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
+
+const DEPS = { guide: webGuide, risk: baselineRiskScreen };
 
 /**
- * What each step contributes to the session.
+ * The six-step flow.
  *
- * Absent values are omitted rather than set to undefined: with
- * exactOptionalPropertyTypes, "no forgiveness" and "forgiveness: undefined"
- * are different things, and only the first is true here.
- */
-function captureFor(id: StepId, text: string, feelings: readonly FeelingId[]): Capture {
-  switch (id) {
-    case 'notice':
-      return { whatHappened: text, title: text.slice(0, 60) };
-    case 'feel':
-      return { feelings };
-    case 'remember':
-      return { memory: { description: text } };
-    case 'inquire': {
-      const forgiveness = forgivenessFor(text);
-      return forgiveness === undefined ? { belief: text } : { belief: text, forgiveness };
-    }
-    default:
-      return {};
-  }
-}
-
-/**
- * The six-step flow, driven by the protocol reducer.
+ * The screen does not decide anything. Every answer goes through takeTurn(),
+ * which screens safety first and only then asks the guide whether the step is
+ * done — so the session advances because the guide said so, not because a
+ * button was pressed. The typed path is built because the voice stack is not
+ * chosen; "Type instead" is a first-class route on every designed screen.
  *
- * Every transition goes through `apply()`: the screen holds no rules of its
- * own, so what a user sees and what the domain believes cannot diverge. The
- * typed path is built here rather than the voice one — "Type instead" is a
- * first-class route on every designed screen, and the voice stack is not
- * chosen yet.
+ * Step 3 is the one exception, and by design: it is a chip picker, not a
+ * conversation, so there is no utterance to screen or interpret.
  */
 export default function SessionFlow() {
   const [session, setSession] = useState<Session>(() => startSession('full', BASELINE.number));
+  const [guideLine, setGuideLine] = useState<string>(() =>
+    openingLine(startSession('full', BASELINE.number), BASELINE, webGuide),
+  );
   const [answer, setAnswer] = useState('');
+  const [lastSaid, setLastSaid] = useState('');
   const [feelings, setFeelings] = useState<readonly FeelingId[]>([]);
   const [showMore, setShowMore] = useState(false);
-  const startedAt = useRef(Date.now());
-  const router = useRouter();
 
+  const startedAt = useRef(Date.now());
   const entryId = `s_${String(startedAt.current)}`;
   const saved = useRef(false);
+  const router = useRouter();
 
-  /**
-   * Writes the finished session to the journal, once.
-   *
-   * This is an effect of the session having ended, not of the click that ended
-   * it: running it inside a state updater fires at the wrong time and can run
-   * twice. entryFrom() returns nothing for a session that ended for safety, so
-   * a crisis is never journalled — that rule lives in the domain, not here.
-   */
   useEffect(() => {
     if (session.phase !== 'ended' || saved.current) return;
     const entry = entryFrom(session, {
@@ -103,16 +82,30 @@ export default function SessionFlow() {
   const ordinal = currentOrdinal(session);
   const definition = session.stepId === null ? null : stepIn(BASELINE, session.stepId);
 
-  const advance = useCallback(() => {
-    if (session.stepId === null) return;
-    const id = session.stepId;
+  /** Submits a typed answer through the turn loop. */
+  const submit = useCallback(() => {
     const text = answer.trim();
+    if (text === '') return;
 
-    setSession((current) =>
-      apply(current, { type: 'step_satisfied', capture: captureFor(id, text, feelings) }),
-    );
+    const result = takeTurn(session, BASELINE, text, DEPS);
+    setSession(result.session);
+    setLastSaid(text);
     setAnswer('');
-  }, [session.stepId, answer, feelings]);
+
+    if (result.stopped) return;
+    setGuideLine(
+      result.advanced ? openingLine(result.session, BASELINE, webGuide) : result.say || guideLine,
+    );
+  }, [answer, session, guideLine]);
+
+  /** Step 3 is a selection, so it advances without an utterance to screen. */
+  const submitFeelings = useCallback(() => {
+    if (feelings.length === 0) return;
+    const next = apply(session, { type: 'step_satisfied', capture: { feelings } });
+    setSession(next);
+    setLastSaid(feelings.map((id) => LABEL.get(id) ?? id).join(', '));
+    setGuideLine(openingLine(next, BASELINE, webGuide));
+  }, [feelings, session]);
 
   const stop = useCallback(() => {
     setSession((current) => apply(current, { type: 'user_stopped' }));
@@ -142,7 +135,8 @@ export default function SessionFlow() {
     );
   }
 
-  const canContinue = session.stepId === 'feel' ? feelings.length > 0 : answer.trim() !== '';
+  const onFeelStep = session.stepId === 'feel';
+  const canContinue = onFeelStep ? feelings.length > 0 : answer.trim() !== '';
 
   return (
     <div className={styles.screen}>
@@ -162,16 +156,23 @@ export default function SessionFlow() {
         </div>
       </div>
 
-      {definition?.prompts.main === null ? (
+      {guideLine === '' ? (
         <p className={styles.missing}>
           This step has no question yet. The copy for it is still owed by the PRD, so the protocol
           cannot be published — see <code>incompleteSteps()</code>.
         </p>
       ) : (
-        <p className={styles.question}>{definition?.prompts.main}</p>
+        <p className={styles.question}>{guideLine}</p>
       )}
 
-      {session.stepId === 'feel' ? (
+      {lastSaid === '' ? null : (
+        <div className={styles.saidCard}>
+          <span className={styles.label}>YOU SAID</span>
+          <p className={styles.saidText}>“{lastSaid}”</p>
+        </div>
+      )}
+
+      {onFeelStep ? (
         <FeelingPicker
           selected={feelings}
           showMore={showMore}
@@ -200,7 +201,7 @@ export default function SessionFlow() {
         <button
           type="button"
           className={`${styles.button} ${styles.primary}`}
-          onClick={advance}
+          onClick={onFeelStep ? submitFeelings : submit}
           disabled={!canContinue}
         >
           Continue
@@ -287,12 +288,7 @@ function Summary({
           label: 'WHAT YOU FELT',
           value:
             data.feelings.length > 0
-              ? data.feelings
-                  .map(
-                    (id) => PRIMARY_FEELINGS.concat(MORE_FEELINGS).find((f) => f.id === id)?.label,
-                  )
-                  .filter((l): l is string => l !== undefined)
-                  .join(', ')
+              ? data.feelings.map((id) => LABEL.get(id) ?? id).join(', ')
               : undefined,
         },
         { label: 'OLD BELIEF', value: data.belief === undefined ? undefined : `“${data.belief}”` },
