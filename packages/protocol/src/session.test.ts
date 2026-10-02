@@ -95,30 +95,30 @@ describe('gathering what the summary reports', () => {
 
 describe('safety', () => {
   it('stops the session the moment a crisis is detected', () => {
-    const s = apply(startSession(), { type: 'safety_signal', level: 'crisis' });
+    const s = apply(startSession(), { type: 'safety_signal', level: 'high' });
     expect(s.phase).toBe('ended');
     expect(s.endReason).toBe('safety_stop');
     expect(s.stepId).toBeNull();
-    expect(s.safetyLevel).toBe('crisis');
+    expect(s.safetyLevel).toBe('high');
   });
 
   it('records a concern without stopping', () => {
-    const s = apply(startSession(), { type: 'safety_signal', level: 'concern' });
+    const s = apply(startSession(), { type: 'safety_signal', level: 'medium' });
     expect(s.phase).toBe('in_step');
     expect(s.stepId).toBe('notice');
-    expect(s.safetyLevel).toBe('concern');
+    expect(s.safetyLevel).toBe('medium');
   });
 
   it('never lowers the safety level once raised', () => {
     const s = applyAll(startSession(), [
-      { type: 'safety_signal', level: 'concern' },
+      { type: 'safety_signal', level: 'medium' },
       { type: 'safety_signal', level: 'none' },
     ]);
-    expect(s.safetyLevel).toBe('concern');
+    expect(s.safetyLevel).toBe('medium');
   });
 
   it('cannot be resumed after a safety stop', () => {
-    const stopped = apply(startSession(), { type: 'safety_signal', level: 'crisis' });
+    const stopped = apply(startSession(), { type: 'safety_signal', level: 'high' });
     const after = applyAll(stopped, [satisfy, { type: 'guide_turn' }]);
     expect(after).toEqual(stopped);
     expect(after.endReason).toBe('safety_stop');
@@ -151,7 +151,7 @@ describe('the summary rating', () => {
   });
 
   it('is accepted even after a safety stop, without reopening the session', () => {
-    const stopped = apply(startSession(), { type: 'safety_signal', level: 'crisis' });
+    const stopped = apply(startSession(), { type: 'safety_signal', level: 'high' });
     const rated = apply(stopped, { type: 'rated', rating: 'no' });
     expect(rated.phase).toBe('ended');
     expect(rated.data.calmerRating).toBe('no');

@@ -119,7 +119,7 @@ export default function SessionFlow() {
   }, []);
 
   const raiseSafety = useCallback(() => {
-    setSession((current) => apply(current, { type: 'safety_signal', level: 'crisis' }));
+    setSession((current) => apply(current, { type: 'safety_signal', level: 'high' }));
   }, []);
 
   const rate = useCallback(

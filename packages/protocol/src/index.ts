@@ -43,11 +43,20 @@ export {
 
 export {
   SAFETY_ACTION,
+  SAFETY_LEVELS,
+  SAFETY_CATEGORY_LABEL,
   HELPLINES_IN,
   mustStop,
   mustFlag,
+  moreSevere,
+  openFlags,
+  byUrgency,
+  markReviewed,
   helplinesFor,
   type SafetyLevel,
+  type SafetyCategory,
+  type SafetyFlag,
+  type FlagStatus,
   type Helpline,
 } from './safety.js';
 

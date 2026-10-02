@@ -73,7 +73,7 @@ describe('entryFrom', () => {
   });
 
   it('refuses to journal a session that ended for safety', () => {
-    const stopped = apply(startSession(), { type: 'safety_signal', level: 'crisis' });
+    const stopped = apply(startSession(), { type: 'safety_signal', level: 'high' });
     expect(entryFrom(stopped, CTX)).toBeUndefined();
   });
 

@@ -15,7 +15,7 @@ body {
   margin: 0;
   background: var(--sp-color-bg);
   color: var(--sp-color-ink);
-  font-family: var(--font-ui), var(--sp-font-ui);
+  font-family: var(--sp-font-ui);
   font-size: var(--sp-text-control);
   line-height: var(--sp-leading-normal);
 }
@@ -23,7 +23,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--font-display), var(--sp-font-display);
+  font-family: var(--sp-font-display);
   font-weight: var(--sp-weight-bold);
   letter-spacing: -0.01em;
   line-height: var(--sp-leading-tight);

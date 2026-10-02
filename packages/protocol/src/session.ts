@@ -12,7 +12,7 @@
  */
 
 import { isFeelingId, type FeelingId } from './feelings.js';
-import { mustStop, type SafetyLevel } from './safety.js';
+import { moreSevere, mustStop, type SafetyLevel } from './safety.js';
 import { nextStep, step, STEP_ORDER, type StepId } from './steps.js';
 import type { ProtocolVersion, VersionNumber } from './version.js';
 
@@ -119,13 +119,6 @@ export type SessionEvent =
   /** The user rated how they feel on the summary screen. */
   | { readonly type: 'rated'; readonly rating: CalmerRating };
 
-/** Severity order, so a session's safety level only ever rises. */
-const SAFETY_RANK: Readonly<Record<SafetyLevel, number>> = { none: 0, concern: 1, crisis: 2 };
-
-function raise(current: SafetyLevel, next: SafetyLevel): SafetyLevel {
-  return SAFETY_RANK[next] > SAFETY_RANK[current] ? next : current;
-}
-
 function mergeData(
   data: SessionData,
   capture: Extract<SessionEvent, { type: 'step_satisfied' }>['capture'],
@@ -178,7 +171,7 @@ export function apply(session: Session, event: SessionEvent): Session {
     }
 
     case 'safety_signal': {
-      const safetyLevel = raise(session.safetyLevel, event.level);
+      const safetyLevel = moreSevere(session.safetyLevel, event.level);
       const raised = { ...session, safetyLevel };
       return mustStop(event.level) ? end(raised, 'safety_stop') : raised;
     }

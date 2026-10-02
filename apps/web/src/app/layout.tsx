@@ -1,24 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { Hanken_Grotesk, Newsreader } from 'next/font/google';
 import { stylesheet } from '@stillpoint/design-tokens';
 import './globals.css';
-
-/** The guide's voice and the user's own words. */
-const newsreader = Newsreader({
-  subsets: ['latin'],
-  weight: ['400', '500'],
-  style: ['normal', 'italic'],
-  variable: '--font-display',
-  display: 'swap',
-});
-
-/** Everything the user operates. */
-const hanken = Hanken_Grotesk({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-ui',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'Stillpoint — talk it through',
@@ -34,8 +16,21 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${newsreader.variable} ${hanken.variable}`}>
+    <html lang="en">
       <head>
+        {/*
+          Fonts are linked rather than fetched through next/font, which pulls
+          them at build time and so makes the build depend on reaching Google
+          Fonts. The stacks in the design tokens name a local fallback, so the
+          layout holds before the webfont arrives — and the designs link them
+          the same way.
+        */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
+        />
         {/*
           Tokens are emitted from @stillpoint/design-tokens rather than copied
           into a stylesheet, so the site cannot drift from the design system.
