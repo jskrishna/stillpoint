@@ -28,7 +28,18 @@ export {
   type ProtocolStep,
 } from './steps.js';
 
-export { FEELINGS, feeling, isFeelingId, type Feeling, type FeelingId } from './feelings.js';
+export {
+  FEELINGS,
+  PRIMARY_FEELINGS,
+  MORE_FEELINGS,
+  MAX_FEELINGS,
+  feeling,
+  isFeelingId,
+  toggleFeeling,
+  canSelectMore,
+  type Feeling,
+  type FeelingId,
+} from './feelings.js';
 
 export {
   SAFETY_ACTION,

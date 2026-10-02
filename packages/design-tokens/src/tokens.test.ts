@@ -68,6 +68,10 @@ describe('feeling colours', () => {
     expect(FEELING_SWATCHES).toHaveLength(FEELINGS.length);
     expect(FEELING_SWATCHES[0]).toEqual({ id: 'angry', label: 'Angry', color: '#B8553E' });
   });
+
+  it('colours the chips behind "See more feelings" too', () => {
+    expect(FEELING_COLOR.humiliated).toMatch(HEX);
+  });
 });
 
 describe('scales', () => {

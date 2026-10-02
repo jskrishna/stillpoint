@@ -29,7 +29,7 @@ export default function Landing() {
           <Link href="/pricing" className={styles.navLink}>
             Pricing
           </Link>
-          <Link href="/pricing" className={`${styles.button} ${styles.primary} ${styles.compact}`}>
+          <Link href="/session" className={`${styles.button} ${styles.primary} ${styles.compact}`}>
             Start free
           </Link>
         </nav>
@@ -42,7 +42,7 @@ export default function Landing() {
             Stillpoint is a voice guide that helps you calm down and understand why something hurt,
             in {STEP_COUNT} simple steps.
           </p>
-          <Link href="/pricing" className={`${styles.button} ${styles.primary}`}>
+          <Link href="/session" className={`${styles.button} ${styles.primary}`}>
             Start a free session
           </Link>
           <span className={styles.disclaimer}>

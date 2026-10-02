@@ -2,7 +2,7 @@
   "name": "stillpoint",
   "version": "0.1.0",
   "private": true,
-  "description": "Stillpoint \u2014 a voice guide through the six-step Choose Again process",
+  "description": "Stillpoint — a voice guide through the six-step Choose Again process",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -12,7 +12,7 @@
   "scripts": {
     "build": "pnpm -r run build",
     "clean": "pnpm -r run clean && rm -rf coverage",
-    "typecheck": "tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.test.json && pnpm --filter './apps/*' run typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -29,6 +29,7 @@
     "@vitest/coverage-v8": "^5.0.3",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
+    "playwright": "^1.63.0",
     "prettier": "^3.9.9",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.0",
