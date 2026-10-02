@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { byNewest, listSummary, type JournalEntry } from '@stillpoint/protocol';
 import { browserJournalStore } from '../../../lib/journal-store';
 import { duration, relativeDay } from '../../../lib/format';
@@ -26,7 +27,7 @@ export default function Journal() {
         </p>
       ) : (
         entries.map((entry) => (
-          <div key={entry.id} className={styles.row}>
+          <Link key={entry.id} href={`/app/journal/${entry.id}`} className={styles.row}>
             <span className={styles.cardText}>
               <span className={styles.cardTitle}>{entry.title}</span>
               <span className={styles.cardMeta}>
@@ -36,7 +37,7 @@ export default function Journal() {
               <span className={styles.rowBelief}>{listSummary(entry)}</span>
             </span>
             <span className={styles.chevron}>›</span>
-          </div>
+          </Link>
         ))
       )}
     </>

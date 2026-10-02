@@ -122,3 +122,12 @@ export {
   type PublishProblem,
   type PublishResult,
 } from './version.js';
+
+export {
+  sharedWith,
+  summarise,
+  type Client,
+  type ClientStatus,
+  type ClientSummary,
+  type Attention,
+} from './coach.js';

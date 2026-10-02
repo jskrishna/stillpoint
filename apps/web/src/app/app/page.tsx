@@ -48,7 +48,7 @@ export default function Home() {
         <p className={styles.empty}>Nothing yet. Your finished sessions will appear here.</p>
       ) : (
         recent.map((entry) => (
-          <Link key={entry.id} href={`/app/journal`} className={styles.card}>
+          <Link key={entry.id} href={`/app/journal/${entry.id}`} className={styles.card}>
             <span className={styles.cardText}>
               <span className={styles.cardTitle}>{entry.title}</span>
               <span className={styles.cardMeta}>
