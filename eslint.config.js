@@ -4,7 +4,7 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/.next/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -13,7 +13,7 @@ export default tseslint.config(
       parserOptions: {
         // tsconfig.test.json spans src, tests and the root *.config.ts files,
         // so every linted TypeScript file belongs to a known project.
-        project: ['./tsconfig.test.json'],
+        project: ['./tsconfig.test.json', './apps/web/tsconfig.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },

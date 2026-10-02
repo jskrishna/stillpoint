@@ -11,6 +11,10 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
+    // Keep the incremental build info inside the output directory, so removing
+    // dist/ also removes it. Left at the default, a deleted dist/ plus a stale
+    // tsbuildinfo makes `tsc --build` report success while emitting nothing.
+    "tsBuildInfoFile": "${configDir}/dist/.tsbuildinfo",
 
     "strict": true,
     "noUncheckedIndexedAccess": true,

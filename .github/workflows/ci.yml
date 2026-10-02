@@ -35,6 +35,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The web app consumes the workspace packages through node_modules, so
+      # their built output must exist before lint and typecheck run.
+      - name: Build packages
+        run: pnpm run build:packages
+
       - name: Check formatting
         run: pnpm run format:check
 

@@ -58,7 +58,7 @@ TypeScript is pinned to the 6.0 line because `typescript-eslint` 8.x declares a
 ```
 packages/protocol/        @stillpoint/protocol — domain core, no I/O
 packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, type, space
-apps/                     (empty) surfaces go here
+apps/web/                 @stillpoint/web — Next.js marketing site (and, later, the web app)
 ```
 
 `packages/protocol` must stay free of I/O **and of presentation**: no network,
@@ -76,17 +76,26 @@ twelve feelings colours at all.
 ## Commands
 
 ```bash
-pnpm run check   # format:check + lint + typecheck + test, in CI's order
-pnpm run build   # all workspace packages
+pnpm run check   # build:packages, then format:check + lint + typecheck + test
+pnpm run build   # every workspace project, packages first
 ```
 
-CI runs exactly the `check` gates plus `build`, so a green
-`pnpm run check && pnpm run build` means a green CI run.
+`check` builds the packages first on purpose: `apps/web` resolves
+`@stillpoint/*` through `node_modules` to their built output, exactly as an
+outside consumer would, so lint and typecheck need that output to exist. CI runs
+the same steps in the same order.
+
+**Verify on a clean tree before pushing.** Delete `node_modules`, every
+`packages/*/dist` and `apps/web/.next`, reinstall with `--frozen-lockfile`, then
+run the gates in CI's order. A leftover `dist/` has twice made a broken commit
+look green locally.
 
 ## Conventions
 
-- Use `.js` extensions in relative import specifiers, even for TypeScript
-  sources — required by `NodeNext` resolution.
+- In `packages/*`, use `.js` extensions in relative import specifiers, even for
+  TypeScript sources — required by `NodeNext` resolution. In `apps/web` do
+  **not**: it resolves with `Bundler`, and Turbopack will not rewrite `.js` to
+  `.ts`.
 - Type-only imports as `import type { ... }` (lint-enforced).
 - Tests co-located as `*.test.ts` next to the module.
 - The session reducer is pure: `apply()` must never mutate its input.
@@ -111,6 +120,11 @@ it is missing from `tsconfig.test.json`'s `include`.
 - `exclude` is inherited by extending configs even when `include` is overridden.
 - `pnpm/action-setup` must run **before** `actions/setup-node` in CI, since
   `cache: pnpm` needs the pnpm binary to exist.
+- `tsBuildInfoFile` points inside `dist/`. Left at its default, deleting `dist/`
+  without the `.tsbuildinfo` makes `tsc --build` report success and emit
+  nothing.
+- `noPropertyAccessFromIndexSignature` is off in `apps/web` only: CSS Modules
+  type as an index signature, so every `styles.foo` would need `styles['foo']`.
 
 ## Decisions taken
 

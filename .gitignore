@@ -32,3 +32,6 @@ Thumbs.db
 # Caches
 .cache/
 .eslintcache
+.next/
+out/
+next-env.d.ts
