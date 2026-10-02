@@ -21,8 +21,18 @@ helplines are shown immediately.
 | 5   | Inquire        | Say what you decided about yourself then.    |
 | 6   | Forgive        | Let that old belief go.                      |
 
-A session ends on a summary: what happened, what you felt, the old belief, and a
-"do you feel a bit calmer?" rating. It is then saved to the journal.
+A session ends on a summary: what happened, what you felt, the old belief, the
+forgiveness spoken at step 6, and a "do you feel a bit calmer?" rating. It is
+then saved to the journal, which only its user can see until they share an entry
+with a coach.
+
+Sessions come in two kinds. A **full** session walks all six steps; a **quick**
+one is shorter and is listed as "Quick session". Plans treat them differently —
+Free allows three full sessions a week but unlimited quick ones.
+
+Insights summarise the last 30 days: sessions, how many the user said they felt
+calmer after, how many reached step 6, the feelings chosen most, and the belief
+that keeps coming back.
 
 ## Surfaces
 
@@ -49,7 +59,9 @@ clients, shared sessions and notes). Help in a crisis is always free.
 │   │   └── src/
 │   │       ├── steps.ts     # the six steps, their prompts and completion rules
 │   │       ├── session.ts   # the session state machine (pure reducer)
-│   │       ├── feelings.ts  # the twelve feelings
+│   │       ├── journal.ts   # entries derived from finished sessions
+│   │       ├── insights.ts  # what the journal adds up to over a window
+│   │       ├── feelings.ts  # the feelings a session can capture
 │   │       └── safety.ts    # safety levels, actions and helplines
 │   └── design-tokens/       # @stillpoint/design-tokens — Warm & Clear
 │       └── src/

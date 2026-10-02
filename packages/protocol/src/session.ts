@@ -21,6 +21,15 @@ export type InputMode = 'voice' | 'text';
 /** How the user rated their state on the summary screen. */
 export type CalmerRating = 'yes' | 'a_little' | 'no';
 
+/**
+ * Whether a session walked the whole protocol or was a short one.
+ *
+ * The journal lists both: a full session shows the belief it surfaced, a quick
+ * one is labelled "Quick session". The plans differ on them too — Free allows
+ * three full sessions a week but unlimited quick ones.
+ */
+export type SessionKind = 'full' | 'quick';
+
 /** The childhood memory captured at step 4. */
 export interface Memory {
   readonly description: string;
@@ -35,6 +44,14 @@ export interface SessionData {
   readonly memory?: Memory;
   /** The old belief, in the user's own words. */
   readonly belief?: string;
+  /**
+   * The forgiveness the user speaks at step 6, e.g. "Forgive me for believing
+   * that I am not good enough." Phrased from the belief by
+   * {@link forgivenessFor} unless the guide captures its own wording.
+   */
+  readonly forgiveness?: string;
+  /** A short title for the journal, e.g. "Called out at work". */
+  readonly title?: string;
   readonly calmerRating?: CalmerRating;
 }
 
@@ -45,6 +62,7 @@ export type EndReason = 'completed' | 'safety_stop' | 'user_stopped';
 export type SessionPhase = 'in_step' | 'ended';
 
 export interface Session {
+  readonly kind: SessionKind;
   readonly phase: SessionPhase;
   /** The step in progress. `null` once the session has ended. */
   readonly stepId: StepId | null;
@@ -58,8 +76,9 @@ export interface Session {
 }
 
 /** Starts a session at step 1 with nothing gathered. */
-export function startSession(): Session {
+export function startSession(kind: SessionKind = 'full'): Session {
   return {
+    kind,
     phase: 'in_step',
     stepId: STEP_ORDER[0],
     guideTurnsUsed: 0,
@@ -175,6 +194,33 @@ export function isOutOfGuideTurns(session: Session): boolean {
   if (session.stepId === null) return false;
   const max = step(session.stepId).maxGuideTurns;
   return max !== null && session.guideTurnsUsed >= max;
+}
+
+/**
+ * Phrases the forgiveness line for a belief, as the journal shows it:
+ * "I'm not good enough." becomes "Forgive me for believing that I am not good
+ * enough."
+ *
+ * Best-effort English phrasing from the user's own words — the guide may
+ * capture its own wording instead, and `undefined` here simply means there is
+ * nothing to phrase yet.
+ */
+export function forgivenessFor(belief: string | undefined): string | undefined {
+  if (belief === undefined) return undefined;
+
+  const trimmed = belief
+    .trim()
+    // The belief is quoted wherever it is displayed; store it unquoted.
+    .replace(/^["“”']+|["“”']+$/g, '')
+    .trim()
+    .replace(/[.。]+$/, '')
+    .trim();
+
+  if (trimmed === '') return undefined;
+
+  // "I'm" reads wrong inside "believing that ..."; expand it, straight or curly.
+  const expanded = trimmed.replace(/\bI['’]m\b/g, 'I am');
+  return `Forgive me for believing that ${expanded}.`;
 }
 
 /** 1-based position of the current step, or `null` once ended. */

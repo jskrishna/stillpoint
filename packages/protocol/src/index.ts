@@ -46,12 +46,35 @@ export {
   applyAll,
   isOutOfGuideTurns,
   currentOrdinal,
+  forgivenessFor,
   type Session,
   type SessionEvent,
   type SessionData,
   type SessionPhase,
+  type SessionKind,
   type EndReason,
   type InputMode,
   type CalmerRating,
   type Memory,
 } from './session.js';
+
+export {
+  entryFrom,
+  listSummary,
+  withNote,
+  withSharing,
+  byNewest,
+  FINAL_STEP_ORDINAL,
+  type JournalEntry,
+  type EntryContext,
+} from './journal.js';
+
+export {
+  insights,
+  recurringBelief,
+  withinWindow,
+  DEFAULT_WINDOW_DAYS,
+  type Insights,
+  type FeelingCount,
+  type RecurringBelief,
+} from './insights.js';

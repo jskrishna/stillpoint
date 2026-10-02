@@ -14,6 +14,7 @@ export type FeelingId =
   | 'anxious'
   | 'sad'
   | 'guilty'
+  | 'ashamed'
   | 'humiliated'
   | 'rejected'
   | 'unworthy'
@@ -35,6 +36,7 @@ export const FEELINGS = [
   { id: 'anxious', label: 'Anxious' },
   { id: 'sad', label: 'Sad' },
   { id: 'guilty', label: 'Guilty' },
+  { id: 'ashamed', label: 'Ashamed' },
   { id: 'humiliated', label: 'Humiliated' },
   { id: 'rejected', label: 'Rejected' },
   { id: 'unworthy', label: 'Unworthy' },

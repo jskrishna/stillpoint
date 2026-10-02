@@ -64,7 +64,10 @@ describe('gathering what the summary reports', () => {
     const s = applyAll(startSession(), [
       { type: 'step_satisfied', capture: { whatHappened: 'Manager pointed out my mistake' } },
       satisfy,
-      { type: 'step_satisfied', capture: { feelings: ['ashamed', 'rejected', 'unworthy'] } },
+      {
+        type: 'step_satisfied',
+        capture: { feelings: ['ashamed', 'hangry', 'rejected', 'unworthy'] },
+      },
       { type: 'step_satisfied', capture: { memory: { description: 'Class 3', age: 8 } } },
       { type: 'step_satisfied', capture: { belief: 'I’m not good enough.' } },
       satisfy,
@@ -74,8 +77,9 @@ describe('gathering what the summary reports', () => {
     expect(s.data.whatHappened).toBe('Manager pointed out my mistake');
     expect(s.data.memory).toEqual({ description: 'Class 3', age: 8 });
     expect(s.data.belief).toBe('I’m not good enough.');
-    // "ashamed" is not in the taxonomy, so it is dropped rather than stored.
-    expect(s.data.feelings).toEqual(['rejected', 'unworthy']);
+    // "hangry" is not in the taxonomy, so it is dropped rather than stored;
+    // "ashamed" is, so it survives.
+    expect(s.data.feelings).toEqual(['ashamed', 'rejected', 'unworthy']);
   });
 
   it('keeps earlier captures as later steps add to them', () => {

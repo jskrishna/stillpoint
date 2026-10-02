@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { FEELINGS, feeling, isFeelingId } from './feelings.js';
 
 describe('feelings', () => {
-  it('carries the twelve feelings of the design language', () => {
-    expect(FEELINGS).toHaveLength(12);
+  it('carries the design language’s twelve plus "Ashamed"', () => {
+    // "Ashamed" has no swatch in the design language but is used on the
+    // summary, session detail, journal detail and insights screens.
+    expect(FEELINGS).toHaveLength(13);
+    expect(FEELINGS.map((f) => f.id)).toContain('ashamed');
   });
 
   it('gives every feeling a label', () => {

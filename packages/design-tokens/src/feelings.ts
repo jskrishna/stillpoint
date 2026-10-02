@@ -19,6 +19,10 @@ export const FEELING_COLOR: Readonly<Record<FeelingId, Hex>> = {
   anxious: '#8A8FB0',
   sad: '#45627E',
   guilty: '#7A6454',
+  // Derived, not sourced: the design language's palette predates "Ashamed"
+  // appearing on the Warm & Clear screens. Muted and earthy to match, and kept
+  // clear of humiliated, unworthy and hurt.
+  ashamed: '#8E6A62',
   humiliated: '#8E5C7E',
   rejected: '#A8704F',
   unworthy: '#8B7447',
