@@ -4,7 +4,16 @@
     "noEmit": true,
     "composite": false,
     "rootDir": ".",
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+
+    // Resolve workspace packages to their sources, so typecheck and type-aware
+    // linting work on a fresh clone with no dist/ present. The package builds
+    // (packages/*/tsconfig.json) deliberately do NOT do this: they resolve
+    // through node_modules to real .d.ts, which is what consumers get.
+    "paths": {
+      "@stillpoint/protocol": ["./packages/protocol/src/index.ts"],
+      "@stillpoint/design-tokens": ["./packages/design-tokens/src/index.ts"]
+    }
   },
   "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "*.config.ts"],
   "exclude": ["**/dist", "**/node_modules"]

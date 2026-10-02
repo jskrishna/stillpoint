@@ -1,6 +1,18 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
+/** Workspace packages resolve to source, matching tsconfig.test.json's paths. */
+const alias = {
+  '@stillpoint/protocol': fileURLToPath(
+    new URL('./packages/protocol/src/index.ts', import.meta.url),
+  ),
+  '@stillpoint/design-tokens': fileURLToPath(
+    new URL('./packages/design-tokens/src/index.ts', import.meta.url),
+  ),
+};
+
 export default defineConfig({
+  resolve: { alias },
   test: {
     globals: true,
     environment: 'node',
