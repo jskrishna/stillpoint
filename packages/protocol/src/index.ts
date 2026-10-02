@@ -131,3 +131,21 @@ export {
   type ClientSummary,
   type Attention,
 } from './coach.js';
+
+export {
+  CONSENT_ITEMS,
+  REQUIRED_CONSENT,
+  GUIDE_VOICES,
+  DEFAULT_VOICE,
+  TALK_MODE_LABEL,
+  COACH_SHARING_LABEL,
+  DEFAULT_PREFERENCES,
+  hasRequiredConsent,
+  missingConsent,
+  type ConsentItem,
+  type ConsentId,
+  type GuideVoice,
+  type TalkMode,
+  type CoachSharing,
+  type Preferences,
+} from './onboarding.js';
