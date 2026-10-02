@@ -59,6 +59,7 @@ clients, shared sessions and notes). Help in a crisis is always free.
 │   │   └── src/
 │   │       ├── steps.ts     # the six steps, their prompts and completion rules
 │   │       ├── session.ts   # the session state machine (pure reducer)
+│   │       ├── version.ts   # live/draft protocol versions and publishing
 │   │       ├── journal.ts   # entries derived from finished sessions
 │   │       ├── insights.ts  # what the journal adds up to over a window
 │   │       ├── feelings.ts  # the feelings a session can capture
@@ -96,6 +97,20 @@ pnpm run build
 | `pnpm run format` / `format:check`               | Prettier                                            |
 | `pnpm run test` / `test:watch` / `test:coverage` | Vitest                                              |
 | `pnpm run check`                                 | Everything CI runs, in the same order               |
+
+## Prompt copy is versioned, not compiled in
+
+Staff edit the step questions in the admin console, which shows a live version
+and an unpublished draft. `version.ts` models that:
+
+- only a **draft** is editable — a live version is what users are running
+  against, and an archived one is a record;
+- `publish()` **refuses a draft with any step missing its question, completion
+  criterion or turn limit**, and returns every problem named by step rather than
+  throwing, so the admin screen can show them in place. The baseline currently
+  fails with 13 problems, which is the honest state of the copy;
+- a session records the version it started on, so publishing never changes the
+  questions under someone already part-way through.
 
 ## Safety is a hard stop
 

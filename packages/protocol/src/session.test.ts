@@ -8,6 +8,7 @@ import {
   type SessionEvent,
 } from './session.js';
 import { STEP_ORDER } from './steps.js';
+import { BASELINE, editStep, type ProtocolVersion } from './version.js';
 
 const satisfy: SessionEvent = { type: 'step_satisfied' };
 
@@ -180,5 +181,39 @@ describe('guide turn limits', () => {
 
   it('is false once the session has ended', () => {
     expect(isOutOfGuideTurns(apply(startSession(), { type: 'user_stopped' }))).toBe(false);
+  });
+});
+
+describe('pinning to a protocol version', () => {
+  it('records nothing when no version is named', () => {
+    expect(startSession().protocolVersion).toBeNull();
+  });
+
+  it('records the version it started on', () => {
+    expect(startSession('full', { major: 1, minor: 4 }).protocolVersion).toEqual({
+      major: 1,
+      minor: 4,
+    });
+  });
+
+  it('reads the turn limit from the version the session was given', () => {
+    // The baseline allows 4 guide turns on step 4; this draft allows 1.
+    const tightened: ProtocolVersion = editStep(BASELINE, 'remember', { maxGuideTurns: 1 });
+
+    let s = startSession('full', tightened.number);
+    for (const _ of ['notice', 'responsibility', 'feel']) s = apply(s, satisfy);
+    expect(s.stepId).toBe('remember');
+
+    s = apply(s, { type: 'guide_turn' });
+    expect(isOutOfGuideTurns(s, tightened)).toBe(true);
+    // The baseline's own limit of 4 is not yet reached.
+    expect(isOutOfGuideTurns(s, BASELINE)).toBe(false);
+    expect(isOutOfGuideTurns(s)).toBe(false);
+  });
+
+  it('keeps the pinned version across the whole session', () => {
+    const pin = { major: 2, minor: 3 };
+    const s = applyAll(startSession('quick', pin), [satisfy, satisfy, { type: 'user_stopped' }]);
+    expect(s.protocolVersion).toEqual(pin);
   });
 });

@@ -78,3 +78,27 @@ export {
   type FeelingCount,
   type RecurringBelief,
 } from './insights.js';
+
+export {
+  BASELINE,
+  DEFAULT_SAFETY_MESSAGES,
+  formatVersion,
+  stepIn,
+  stepsOf,
+  editStep,
+  editSafety,
+  isEditable,
+  draftFrom,
+  publish,
+  publishProblems,
+  isPublishable,
+  isRunnable,
+  archive,
+  type ProtocolVersion,
+  type VersionNumber,
+  type VersionStatus,
+  type SafetyMessages,
+  type StepEdit,
+  type PublishProblem,
+  type PublishResult,
+} from './version.js';

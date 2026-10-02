@@ -14,6 +14,7 @@
 import { isFeelingId, type FeelingId } from './feelings.js';
 import { mustStop, type SafetyLevel } from './safety.js';
 import { nextStep, step, STEP_ORDER, type StepId } from './steps.js';
+import type { ProtocolVersion, VersionNumber } from './version.js';
 
 /** Whether the user answered by voice or by typing. */
 export type InputMode = 'voice' | 'text';
@@ -63,6 +64,12 @@ export type SessionPhase = 'in_step' | 'ended';
 
 export interface Session {
   readonly kind: SessionKind;
+  /**
+   * The protocol version this session started on, recorded so a publish part
+   * way through never changes the questions under someone mid-session.
+   * `null` when the caller did not name one.
+   */
+  readonly protocolVersion: VersionNumber | null;
   readonly phase: SessionPhase;
   /** The step in progress. `null` once the session has ended. */
   readonly stepId: StepId | null;
@@ -75,10 +82,16 @@ export interface Session {
   readonly safetyLevel: SafetyLevel;
 }
 
-/** Starts a session at step 1 with nothing gathered. */
-export function startSession(kind: SessionKind = 'full'): Session {
+/**
+ * Starts a session at step 1 with nothing gathered.
+ *
+ * Pass the live protocol version so the session is pinned to it; resolve its
+ * steps with the same version for as long as the session runs.
+ */
+export function startSession(kind: SessionKind = 'full', version?: VersionNumber): Session {
   return {
     kind,
+    protocolVersion: version ?? null,
     phase: 'in_step',
     stepId: STEP_ORDER[0],
     guideTurnsUsed: 0,
@@ -186,13 +199,18 @@ export function applyAll(session: Session, events: readonly SessionEvent[]): Ses
 /**
  * Whether the guide has used up its turns on the current step.
  *
+ * Pass the version the session is pinned to, so the limit is read from the
+ * copy the session actually started on. Without one, the baseline step
+ * definitions are used.
+ *
  * `false` when the step sets no limit — an unstated limit is not a limit of
  * zero. Steps missing their `maxGuideTurns` are reported by
  * `incompleteSteps()`.
  */
-export function isOutOfGuideTurns(session: Session): boolean {
+export function isOutOfGuideTurns(session: Session, version?: ProtocolVersion): boolean {
   if (session.stepId === null) return false;
-  const max = step(session.stepId).maxGuideTurns;
+  const definition = version === undefined ? step(session.stepId) : version.steps[session.stepId];
+  const max = definition.maxGuideTurns;
   return max !== null && session.guideTurnsUsed >= max;
 }
 
