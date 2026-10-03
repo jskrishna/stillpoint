@@ -14,8 +14,36 @@ permissions:
   contents: read
 
 jobs:
+  api:
+    name: API — PHP tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, sqlite3, intl
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Check formatting
+        run: ./vendor/bin/pint --test
+
+      - name: Test
+        run: ./vendor/bin/phpunit
+
   check:
-    name: Lint, typecheck, test, build
+    name: Web — lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

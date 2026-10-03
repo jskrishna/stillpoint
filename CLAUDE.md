@@ -91,10 +91,31 @@ TypeScript is pinned to the 6.0 line because `typescript-eslint` 8.x declares a
 ## Layout
 
 ```
-packages/protocol/        @stillpoint/protocol — domain core, no I/O
+apps/api/                 Laravel 13 + MySQL — the backend, and the authority on the protocol
+packages/protocol/        @stillpoint/protocol — the same domain in TypeScript (see below)
 packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, type, space
-apps/web/                 @stillpoint/web — Next.js marketing site (and, later, the web app)
+apps/web/                 @stillpoint/web — Next.js: marketing site and web app
 ```
+
+### The backend is Laravel, and it owns the rules
+
+`apps/api/app/Domain` is the authority. The PHP there is a port of
+`packages/protocol`, and the TypeScript tests were the specification for it.
+
+**While both exist, they must agree.** Two implementations of a crisis-stop
+rule is the worst outcome available: they drift, and the one that drifts
+decides whether someone gets a helpline. The port keeps the same names, the
+same orderings and the same tests, and there is a parity check comparing the
+risk screen's output across both.
+
+The TypeScript protocol package is on its way to being types plus client-side
+display state. Until that is finished, **a rule changed in one must be changed
+in the other, in the same commit**.
+
+Note `pnpm-workspace.yaml` lists `apps/web` and not `apps/*`: Laravel ships a
+`package.json` for Vite scaffolding this API does not use, and globbing pulled
+those dependencies in. `apps/api` is also excluded from Prettier and ESLint —
+it has Pint and its own CI job.
 
 `packages/protocol` must stay free of I/O **and of presentation**: no network,
 no storage, no speech, no framework imports, no colours. Feeling ids and labels
@@ -111,9 +132,17 @@ twelve feelings colours at all.
 ## Commands
 
 ```bash
+# Web and packages
 pnpm run check   # build:packages, then format:check + lint + typecheck + test
 pnpm run build   # every workspace project, packages first
+
+# API (from apps/api)
+./vendor/bin/phpunit     # the domain tests
+./vendor/bin/pint --test # formatting, as CI runs it
 ```
+
+CI runs both as separate jobs. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest
+5 needs 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
 
 `check` builds the packages first on purpose: `apps/web` resolves
 `@stillpoint/*` through `node_modules` to their built output, exactly as an
@@ -169,5 +198,15 @@ it is missing from `tsconfig.test.json`'s `include`.
 - **Step prompt copy stays `null`** until the PRD supplies it. Do not invent it.
 - **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders.
 
+- **Backend: Laravel 13 + MySQL**, owning the session, the protocol and safety.
+  Chosen over a TypeScript backend so the safety rules exist exactly once;
+  MySQL was never the hard part of that decision.
+
 Still unchosen: the voice stack (speech-to-text, text-to-speech, turn-taking).
-Keep it behind an interface so the choice stays reversible.
+Keep it behind an interface so the choice stays reversible. PHP is a poor fit
+for long-lived audio streaming, so expect a separate small gateway for the voice
+loop with Laravel owning everything around it.
+
+**Safety screening must end up server-side.** It currently also runs in the
+browser, which can be bypassed; `RiskScreen` is an interface in both languages
+so the real classifier binds behind it.

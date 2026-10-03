@@ -1,3 +1,6 @@
 packages:
   - 'packages/*'
-  - 'apps/*'
+  # apps/web only: apps/api is a PHP project and ships a package.json for
+  # Laravel's Vite scaffolding, which this API does not use — Next.js is the
+  # frontend. Globbing apps/* pulled those dependencies into the install.
+  - 'apps/web'

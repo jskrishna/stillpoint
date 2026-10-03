@@ -1,3 +1,5 @@
 **/dist/
 **/coverage/
 pnpm-lock.yaml
+# apps/api is a PHP project with its own formatter (Pint) and its own CI step.
+apps/api/
