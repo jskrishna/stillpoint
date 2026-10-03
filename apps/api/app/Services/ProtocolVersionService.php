@@ -111,17 +111,26 @@ final class ProtocolVersionService
      */
     public function publishDraft(): ?ProtocolVersion
     {
-        $draft = $this->draft();
-        if ($draft === null) {
-            return null;
-        }
+        return DB::transaction(function (): ?ProtocolVersion {
+            // Everything inside, and the rows locked first. Read outside, two
+            // admins publishing at the same moment can both archive what was
+            // live before either stores its replacement — and then both store
+            // one, leaving two live versions and two different sets of
+            // questions in flight. That is the state this method's transaction
+            // was already written to prevent; it just could not see far enough
+            // back to do it.
+            ProtocolVersionModel::query()->orderBy('id')->lockForUpdate()->get();
 
-        $published = $draft->publish(new \DateTimeImmutable);
-        if ($published === null) {
-            return null;
-        }
+            $draft = $this->draft();
+            if ($draft === null) {
+                return null;
+            }
 
-        return DB::transaction(function () use ($published): ProtocolVersion {
+            $published = $draft->publish(new \DateTimeImmutable);
+            if ($published === null) {
+                return null;
+            }
+
             ProtocolVersionModel::query()
                 ->where('status', 'live')
                 ->update(['status' => 'archived']);
