@@ -1039,6 +1039,18 @@ screen.
 The browser copy in `packages/protocol` is now a convenience for instant
 feedback, never the enforcement. Do not let it become the only check again.
 
+**A classifier that cannot answer falls back to the phrase screen.** That is
+what "a backstop behind it" means, and it is written at the seam
+(`App\Domain\RiskScreen`) because it is a decision rather than an
+implementation detail, and because the other two options are worse than the
+problem: throwing turns a disclosure into a 500 that screens and records
+nothing, and returning `none` quietly stops screening for as long as the model
+is unreachable while every screen says everything is fine. It is not
+implemented, deliberately — a decorator wrapping the phrase screen with the
+phrase screen is machinery for a dependency that does not exist. And it is not
+`unreadable`: that field is a fact about the text, where a model being down is
+a fact about the deployment, which a user's turn should not have to carry.
+
 **The client is told as little as possible.** `SessionResource` never returns
 the risk level, the category or the matched phrase: a user mid-crisis has no use
 for "you tripped the self-harm rule", and a client that knows the rule can be

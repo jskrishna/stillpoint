@@ -105,7 +105,14 @@ function readsEverything(utterance: string): boolean {
   return letters.replace(READABLE_SCRIPTS, '') === '';
 }
 
-/** Anything that can screen an utterance. Swap in a real model here. */
+/**
+ * Anything that can screen an utterance. Swap in a real model here.
+ *
+ * The enforcement is the server's — `App\Domain\RiskScreen` — and that is
+ * where the decision about a classifier that cannot answer is written down. In
+ * one line: falling back to the phrase screen is the only one of the three
+ * available answers that is not worse than the problem.
+ */
 export interface RiskScreen {
   assess(utterance: string): RiskAssessment;
 }
