@@ -252,6 +252,33 @@ open sessions would both offer to be resumed with no way to tell which one an
 answer was going into. It is not silent: the home screen offers to carry on
 first, and says what starting fresh costs.
 
+**Unless nothing has been said into it.** `Session::isUntouched()` /
+`isUntouched()` is true for a session exactly as `start()` made it: step 1, no
+guide turn spent, nothing gathered, no safety signal. Starting hands one of
+those back instead of ending it and making another, because there is nothing to
+carry on from — so it is the same session the caller asked for, and it costs
+nothing.
+
+That is a real cost rather than tidiness. Measured against the running API
+before it was fixed: three identical `POST /sessions` took a free user from
+three full sessions left to none, and the fourth told them they had used three
+when they had had none of them. A reply dropped on the way back or a double tap
+was enough.
+
+A session is touched by anything at all — a thin answer spends a guide turn, an
+accepted one moves the step, and a safety signal of any level rules it out, so
+a session that raised a flag or stopped for safety is never handed back. The
+kind has to match too: a full session that was started has already been
+counted, and handing it back in place of the quick one somebody asked for would
+give them something they did not ask for and could not undo.
+
+`SessionResource` carries `untouched`, and both home screens show the ordinary
+"Start talking" branch for one — no offer to carry on, and no warning about a
+cost that is not real. **A screen must not work this out from `data`**: a thin
+answer leaves `data` empty but has spent a guide turn, so a screen doing its own
+arithmetic would call a used session empty and then charge the user for a
+session it had told them was free.
+
 A resumed session is the same session, so it spends no second allowance. An
 ended one is never offered — including a safety stop, because there is never a
 resume path around one.

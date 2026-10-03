@@ -83,7 +83,24 @@ final readonly class SessionService
             User::query()->whereKey($user->getKey())->lockForUpdate()->first();
 
             $open = $this->current($user);
+
             if ($open !== null) {
+                // Nothing has been said into it, so there is nothing to carry
+                // on from and nothing to end: handing it back is the same
+                // session the caller asked for, and it costs no second
+                // allowance. Which is the point — a reply dropped on the way
+                // back, or a double tap, used to spend one of three for the
+                // week on the same attempt, and three identical requests spent
+                // all of it. See `Session::isUntouched()`.
+                //
+                // Only when the kind matches. A full session that was started
+                // has already been counted, so handing it back in place of the
+                // quick one somebody asked for would give them something they
+                // did not ask for and could not undo.
+                if ($open->kind === $kind && $open->toDomain()->isUntouched()) {
+                    return $open;
+                }
+
                 $this->stop($open);
             }
 

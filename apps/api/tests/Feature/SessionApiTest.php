@@ -190,7 +190,15 @@ final class SessionApiTest extends TestCase
         $this->consentedUser();
 
         for ($i = 0; $i < 3; $i++) {
-            $this->postJson('/api/sessions')->assertCreated();
+            $id = $this->postJson('/api/sessions')->assertCreated()->json('id');
+
+            // Answered, because an untouched session is handed back rather
+            // than replaced: three identical starts are one attempt, not three
+            // sessions. Using an allowance means having used a session.
+            $this->postJson("/api/sessions/{$id}/turns", [
+                'utterance' => 'My manager dismissed my work in front of the team',
+                'step' => 'notice',
+            ])->assertOk();
         }
 
         $refused = $this->postJson('/api/sessions')->assertStatus(Response::HTTP_PAYMENT_REQUIRED);
@@ -205,7 +213,15 @@ final class SessionApiTest extends TestCase
         $this->consentedUser();
 
         for ($i = 0; $i < 3; $i++) {
-            $this->postJson('/api/sessions')->assertCreated();
+            $id = $this->postJson('/api/sessions')->assertCreated()->json('id');
+
+            // Answered, because an untouched session is handed back rather
+            // than replaced: three identical starts are one attempt, not three
+            // sessions. Using an allowance means having used a session.
+            $this->postJson("/api/sessions/{$id}/turns", [
+                'utterance' => 'My manager dismissed my work in front of the team',
+                'step' => 'notice',
+            ])->assertOk();
         }
 
         // However many full ones have been used.
@@ -358,6 +374,15 @@ final class SessionApiTest extends TestCase
     {
         $this->consentedUser();
         $first = $this->newSession();
+
+        // There has to be something to end. An untouched session is handed
+        // back instead, because there is nothing to carry on from and no
+        // reason to charge for a second one.
+        $this->postJson("/api/sessions/{$first}/turns", [
+            'utterance' => 'My manager dismissed my work in front of the team',
+            'step' => 'notice',
+        ])->assertOk();
+
         $second = $this->newSession();
 
         $this->assertNotSame($first, $second);

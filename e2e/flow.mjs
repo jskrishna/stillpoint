@@ -549,10 +549,28 @@ const allowance = await page.evaluate(async () => {
 
   // Earlier sections have already started several full sessions this week, so
   // the fourth onwards must be refused.
+  //
+  // Each one is answered, because an untouched session is handed back rather
+  // than replaced: starting repeatedly without saying anything is one attempt
+  // and costs one session, which is the whole point of that rule. Spending the
+  // allowance means having used the sessions.
   let refused = null;
   for (let i = 0; i < 6 && refused === null; i += 1) {
     const r = await start('full');
-    if (r.status === 402) refused = await r.json();
+    if (r.status === 402) {
+      refused = await r.json();
+      break;
+    }
+    if (!r.ok) return { error: `starting a full session: ${String(r.status)}` };
+    const session = await r.json();
+    await fetch(`http://localhost:8000/api/sessions/${session.id}/turns`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        utterance: 'Something happened at work that I keep turning over',
+        step: session.step?.id ?? null,
+      }),
+    });
   }
 
   // And a quick one, with the full allowance spent.

@@ -150,6 +150,16 @@ final class ConcurrentTurnTest extends TestCase
         $user = $this->consentedUser();
 
         $first = $this->postJson('/api/sessions')->json('id');
+
+        // Something has to be said into it, or the second start hands this one
+        // back rather than making another — see `Session::isUntouched()`. What
+        // this test is about is the state *after* two sessions have genuinely
+        // been started, so it has to get there first.
+        $this->postJson("/api/sessions/{$first}/turns", [
+            'utterance' => 'My manager dismissed my work in front of the team',
+            'step' => 'notice',
+        ])->assertOk();
+
         $second = $this->postJson('/api/sessions')->json('id');
 
         $this->assertNotSame($first, $second);

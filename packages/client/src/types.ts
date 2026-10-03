@@ -45,6 +45,20 @@ export interface ApiSession {
   readonly kind: string;
   readonly step: ApiSessionStep | null;
   readonly stepCount: number;
+  /**
+   * Nothing has been said into this session yet.
+   *
+   * A screen needs it to tell the truth about what starting again costs:
+   * `POST /sessions` hands an untouched session back rather than ending it and
+   * charging a second allowance, so for one of these there is nothing to carry
+   * on from and nothing to warn about.
+   *
+   * The server answers it, and a screen must not re-derive it from `data`: a
+   * thin answer leaves `data` empty but has spent a guide turn, so a screen
+   * doing its own arithmetic would call a used session empty and then charge
+   * the user for a session it told them was free.
+   */
+  readonly untouched: boolean;
   readonly ended: boolean;
   readonly endReason: string | null;
   readonly say: string | null;

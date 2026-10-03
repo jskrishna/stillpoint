@@ -238,3 +238,38 @@ export function forgivenessFor(belief: string | undefined): string | undefined {
 export function currentOrdinal(session: Session): number | null {
   return session.stepId === null ? null : step(session.stepId).ordinal;
 }
+
+/**
+ * Whether nothing has been said into this session yet.
+ *
+ * True for a session exactly as {@link startSession} made it: on step 1, with
+ * no guide turn spent, nothing gathered and no safety signal seen.
+ *
+ * It exists because starting a session is not free — a free plan gets three
+ * full ones a week — and `POST /sessions` ends whatever was open and starts
+ * another. A reply dropped on the way back, or a double tap, used to spend a
+ * second allowance on the same attempt: three identical requests took a free
+ * user's whole week, and the fourth told them they had used three sessions
+ * when they had had none of them.
+ *
+ * When what is open is untouched there is nothing to carry on from, so handing
+ * it back is indistinguishable from ending it and starting a new one — except
+ * that it costs nothing. The server uses this to make starting idempotent for
+ * as long as the session stays empty.
+ */
+export function isUntouched(session: Session): boolean {
+  return (
+    session.phase === 'in_step' &&
+    session.stepId === STEP_ORDER[0] &&
+    session.guideTurnsUsed === 0 &&
+    session.safetyLevel === 'none' &&
+    session.endReason === null &&
+    session.data.feelings.length === 0 &&
+    session.data.whatHappened === undefined &&
+    session.data.belief === undefined &&
+    session.data.forgiveness === undefined &&
+    session.data.memory === undefined &&
+    session.data.title === undefined &&
+    session.data.calmerRating === undefined
+  );
+}

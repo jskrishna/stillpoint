@@ -68,6 +68,7 @@ export {
   applyAll,
   isOutOfGuideTurns,
   currentOrdinal,
+  isUntouched,
   forgivenessFor,
   type Session,
   type SessionEvent,

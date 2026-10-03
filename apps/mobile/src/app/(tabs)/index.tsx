@@ -89,7 +89,13 @@ export default function Today() {
         Talk it through in {STEP_COUNT} simple steps. It takes about 10–15 minutes.
       </Text>
 
-      {open === null ? (
+      {/*
+        An untouched session is one nothing has been said into. There is
+        nothing to carry on from, and starting hands that same session back
+        rather than charging another one — so this is the ordinary branch, with
+        no offer to resume and no warning about a cost that is not real.
+      */}
+      {open === null || open.untouched ? (
         <>
           <Button
             label="Start talking"

@@ -3,6 +3,7 @@ import {
   apply,
   applyAll,
   currentOrdinal,
+  isUntouched,
   isOutOfGuideTurns,
   startSession,
   type SessionEvent,
@@ -215,5 +216,57 @@ describe('pinning to a protocol version', () => {
     const pin = { major: 2, minor: 3 };
     const s = applyAll(startSession('quick', pin), [satisfy, satisfy, { type: 'user_stopped' }]);
     expect(s.protocolVersion).toEqual(pin);
+  });
+});
+
+describe('a session nothing has been said into', () => {
+  /**
+   * The cost this guards. `POST /sessions` ends whatever was open and starts
+   * another, and a free plan gets three full sessions a week — so a reply
+   * dropped on the way back, or a double tap, used to spend a second allowance
+   * on the same attempt.
+   */
+  it('is a session exactly as it was started', () => {
+    expect(isUntouched(startSession())).toBe(true);
+    expect(isUntouched(startSession('quick'))).toBe(true);
+  });
+
+  it('is not one that has been answered', () => {
+    const answered = apply(startSession(), {
+      type: 'step_satisfied',
+      capture: { whatHappened: 'My manager dismissed my work' },
+    });
+    expect(isUntouched(answered)).toBe(false);
+  });
+
+  it('is not one the guide has already spoken a second time into', () => {
+    // A backup question was asked, so the person said something that did not
+    // satisfy the step. That is not an empty session.
+    expect(isUntouched(apply(startSession(), { type: 'guide_turn' }))).toBe(false);
+  });
+
+  /**
+   * The one that matters most. A session that screened a signal has had
+   * something said into it that a reviewer may be reading, and handing it back
+   * as "empty" would make a safety flag look like it belonged to a session
+   * nobody had used.
+   */
+  it('is not one that has seen a safety signal', () => {
+    const flagged = apply(startSession(), { type: 'safety_signal', level: 'medium' });
+    expect(isUntouched(flagged)).toBe(false);
+  });
+
+  it('is not one that has ended', () => {
+    const stopped = apply(startSession(), { type: 'safety_signal', level: 'high' });
+    expect(stopped.phase).toBe('ended');
+    expect(isUntouched(stopped)).toBe(false);
+  });
+
+  it('is not one with only feelings picked', () => {
+    const picked = apply(startSession(), {
+      type: 'step_satisfied',
+      capture: { feelings: ['anger'] },
+    });
+    expect(isUntouched(picked)).toBe(false);
   });
 });

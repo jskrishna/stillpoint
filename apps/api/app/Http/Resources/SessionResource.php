@@ -46,6 +46,18 @@ final class SessionResource extends JsonResource
                 'ordinal' => $session->stepId->ordinal(),
             ],
             'stepCount' => StepId::count(),
+            // Whether nothing has been said into it yet. A screen needs this
+            // to tell the truth about what starting again costs: when the open
+            // session is untouched, starting is handed the same one back and
+            // costs nothing, so offering to "carry on" and warning about
+            // "another full session" would both be wrong.
+            //
+            // The server answers the question rather than letting a screen
+            // re-derive it. A client cannot: a thin answer leaves nothing in
+            // `data` but has spent a guide turn, so a screen working from
+            // `data` alone would call a used session empty and then charge the
+            // user for a session it told them was free.
+            'untouched' => $session->isUntouched(),
             'ended' => $session->hasEnded(),
             'endReason' => $session->endReason?->value,
             'say' => $this->say,

@@ -51,6 +51,37 @@ final readonly class Session
         return $this->endReason !== null;
     }
 
+    /**
+     * Whether nothing has been said into this session yet.
+     *
+     * True for a session exactly as `start()` made it: on step 1, with no
+     * guide turn spent, nothing gathered and no safety signal seen. The port
+     * of `isUntouched` in `packages/protocol/src/session.ts`, which has the
+     * reasoning.
+     *
+     * In short: starting a session is not free — a free plan gets three full
+     * ones a week — and `POST /sessions` ends whatever was open and starts
+     * another. A reply dropped on the way back, or a double tap, used to spend
+     * a second allowance on the same attempt. When what is open is untouched
+     * there is nothing to carry on from, so handing it back is
+     * indistinguishable from ending it and starting a new one, except that it
+     * costs nothing.
+     */
+    public function isUntouched(): bool
+    {
+        return ! $this->hasEnded()
+            && $this->stepId === StepId::Notice
+            && $this->guideTurnsUsed === 0
+            && $this->safetyLevel === SafetyLevel::None
+            && $this->data->feelings === []
+            && $this->data->whatHappened === null
+            && $this->data->belief === null
+            && $this->data->forgiveness === null
+            && $this->data->memory === null
+            && $this->data->title === null
+            && $this->data->calmerRating === null;
+    }
+
     /** 1-based position of the current step, or null once ended. */
     public function ordinal(): ?int
     {
