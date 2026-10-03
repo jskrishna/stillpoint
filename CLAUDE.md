@@ -88,6 +88,40 @@ anyone who did not happen to pick exactly three feelings. Answer kind belongs to
 the step _id_, not to a protocol version — staff editing prompts in the admin
 console must not be able to turn a selection into a sentence.
 
+## Two requests at once
+
+Every method in `SessionService` that changes a session re-reads its row
+**inside** its transaction with `lockForUpdate()`, and works on that row rather
+than on the one route-model binding resolved. `start()` locks the _user_ row,
+because there is no session yet to lock and two concurrent starts would
+otherwise both find nothing open.
+
+This is not tidiness. The pair that matters is a safety stop and an ordinary
+turn arriving together: the stop writes an ended session, and the turn — holding
+the state from before it — writes over the parts `storeDomain()` always writes.
+`end_reason` happens to survive, because Eloquent only writes attributes it sees
+as dirty and on a stale model that one reads null-to-null. Nothing else does:
+the row comes back ended, at step 2, with `safety_level` written back _down_ —
+past an invariant the domain states plainly and the reducer enforces, because
+the reducer was handed a snapshot of a moment that had passed.
+
+`takeTurn()` therefore asks again under the lock and throws
+`SessionAlreadyEnded`, which the controller answers as 409. The controller's own
+check before the transaction is the fast path; the one under the lock is the one
+that is true. `stop()` deliberately does _not_ refuse — stopping something
+already stopped is what the user asked for either way — but it must not
+relabel a safety stop, and the domain leaves an ended session alone.
+
+`journal_entries.guided_session_id` is **unique**, so "one row per session" is
+the database's rule rather than a check with a gap after it.
+
+**`lockForUpdate()` does nothing on sqlite**, which the tests and the
+development container run on. The lock is real on MySQL. What
+`tests/Feature/ConcurrentTurnTest.php` can assert is the logic the lock
+protects — it holds a model from before an end, which is exactly what a second
+request would be holding, and insists that acting on it is refused. Removing
+either the lock or the guard turns it red; both were checked.
+
 ## One session at a time, and it survives the tab closing
 
 `GET /sessions/current` is the first thing a client asks. Closing a tab used to

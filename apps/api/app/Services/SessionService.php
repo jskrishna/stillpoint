@@ -10,6 +10,7 @@ use App\Domain\EndReason;
 use App\Domain\Session as DomainSession;
 use App\Domain\SessionKind;
 use App\Domain\TurnResult;
+use App\Exceptions\SessionAlreadyEnded;
 use App\Models\GuidedSession;
 use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
@@ -28,6 +29,27 @@ use Illuminate\Support\Facades\DB;
  *    on, because a Medium signal still needs a reviewer;
  *  - the journal row is written only when the domain allows one, which is how
  *    a safety-stopped session stays out of the journal.
+ *
+ * ## Two requests at once
+ *
+ * Every method that changes a session re-reads its row **inside** the
+ * transaction with `lockForUpdate()`, and works on that row rather than on the
+ * one route-model binding handed over. Without it, two requests arriving
+ * together both read the same state, both decide from it, and the second write
+ * silently replaces the first.
+ *
+ * That is not a tidiness point. The pair that matters is a safety stop and an
+ * ordinary turn: the stop writes an ended session, the ordinary turn — which
+ * read the state before the stop — writes an un-ended one over it, and the
+ * session carries on as though nobody had said anything. The domain's
+ * invariants (an ended session is terminal, `safetyLevel` only rises) are
+ * enforced by the reducer, and a stale snapshot walks straight past them.
+ *
+ * **`lockForUpdate()` does nothing on sqlite**, which is what the tests and the
+ * development container run on. The lock is real on MySQL, and CI is where that
+ * is exercised. What the tests can assert is the logic the lock protects: that
+ * a turn against an already-ended session is refused inside the transaction,
+ * not merely before it.
  */
 final readonly class SessionService
 {
@@ -52,6 +74,13 @@ final readonly class SessionService
     public function start(User $user, SessionKind $kind = SessionKind::Full): GuidedSession
     {
         return DB::transaction(function () use ($user, $kind): GuidedSession {
+            // The user's own row, locked: two requests starting a session at
+            // the same moment would otherwise both find nothing open and both
+            // create one, leaving exactly the two-sessions-at-once state this
+            // method exists to prevent. There is no session row to lock yet, so
+            // the user is what serialises them.
+            User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+
             $open = $this->current($user);
             if ($open !== null) {
                 $this->stop($open);
@@ -104,9 +133,18 @@ final readonly class SessionService
      */
     public function takeTurn(GuidedSession $row, string $utterance, bool $guideAvailable = true): TurnResult
     {
-        $version = $this->versions->forSession($row);
+        return DB::transaction(function () use ($row, $utterance, $guideAvailable) {
+            $row = $this->locked($row);
 
-        return DB::transaction(function () use ($row, $version, $utterance, $guideAvailable) {
+            // Asked again, under the lock. The controller asks before it, which
+            // is the fast path; this is the one that is true. A session that
+            // ended in between most often ended because another request
+            // screened a crisis, and continuing here would write that stop away.
+            if ($row->toDomain()->hasEnded()) {
+                throw new SessionAlreadyEnded;
+            }
+
+            $version = $this->versions->forSession($row);
             $result = $this->conversation->takeTurn($row->toDomain(), $version, $utterance, $guideAvailable);
 
             $row->storeDomain($result->session)->save();
@@ -157,6 +195,12 @@ final readonly class SessionService
     public function stop(GuidedSession $row): GuidedSession
     {
         return DB::transaction(function () use ($row) {
+            $row = $this->locked($row);
+
+            // No refusal here, unlike a turn. Stopping something that has
+            // already stopped is what the user asked for either way, and the
+            // domain leaves an ended session alone — including one that ended
+            // for safety, which must never be reopened or relabelled.
             $row->storeDomain($row->toDomain()->withUserStopped())->save();
             $this->journal($row);
 
@@ -167,6 +211,7 @@ final readonly class SessionService
     public function rate(GuidedSession $row, CalmerRating $rating): GuidedSession
     {
         return DB::transaction(function () use ($row, $rating) {
+            $row = $this->locked($row);
             $row->storeDomain($row->toDomain()->withRating($rating))->save();
 
             $entry = JournalEntry::where('guided_session_id', $row->id)->first();
@@ -194,6 +239,18 @@ final readonly class SessionService
         $entry?->save();
 
         return $entry;
+    }
+
+    /**
+     * The same session, re-read and locked for the rest of this transaction.
+     *
+     * Route-model binding resolves a row before any transaction starts, so by
+     * the time one begins that object is a snapshot of a moment that has
+     * passed. Every caller here is inside `DB::transaction`.
+     */
+    private function locked(GuidedSession $row): GuidedSession
+    {
+        return GuidedSession::query()->whereKey($row->getKey())->lockForUpdate()->firstOrFail();
     }
 
     /** Whether a session ended because of a safety signal. */

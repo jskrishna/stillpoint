@@ -8,6 +8,7 @@ use App\Domain\CalmerRating;
 use App\Domain\ConsentItem;
 use App\Domain\Plan;
 use App\Domain\SessionKind;
+use App\Exceptions\SessionAlreadyEnded;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SessionResource;
 use App\Models\GuidedSession;
@@ -144,11 +145,19 @@ final class SessionController extends Controller
         // refused is someone saying they are not safe.
         $budget = $this->guideBudget($request);
 
-        $result = $this->sessions->takeTurn(
-            $session,
-            $validated['utterance'],
-            guideAvailable: $budget->remaining() > 0,
-        );
+        try {
+            $result = $this->sessions->takeTurn(
+                $session,
+                $validated['utterance'],
+                guideAvailable: $budget->remaining() > 0,
+            );
+        } catch (SessionAlreadyEnded $e) {
+            // The check above is the fast path; this is the one that ran under
+            // the row lock. Between the two, another request can have ended
+            // this session — most often by screening a crisis — and that stop
+            // is not something a turn already in flight may write away.
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
 
         if ($result->throttled) {
             // The signal was screened and recorded; only the guide was
