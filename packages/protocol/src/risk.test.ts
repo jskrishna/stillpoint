@@ -91,6 +91,7 @@ describe('Hindi and Hinglish', () => {
       level: 'high',
       category: 'self_harm',
       matched: 'मुझे मरना है',
+      unreadable: false,
     });
   });
 
@@ -126,7 +127,7 @@ describe('Hindi and Hinglish', () => {
       'मेरा दिन बहुत खराब था',
       'mujhe gussa aa raha hai',
     ]) {
-      expect(baselineRiskScreen.assess(said), said).toEqual({ level: 'none' });
+      expect(baselineRiskScreen.assess(said), said).toEqual({ level: 'none', unreadable: false });
     }
   });
 
@@ -145,5 +146,58 @@ describe('Hindi and Hinglish', () => {
 describe('noRiskScreen', () => {
   it('finds nothing, for tests that are not about safety', () => {
     expect(noRiskScreen.assess('I want to die').level).toBe('none');
+  });
+});
+
+describe('what the screen cannot read', () => {
+  // The screen has phrases in Latin and Devanagari and in nothing else. India
+  // has many more scripts than two, and until now an utterance in one of them
+  // was normalised to an empty string and graded `none` — the same answer as
+  // an ordinary bad day. These assert that the two answers are now different.
+  const unreadable = [
+    ['আমি মরতে চাই', 'Bengali'],
+    ['நான் சாக விரும்புகிறேன்', 'Tamil'],
+    ['નિરાશ છું', 'Gujarati'],
+    ['ನನಗೆ ಬೇಸರವಾಗಿದೆ', 'Kannada'],
+    ['میں تھک گیا ہوں', 'Urdu, in Perso-Arabic'],
+  ] as const;
+
+  it.each(unreadable)('says it could not read %s (%s)', (utterance) => {
+    const assessment = baselineRiskScreen.assess(utterance);
+    expect(assessment.level).toBe('none');
+    expect(assessment.unreadable).toBe(true);
+  });
+
+  it('does not say that about the scripts it does have phrases for', () => {
+    for (const utterance of [
+      'my manager called out my mistake',
+      'aaj mera manager bahut bura bola',
+      'मेरा दिन बहुत खराब था',
+      'मुझे मरना है',
+    ]) {
+      expect(baselineRiskScreen.assess(utterance).unreadable).toBe(false);
+    }
+  });
+
+  it('does not say that about punctuation, digits or emoji', () => {
+    // None of these are letters, so none of them is evidence about a language.
+    expect(baselineRiskScreen.assess('I am fine 😊 — really, 100%').unreadable).toBe(false);
+    expect(baselineRiskScreen.assess('').unreadable).toBe(false);
+    expect(baselineRiskScreen.assess('   ').unreadable).toBe(false);
+  });
+
+  it('still stops a session when the readable part says so', () => {
+    // The dangerous reading of this change would be "unreadable, so stand
+    // down". One unreadable word must not suppress a high match in the rest.
+    const assessment = baselineRiskScreen.assess('I want to die, মা');
+    expect(assessment.level).toBe('high');
+    expect(assessment.unreadable).toBe(true);
+  });
+
+  it('is an admission and not a risk level', () => {
+    // Nothing about being unreadable raises the level. If it ever did, every
+    // turn in Tamil would stop a session, which is not a product anybody can
+    // use and is not a judgement this screen is entitled to make.
+    expect(baselineRiskScreen.assess('நான் சாக விரும்புகிறேன்').level).toBe('none');
   });
 });

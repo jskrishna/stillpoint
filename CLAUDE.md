@@ -60,6 +60,28 @@ Shipping needs a trained model and sign-off from someone qualified to judge it.
 It is tuned for recall on purpose: a false flag costs a reviewer a minute, a
 missed one costs something that cannot be undone. Grade an ambiguous phrase up.
 
+It also now says when it could not read the text at all. `normalise()` keeps
+Latin and Devanagari and deletes the rest, so an utterance in Bengali, Tamil,
+Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi or Urdu became an empty
+string and was graded `none` — the same answer as an ordinary bad day. So an
+assessment carries `unreadable` / `$unreadable`, true when any letter was in a
+script the screen has no phrases for.
+
+Three things about it, all deliberate:
+
+- **It is not a risk level.** Grading an unreadable utterance up would invent a
+  signal out of an absence of evidence, and flagging every one would drown the
+  queue and make the product unusable for whole languages.
+- **A `high` match still stops the session** and can carry `unreadable: true`
+  beside it. The screen read enough of that utterance to be sure, and not all
+  of it. Nothing about being unreadable may suppress a stop; there is a test.
+- **It describes the text, not the act**, so `false` is correct wherever no
+  utterance reached the screen. A refused turn is not evidence about any
+  language.
+
+Adding a script to the readable list without adding phrases for it is the wrong
+fix: it would make `unreadable` say no about text that still nobody reads.
+
 Grading up has a ceiling, though: `high` ends the session, so hopelessness and
 burdensomeness ("I can't go on", "I feel like a burden", "nothing matters any
 more") are `medium` and `low`. They are flagged for a reviewer, not stopped on —

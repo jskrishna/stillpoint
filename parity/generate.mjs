@@ -19,6 +19,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { format } from 'prettier';
 // Imported from the built output by path, not by package name: `parity/` is
 // deliberately not a workspace package, because the fixture belongs to neither
 // side. Run `pnpm run build:packages` first, which `parity:generate` does.
@@ -70,6 +71,16 @@ const UTTERANCES = [
   ['I feel like a burden to everyone', 'perceived burdensomeness: flagged, not stopped'],
   ['nothing matters any more', 'hopelessness: the lowest grade, still recorded'],
   ['I am so angry I could kill him', 'harm to others, not self-harm'],
+  // Scripts the screen has no phrases for. The grade is `none` and must stay
+  // `none` — an unreadable utterance is not evidence of risk — but the screen
+  // now says it could not read them, which is a different answer from "read
+  // and clear". Both languages have to agree on that, because one saying it
+  // and the other not is how the count stops meaning anything.
+  ['আমি মরতে চাই', 'Bengali — the screen cannot read this and now says so'],
+  ['நான் சாக விரும்புகிறேன்', 'Tamil, the same'],
+  ['میں تھک گیا ہوں', 'Urdu in Perso-Arabic, the same'],
+  ['I want to die, মা', 'a high match with one unreadable word: still a stop'],
+  ['I am fine 😊 — really, 100%', 'emoji and digits are not letters, so readable'],
   [
     'that film was about someone who wanted to die',
     'A deliberate false positive. Past tense is in the screen because people say it that way, and reported speech trips it. Leave it: a reviewer loses a minute, which is the error this screen is meant to make.',
@@ -191,6 +202,7 @@ const cases = {
       level: r.level,
       category: r.category ?? null,
       matched: r.matched ?? null,
+      unreadable: r.unreadable,
     };
   }),
   extraction: STEP_CASES.map(([stepId, utterance]) => ({
@@ -231,7 +243,13 @@ const cases = {
 };
 
 const out = fileURLToPath(new URL('cases.json', import.meta.url));
-writeFileSync(out, `${JSON.stringify(cases, null, 2)}\n`);
+
+// Written through Prettier, because the repository's `format:check` is a gate
+// and `JSON.stringify` does not agree with it about short arrays. Without this,
+// regenerating left the tree failing that gate and `git diff` full of
+// reformatting that had nothing to do with the rule that changed.
+const formatted = await format(JSON.stringify(cases, null, 2), { filepath: out });
+writeFileSync(out, formatted);
 console.log(
   `wrote ${String(cases.risk.length)} risk and ${String(cases.extraction.length)} extraction cases to ${out}`,
 );

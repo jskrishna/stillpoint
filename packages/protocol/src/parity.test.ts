@@ -31,6 +31,7 @@ interface RiskCase {
   readonly level: string;
   readonly category: string | null;
   readonly matched: string | null;
+  readonly unreadable: boolean;
 }
 
 interface ExtractionCase {
@@ -85,7 +86,13 @@ describe('the risk screen matches the shared cases', () => {
         level: result.level,
         category: result.category ?? null,
         matched: result.matched ?? null,
-      }).toEqual({ level: c.level, category: c.category, matched: c.matched });
+        unreadable: result.unreadable,
+      }).toEqual({
+        level: c.level,
+        category: c.category,
+        matched: c.matched,
+        unreadable: c.unreadable,
+      });
     });
   }
 });

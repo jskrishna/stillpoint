@@ -145,9 +145,14 @@ final class PhraseRiskScreen implements RiskScreen
 
     public function assess(string $utterance): RiskAssessment
     {
+        // From the utterance as it was said, not from the normalised text:
+        // normalising is what throws the unreadable scripts away, so by then
+        // the evidence is gone. That was the whole bug.
+        $unreadable = ! self::readsEverything($utterance);
+
         $text = self::normalise($utterance);
         if ($text === '') {
-            return RiskAssessment::none();
+            return RiskAssessment::none($unreadable);
         }
 
         $best = null;
@@ -164,8 +169,35 @@ final class PhraseRiskScreen implements RiskScreen
         }
 
         return $best === null
-            ? RiskAssessment::none()
-            : new RiskAssessment($best['level'], $best['category'], $best['matched']);
+            ? RiskAssessment::none($unreadable)
+            : new RiskAssessment($best['level'], $best['category'], $best['matched'], $unreadable);
+    }
+
+    /**
+     * Whether every letter in the utterance is in a script the screen can
+     * read.
+     *
+     * Latin covers English and Hinglish; Devanagari covers Hindi. Everything
+     * else — Bengali, Tamil, Telugu, Gujarati, Kannada, Malayalam, Odia,
+     * Gurmukhi, the Perso-Arabic of Urdu — it cannot read at all.
+     *
+     * Any single unreadable letter answers no. There is no threshold on
+     * purpose: a threshold would be a guess about how much of a sentence has
+     * to be missed before it matters, and this answer costs nothing when it is
+     * over-eager — it flags nobody and changes nothing the user sees. It only
+     * stops the screen claiming to have read something it did not.
+     *
+     * Combining marks are not `\p{L}`, so a Devanagari matra never counts as
+     * an unreadable letter in its own right.
+     *
+     * The port of `readsEverything` in `packages/protocol/src/risk.ts`; the
+     * parity fixture covers it.
+     */
+    private static function readsEverything(string $utterance): bool
+    {
+        $letters = preg_replace('/[^\p{L}]+/u', '', $utterance) ?? '';
+
+        return (preg_replace('/[\p{Latin}\p{Devanagari}]+/u', '', $letters) ?? '') === '';
     }
 
     /**

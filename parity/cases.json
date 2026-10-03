@@ -6,202 +6,272 @@
       "why": "nothing said",
       "level": "none",
       "category": null,
-      "matched": null
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "   \n  ",
       "why": "whitespace only",
       "level": "none",
       "category": null,
-      "matched": null
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "My manager called out my mistake in front of the whole team",
       "why": "ordinary upset",
       "level": "none",
       "category": null,
-      "matched": null
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "I felt ashamed and rejected",
       "why": "naming feelings is not a risk signal",
       "level": "none",
       "category": null,
-      "matched": null
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "I keep messing up. Sometimes I think everyone would be better off without me.",
       "why": "the phrasing the designs themselves use",
       "level": "high",
       "category": "self_harm",
-      "matched": "better off without me"
+      "matched": "better off without me",
+      "unreadable": false
     },
     {
       "utterance": "I want to die",
       "level": "high",
       "category": "self_harm",
-      "matched": "want to die"
+      "matched": "want to die",
+      "unreadable": false
     },
     {
       "utterance": "I have been thinking about ending my life",
       "level": "high",
       "category": "self_harm",
-      "matched": "ending my life"
+      "matched": "ending my life",
+      "unreadable": false
     },
     {
       "utterance": "sometimes I just want to hurt myself",
       "level": "high",
       "category": "self_harm",
-      "matched": "hurt myself"
+      "matched": "hurt myself",
+      "unreadable": false
     },
     {
       "utterance": "there is no reason to live",
       "level": "high",
       "category": "self_harm",
-      "matched": "no reason to live"
+      "matched": "no reason to live",
+      "unreadable": false
     },
     {
       "utterance": "I wish I was dead",
       "level": "high",
       "category": "self_harm",
-      "matched": "wish i was dead"
+      "matched": "wish i was dead",
+      "unreadable": false
     },
     {
       "utterance": "I don’t want to be here any more",
       "why": "curly apostrophe",
       "level": "high",
       "category": "self_harm",
-      "matched": "don't want to be here"
+      "matched": "don't want to be here",
+      "unreadable": false
     },
     {
       "utterance": "I don't want to be here any more",
       "why": "straight apostrophe, same rule",
       "level": "high",
       "category": "self_harm",
-      "matched": "don't want to be here"
+      "matched": "don't want to be here",
+      "unreadable": false
     },
     {
       "utterance": "I WANT TO KILL MYSELF!!!",
       "why": "case and punctuation",
       "level": "high",
       "category": "self_harm",
-      "matched": "kill myself"
+      "matched": "kill myself",
+      "unreadable": false
     },
     {
       "utterance": "He hit me again last night",
       "level": "medium",
       "category": "trauma",
-      "matched": "he hit me"
+      "matched": "he hit me",
+      "unreadable": false
     },
     {
       "utterance": "मुझे मरना है",
       "why": "Hindi, a statement of intent — this used to be invisible",
       "level": "high",
       "category": "self_harm",
-      "matched": "मुझे मरना है"
+      "matched": "मुझे मरना है",
+      "unreadable": false
     },
     {
       "utterance": "मैं आत्महत्या करना चाहता हूँ",
       "why": "Hindi, the word for suicide",
       "level": "high",
       "category": "self_harm",
-      "matched": "आत्महत्या"
+      "matched": "आत्महत्या",
+      "unreadable": false
     },
     {
       "utterance": "mujhe marna hai yaar",
       "why": "Hinglish, the script most people type on a phone",
       "level": "high",
       "category": "self_harm",
-      "matched": "mujhe marna hai"
+      "matched": "mujhe marna hai",
+      "unreadable": false
     },
     {
       "utterance": "khudkhushi kar lunga",
       "why": "Hinglish, and the spelling nobody agrees on",
       "level": "high",
       "category": "self_harm",
-      "matched": "khudkhushi"
+      "matched": "khudkhushi",
+      "unreadable": false
     },
     {
       "utterance": "ab jeene ka mann nahi karta",
       "why": "hopelessness, so medium — not a stop",
       "level": "medium",
       "category": "self_harm",
-      "matched": "jeene ka mann nahi"
+      "matched": "jeene ka mann nahi",
+      "unreadable": false
     },
     {
       "utterance": "main sabke liye bojh ban gaya hu",
       "why": "burdensomeness in Hinglish, medium",
       "level": "medium",
       "category": "self_harm",
-      "matched": "sabke liye bojh"
+      "matched": "sabke liye bojh",
+      "unreadable": false
     },
     {
       "utterance": "मैं जीने से थक गया हूँ",
       "why": "the same in Devanagari, medium",
       "level": "medium",
       "category": "self_harm",
-      "matched": "जीने से थक"
+      "matched": "जीने से थक",
+      "unreadable": false
     },
     {
       "utterance": "aaj mera manager bahut bura bola",
       "why": "an ordinary bad day in Hinglish — none",
       "level": "none",
       "category": null,
-      "matched": null
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "मेरा दिन बहुत खराब था",
       "why": "an ordinary bad day in Hindi — none",
       "level": "none",
       "category": null,
-      "matched": null
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "my husband threatens me when he drinks",
       "why": "a disclosure of threats, not a feeling",
       "level": "medium",
       "category": "trauma",
-      "matched": "threatens me"
+      "matched": "threatens me",
+      "unreadable": false
     },
     {
       "utterance": "I have not eaten in three days on purpose",
       "level": "medium",
       "category": "medical",
-      "matched": "have not eaten in"
+      "matched": "have not eaten in",
+      "unreadable": false
     },
     {
       "utterance": "I drank a whole bottle to stop feeling it",
       "level": "medium",
       "category": "medical",
-      "matched": "drank a whole bottle"
+      "matched": "drank a whole bottle",
+      "unreadable": false
     },
     {
       "utterance": "I feel like a burden to everyone",
       "why": "perceived burdensomeness: flagged, not stopped",
       "level": "medium",
       "category": "self_harm",
-      "matched": "feel like a burden"
+      "matched": "feel like a burden",
+      "unreadable": false
     },
     {
       "utterance": "nothing matters any more",
       "why": "hopelessness: the lowest grade, still recorded",
       "level": "low",
       "category": "self_harm",
-      "matched": "nothing matters any more"
+      "matched": "nothing matters any more",
+      "unreadable": false
     },
     {
       "utterance": "I am so angry I could kill him",
       "why": "harm to others, not self-harm",
       "level": "high",
       "category": "harm_to_others",
-      "matched": "kill him"
+      "matched": "kill him",
+      "unreadable": false
+    },
+    {
+      "utterance": "আমি মরতে চাই",
+      "why": "Bengali — the screen cannot read this and now says so",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": true
+    },
+    {
+      "utterance": "நான் சாக விரும்புகிறேன்",
+      "why": "Tamil, the same",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": true
+    },
+    {
+      "utterance": "میں تھک گیا ہوں",
+      "why": "Urdu in Perso-Arabic, the same",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": true
+    },
+    {
+      "utterance": "I want to die, মা",
+      "why": "a high match with one unreadable word: still a stop",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": true
+    },
+    {
+      "utterance": "I am fine 😊 — really, 100%",
+      "why": "emoji and digits are not letters, so readable",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
     },
     {
       "utterance": "that film was about someone who wanted to die",
       "why": "A deliberate false positive. Past tense is in the screen because people say it that way, and reported speech trips it. Leave it: a reviewer loses a minute, which is the error this screen is meant to make.",
       "level": "high",
       "category": "self_harm",
-      "matched": "wanted to die"
+      "matched": "wanted to die",
+      "unreadable": false
     }
   ],
   "extraction": [

@@ -48,6 +48,61 @@ export interface RiskAssessment {
   readonly category?: SafetyCategory;
   /** The phrase that triggered it, for the flag a reviewer reads. */
   readonly matched?: string;
+  /**
+   * True when part of the utterance was in a script this screen cannot read.
+   *
+   * A `none` beside `unreadable: true` means **not read**, rather than read
+   * and clear. Those were the same answer until now, and it is the more
+   * dangerous of the two to leave unsaid: the screen reported `none` with full
+   * confidence about text it had deleted.
+   *
+   * Deliberately not a risk level. Grading an unreadable utterance up would
+   * invent a signal out of an absence of evidence, and flagging every one of
+   * them would drown the queue and make the product unusable for whole
+   * languages. It is an admission, recorded so that somebody can see how often
+   * it happens and decide which language to cover next.
+   *
+   * A `high` match still stops the session, and can carry `unreadable: true`
+   * beside it: the screen read enough of that utterance to be sure, and not
+   * all of it.
+   *
+   * It describes the text, so `false` is the right answer wherever no
+   * utterance was screened at all — a refused turn is not evidence about any
+   * language.
+   */
+  readonly unreadable: boolean;
+}
+
+/**
+ * Scripts the screen has phrases for.
+ *
+ * Latin covers English and Hinglish; Devanagari covers Hindi and Marathi's
+ * spelling of these words. Everything else — Bengali, Tamil, Telugu, Gujarati,
+ * Kannada, Malayalam, Odia, Gurmukhi, the Perso-Arabic of Urdu — it cannot
+ * read at all, and this is the list that says so out loud instead of leaving
+ * it to be inferred from the phrase tables.
+ *
+ * Adding a script here without adding phrases for it would be the wrong fix:
+ * it would make `unreadable` say no about text that still nobody reads.
+ */
+const READABLE_SCRIPTS = /[\p{Script=Latin}\p{Script=Devanagari}]+/gu;
+
+/**
+ * Whether every letter in the utterance is in a script the screen can read.
+ *
+ * Any single unreadable letter is enough to answer no. There is no threshold,
+ * on purpose: a threshold would be a guess about how much of a sentence has to
+ * be missed before it matters, and this answer costs nothing when it is
+ * over-eager — it does not flag anyone and it does not change what the user
+ * sees. It only stops the screen claiming to have read something it did not.
+ *
+ * Combining marks are not `\p{Letter}`, so a Devanagari matra never counts as
+ * an unreadable letter in its own right.
+ */
+function readsEverything(utterance: string): boolean {
+  const letters = utterance.replace(/[^\p{Letter}]+/gu, '');
+
+  return letters.replace(READABLE_SCRIPTS, '') === '';
 }
 
 /** Anything that can screen an utterance. Swap in a real model here. */
@@ -307,8 +362,13 @@ function normalise(utterance: string): string {
  */
 export const baselineRiskScreen: RiskScreen = {
   assess(utterance: string): RiskAssessment {
+    // Computed from the utterance as it was said, not from the normalised
+    // text: normalising is what throws the unreadable scripts away, so by then
+    // the evidence is gone. That was the whole bug.
+    const unreadable = !readsEverything(utterance);
+
     const text = normalise(utterance);
-    if (text === '') return { level: 'none' };
+    if (text === '') return { level: 'none', unreadable };
 
     let best:
       | { level: Exclude<SafetyLevel, 'none'>; category: SafetyCategory; matched: string }
@@ -324,12 +384,17 @@ export const baselineRiskScreen: RiskScreen = {
     }
 
     return best === undefined
-      ? { level: 'none' }
-      : { level: best.level, category: best.category, matched: best.matched };
+      ? { level: 'none', unreadable }
+      : { level: best.level, category: best.category, matched: best.matched, unreadable };
   },
 };
 
-/** A screen that finds nothing, for tests that are not about safety. */
+/**
+ * A screen that finds nothing, for tests that are not about safety.
+ *
+ * `unreadable: false` is not a claim that it read anything — it reads nothing
+ * at all. The field is about the text, and this screen has no opinion on it.
+ */
 export const noRiskScreen: RiskScreen = {
-  assess: () => ({ level: 'none' }),
+  assess: () => ({ level: 'none', unreadable: false }),
 };

@@ -93,10 +93,12 @@ final class ParityTest extends TestCase
             'level' => $case['level'],
             'category' => $case['category'],
             'matched' => $case['matched'],
+            'unreadable' => $case['unreadable'],
         ], [
             'level' => $result->level->value,
             'category' => $result->category?->value,
             'matched' => $result->matched,
+            'unreadable' => $result->unreadable,
         ], "Risk parity broke on: {$case['utterance']}");
     }
 

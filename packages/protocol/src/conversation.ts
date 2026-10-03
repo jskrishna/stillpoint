@@ -87,7 +87,9 @@ export function takeTurn(
       session,
       say: '',
       advanced: false,
-      risk: { level: 'none' },
+      // Nothing was screened: the turn is refused before the screen is asked.
+      // `unreadable` describes text, and there is no text here to describe.
+      risk: { level: 'none', unreadable: false },
       stopped: false,
       throttled: false,
     };
