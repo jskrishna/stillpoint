@@ -33,9 +33,27 @@ it, which is the only reason offering password reset is safe (see the root
 password.
 
 So it belongs wherever the rest of your secrets live, with a copy somewhere that
-a single lost laptop does not take with it. Rotating it is not a configuration
-change; it is a migration that has to decrypt with the old key and re-encrypt
-with the new one, and nothing here does that yet.
+a single lost laptop does not take with it.
+
+Rotating it is not a configuration change; it is a migration that has to decrypt
+with the old key and re-encrypt with the new one. `stillpoint:rotate-key` does
+that, and the order of the two steps is the whole safety of it:
+
+```bash
+# 1. Old key into APP_PREVIOUS_KEYS, new key into APP_KEY. Laravel reads with
+#    either, so the app keeps working and stopping here loses nothing.
+docker compose run --rm api php artisan stillpoint:rotate-key --dry-run
+docker compose run --rm api php artisan stillpoint:rotate-key
+
+# 2. Only once that reports a clean pass: remove the old key.
+```
+
+`--dry-run` reads every encrypted row and writes nothing, so it is also the
+answer to "can this deployment still read what is stored" — worth running after
+any change that touches `APP_KEY`, before a user finds out instead. A row that
+decrypts under no configured key is named and left exactly as it is: the
+ciphertext is the only copy of that text, and the command will not overwrite it
+with a guess.
 
 ## What this is, and what it is not
 

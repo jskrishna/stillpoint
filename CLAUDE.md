@@ -470,10 +470,20 @@ it that matter wherever this is discussed:
 **`APP_KEY` is the whole journal.** Every entry, every session's content and
 every safety flag's excerpt is encrypted with it, there is no second copy, and
 there is no recovery path — change it or lose it and that content is gone, not
-locked out. Rotating it is a migration that decrypts with the old key and
-re-encrypts with the new one, and nothing here does that yet. This is also the
-reason password reset is safe to offer: the key is not derived from anyone's
-password.
+locked out. This is also the reason password reset is safe to offer: the key is
+not derived from anyone's password.
+
+Rotating it is a migration, and `stillpoint:rotate-key` is it: old key into
+`APP_PREVIOUS_KEYS`, new one into `APP_KEY`, run it, and only then drop the old
+key. Its `--dry-run` reads every encrypted row and writes nothing, which makes
+it the check for "can this deployment still read what it holds". Two rules in
+there are not conveniences: a row that decrypts under no configured key is
+**left byte-for-byte as it is**, because the ciphertext is the only copy and a
+guess would turn a recoverable mistake into the other kind; and the command
+refuses outright if a model declares an encrypted column its own list does not
+cover, because that column would keep the old key and step two would then
+destroy it. Add the column to `RotateEncryptionKey::COLUMNS` in the same commit
+as the cast.
 
 **`MAIL_MAILER=log` means nobody can reset a password.** No mail provider has
 been chosen, so the reset link is written to the log instead of sent. It is the
