@@ -180,10 +180,40 @@ TypeScript is pinned to the 6.0 line because `typescript-eslint` 8.x declares a
 apps/api/                 Laravel 13 + MySQL — the backend, and the authority on the protocol
 packages/protocol/        @stillpoint/protocol — the same domain in TypeScript (see below)
 packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, type, space
+packages/client/          @stillpoint/client — the typed API client, one per surface
 apps/web/                 @stillpoint/web — Next.js: marketing site and web app
 parity/                   the cross-language fixture both suites assert against
 e2e/                      a by-hand browser check of web against a running API
 ```
+
+### One API client, not one per surface
+
+`packages/client` holds every path, field name and paging rule the API answers
+with. The web app, a phone and a desktop shell all consume it, because three
+hand-written clients would be three sets of field names drifting apart — the
+same failure the TypeScript and PHP protocols have a parity check to prevent,
+and with the same cost: the surface that drifts is the one that stops showing
+someone their helpline.
+
+It is the one package that _is_ allowed I/O — that is what it is for. It is
+still not allowed presentation: no colours, no copy, no framework imports.
+What a surface supplies is the two things that genuinely differ, both as
+arguments to `createClient()`:
+
+- `baseUrl`, because an app bundle cannot read `NEXT_PUBLIC_*`;
+- `tokens`, a `TokenStore`, because a browser has `localStorage` and a phone
+  should use the keychain.
+
+`TokenStore` is **synchronous on purpose**, and the reasoning is in
+`tokens.ts`: every keychain API is asynchronous, but making the interface
+asynchronous would make `hasToken()` a promise, and that is the one thing a
+screen needs an answer to before it can decide between rendering and
+redirecting. So the asynchronous medium gets wrapped (`cachedTokens`) instead
+of the interface widened. Do not widen it.
+
+`apps/web/src/lib/api.ts` is what a surface binding should look like: the base
+URL, a `localStorage` store, and a re-export of everything so no screen has to
+know which package a type came from.
 
 ### The backend is Laravel, and it owns the rules
 
