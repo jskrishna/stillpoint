@@ -206,7 +206,83 @@ if (!signedIn) {
     else bad('it is still readable as reviewed', all.slice(0, 300));
   }
   // -------------------------------------------------------------------------
-  console.log('\n3. The step-prompt editor');
+  console.log('\n3. Accounts, and who may change a role');
+
+  await admin.goto(`${WEB}/admin/users`, { waitUntil: 'networkidle' });
+  await admin.waitForTimeout(1800);
+  const accounts = await admin.locator('body').innerText();
+
+  if (/\d+ accounts? ·/.test(accounts)) ok('the accounts screen loads');
+  else bad('the accounts screen loads', accounts.slice(0, 300));
+  if (/ask another admin to change yours/.test(accounts))
+    ok('an admin is not offered a change to their own role');
+  else bad('an admin is not offered a change to their own role', accounts.slice(0, 400));
+
+  // Make a fresh account, find it, and make it a coach.
+  const promoted = `promote+${String(Date.now())}@example.com`;
+  const madeIt = await admin.evaluate(
+    async ([api, email, password]) => {
+      const r = await fetch(`${api}/auth/register`, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'To Promote', email, password }),
+      });
+      return r.ok;
+    },
+    [API, promoted, PASSWORD],
+  );
+  if (!madeIt) bad('an account to promote could be made');
+
+  await admin.getByLabel('Search accounts').fill(promoted);
+  await admin.waitForTimeout(1500);
+  const found = admin.locator('tbody tr', { hasText: promoted }).first();
+  if ((await found.count()) === 1) ok('searching finds the one account');
+  else bad('searching finds the one account', String(await found.count()));
+
+  // No session content on an administration screen.
+  if (!/dismissed my work|not good enough|burden/i.test(await admin.locator('body').innerText()))
+    ok('the accounts screen carries no session text');
+  else bad('the accounts screen carries no session text');
+
+  await found.locator('select').selectOption('coach');
+  await admin.waitForTimeout(1800);
+  if ((await admin.locator('body').innerText()).includes('User → Coach'))
+    ok('the change is recorded in the trail, with who made it');
+  else
+    bad(
+      'the change is recorded in the trail',
+      (await admin.locator('body').innerText()).slice(-400),
+    );
+
+  // The server refuses the two changes that should not be easy, whether or not
+  // a screen offers them.
+  const refusals = await admin.evaluate(
+    async ([api]) => {
+      const token = window.localStorage.getItem('stillpoint.token.v1');
+      const headers = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+      const me = await fetch(`${api}/me`, { headers }).then((r) => r.json());
+      const own = await fetch(`${api}/admin/users/${String(me.id)}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ role: 'user' }),
+      });
+      const stillAdmin = await fetch(`${api}/me`, { headers }).then((r) => r.json());
+      return { own: own.status, role: stillAdmin.role };
+    },
+    [API],
+  );
+
+  if (refusals.own === 403) ok('the server refuses an admin changing their own role (403)');
+  else bad('the server refuses an admin changing their own role', String(refusals.own));
+  if (refusals.role === 'admin') ok('and they are still an admin');
+  else bad('and they are still an admin', String(refusals.role));
+
+  // -------------------------------------------------------------------------
+  console.log('\n4. The step-prompt editor');
 
   await admin.goto(`${WEB}/admin/protocol`, { waitUntil: 'networkidle' });
   await admin.waitForTimeout(1800);

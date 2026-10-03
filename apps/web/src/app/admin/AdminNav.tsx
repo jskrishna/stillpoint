@@ -10,6 +10,7 @@ const LINKS = [
   { href: '/admin', label: 'Overview' },
   { href: '/admin/safety', label: 'Safety flags' },
   { href: '/admin/protocol', label: 'Step prompts' },
+  { href: '/admin/users', label: 'Accounts' },
 ] as const;
 
 /**

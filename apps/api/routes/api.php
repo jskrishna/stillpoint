@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\AdminOverviewController;
+use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CoachController;
 use App\Http\Controllers\Api\CoachInviteController;
@@ -77,6 +78,13 @@ Route::middleware(['auth:sanctum', 'throttle:120,1', EnsureStaff::class])->prefi
     Route::get('safety-flags', [SafetyFlagController::class, 'index']);
     Route::get('safety-flags/{flag}', [SafetyFlagController::class, 'show']);
     Route::post('safety-flags/{flag}/review', [SafetyFlagController::class, 'review']);
+
+    // Accounts, and what they are allowed to be. The only way to make someone
+    // a coach or an admin — and the most consequential thing here, because
+    // `admin` grants the safety queue.
+    Route::get('users', [AdminUserController::class, 'index']);
+    Route::patch('users/{user}', [AdminUserController::class, 'update']);
+    Route::get('role-changes', [AdminUserController::class, 'roleChanges']);
 
     Route::get('protocol-versions', [ProtocolVersionController::class, 'index']);
     Route::post('protocol-versions/draft', [ProtocolVersionController::class, 'openDraft']);

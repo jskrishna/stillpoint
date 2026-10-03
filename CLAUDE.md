@@ -111,7 +111,7 @@ is a fill**; they are not interchangeable, which is the whole reason both exist.
 
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
-and 1440 — 64 combinations — and the last run was clean across all of them. It
+and 1440 — 68 combinations — and the last run was clean across all of them. It
 signs in as each role and resolves the client and invitation routes from real
 rows rather than hard-coding an id.
 
@@ -308,6 +308,23 @@ transaction — two live versions would mean two sets of questions in flight.
 
 Which is also why a session is pinned to the version it started on: publishing
 must not change the questions under someone part-way through.
+
+Roles are set in the console (`/admin/users`), which is the only way — it used
+to take a shell on the server. It is also the console's most consequential
+screen, because granting `admin` grants the safety queue. Three guards and a
+trail:
+
+- **nobody changes their own role.** Not only against typos: an escalation one
+  person can perform on themselves alone is one nobody else had to agree to.
+- **the last admin cannot be demoted**, because the alternative is a product
+  nobody can administer and a queue nobody can read.
+- **every change is recorded** in `role_changes`, with who did it, keeping both
+  addresses as they were — an account can be renamed or deleted and the trail
+  should still read. There is no route that edits or deletes a row there,
+  because a trail that can be tidied is not one.
+
+A no-op (setting the role it already has) records nothing: a trail of no-ops is
+a trail nobody reads.
 
 `AdminOverviewService` reads only plain columns — kind, step, end reason,
 rating. It touches none of the encrypted text: the console answers "how is the

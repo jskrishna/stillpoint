@@ -335,6 +335,26 @@ export interface ApiClientDetail extends ApiClient {
   readonly attention: readonly { reason: string; at: string }[];
 }
 
+/** An account, as the console administers it. Never any session content. */
+export interface ApiAdminUser {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly role: string;
+  readonly plan: string;
+  readonly joinedAt: string | null;
+}
+
+/** A record that somebody's role changed, and who changed it. */
+export interface ApiRoleChange {
+  readonly id: string;
+  readonly userEmail: string;
+  readonly changedByEmail: string | null;
+  readonly fromRole: string;
+  readonly toRole: string;
+  readonly at: string | null;
+}
+
 /** One step of a protocol version, as the editor holds it. */
 export interface ApiProtocolStep {
   readonly id: string;
@@ -471,6 +491,30 @@ export const api = {
   /* ------------------------------------------------------- admin console */
 
   adminOverview: () => request<ApiAdminOverview>('/admin/overview'),
+
+  adminUsers: (
+    search: { q?: string; role?: string } = {},
+    limit?: number,
+    cursor?: string | null,
+  ) => {
+    const params = new URLSearchParams();
+    if (search.q !== undefined && search.q !== '') params.set('q', search.q);
+    if (search.role !== undefined && search.role !== '') params.set('role', search.role);
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (cursor !== undefined && cursor !== null) params.set('cursor', cursor);
+    const query = params.toString();
+
+    return request<Page<ApiAdminUser> & { adminCount: number }>(
+      `/admin/users${query === '' ? '' : `?${query}`}`,
+    );
+  },
+
+  /** Refused for your own account, and for the last admin. */
+  setUserRole: (id: string, role: string) =>
+    request<ApiAdminUser>(`/admin/users/${id}`, { method: 'PATCH', body: { role } }),
+
+  roleChanges: (limit?: number, cursor?: string | null) =>
+    request<Page<ApiRoleChange>>(`/admin/role-changes${pageQuery(limit, cursor)}`),
 
   /** Open flags by default; 'all' to include the reviewed ones. */
   safetyFlags: (

@@ -51,7 +51,7 @@ const PRIVATE_ROUTES = [
  * Needs the admin account `e2e/admin.mjs` documents; without it these routes
  * are skipped and said to be skipped rather than passing on the refusal.
  */
-const ADMIN_ROUTES = ['/admin', '/admin/protocol', '/admin/safety'];
+const ADMIN_ROUTES = ['/admin', '/admin/protocol', '/admin/safety', '/admin/users'];
 
 /**
  * The coach portal, audited as a coach sees it.

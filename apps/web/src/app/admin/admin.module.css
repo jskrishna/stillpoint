@@ -400,3 +400,12 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* A search row: a field and a filter, side by side, wrapping on a phone. */
+.inviteRow {
+  display: flex;
+  gap: var(--sp-space-sm);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-space-md);
+}
