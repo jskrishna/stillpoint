@@ -262,7 +262,8 @@ is a fill**; they are not interchangeable, which is the whole reason both exist.
 
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
-and 1440 — 68 combinations — and the last run was clean across all of them. It
+and 1440 — 76 combinations across 19 routes — and the last run was clean across
+all of them. It
 signs in as each role and resolves the client and invitation routes from real
 rows rather than hard-coding an id.
 
@@ -360,10 +361,21 @@ auto-update — each of those costs a certificate or a server rather than a line
 of config. Its README says so; do not let `pnpm run build` passing stand in for
 it.
 
-`apps/web` therefore builds `output: 'standalone'` with `outputFileTracingRoot`
-at the workspace root. Both are load-bearing for the desktop app and neither is
-visible from `apps/web` itself — the comment in `next.config.ts` is the only
-warning anyone gets.
+`apps/web` therefore has a second build: `pnpm --filter @stillpoint/web run
+build:standalone`, which sets `NEXT_OUTPUT=standalone` and so turns on
+`output: 'standalone'` with `outputFileTracingRoot` at the workspace root. Both
+of those are load-bearing for the desktop app and for the Docker image, and
+neither is visible from `apps/web` itself — the comment in `next.config.ts` is
+the only warning anyone gets.
+
+It is opt-in, and writes `.next-standalone` rather than `.next`, for two
+reasons that are easy to rediscover the hard way. `next start` is **not
+supported** alongside `output: 'standalone'` and Next says so at every boot —
+and `next start` is what local development, the README and the end-to-end job
+all use, so leaving it on meant every one of those ran a combination the
+framework warns against. And two builds of one app into one `.next` means
+whichever ran last decides what `next start` finds, which a root
+`pnpm run build` does by itself: web, then the desktop shell.
 
 ### Display state lives in the protocol package
 
@@ -465,17 +477,19 @@ pnpm run build   # every workspace project, packages first
 them, `mobile.mjs`, is the only thing that executes `apps/mobile` at all: it
 drives the Expo web export in a browser at a phone's width. It does not touch
 anything native, and `apps/mobile/README.md` lists what that leaves.
-`flow.mjs` is a by-hand check of the web app against a running API —
-register, consent, a full session, journal, insights, settings, the safety stop
-and sign-out. It needs two servers, so it is not in `check` and not in CI; see
-`e2e/README.md`. Run it after changing the session flow, `apps/web/src/lib/api.ts`
-or anything in `apps/api/app/Domain`. Its last section is the one that matters:
-it types crisis language into a real browser and asserts the **server** ended the
-session, refuses another turn on it (409), shows Tele-MANAS and 112, and wrote no
+`flow.mjs` is the web app's: register, consent, a full session, journal,
+insights, settings, the safety stop and sign-out. It needs three servers, so it
+is not part of `check` — but it **is** in CI, as the `e2e` job, along with the
+other five. Run it by hand too after changing the session flow,
+`packages/client` or anything in `apps/api/app/Domain`; it is faster than
+waiting for a push. Its last section is the one that matters: it types crisis
+language into a real browser and asserts the **server** ended the session,
+refuses another turn on it (409), shows Tele-MANAS and 112, and wrote no
 journal row.
 
-CI runs both as separate jobs. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest
-5 needs 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
+CI runs four jobs: the PHP suite, the JavaScript gates, the end-to-end checks,
+and the Docker images. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
+8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
 
 **There is no MySQL server in the development container**, and apt cannot
 install one. The suite runs on in-memory sqlite, so locally the schema is only
@@ -496,8 +510,8 @@ look green locally.
 ## Running it somewhere
 
 `docker-compose.yml` and `deploy/` bring the whole thing up: MySQL, PHP-FPM,
-nginx, Laravel's scheduler, and the Next.js app. `deploy/README.md` is the detail. Two things from
-it that matter wherever this is discussed:
+nginx, Laravel's scheduler, and the Next.js app. `deploy/README.md` is the
+detail. Two things from it that matter wherever this is discussed:
 
 **`APP_KEY` is the whole journal.** Every entry, every session's content and
 every safety flag's excerpt is encrypted with it, there is no second copy, and
@@ -850,8 +864,9 @@ it is missing from `tsconfig.test.json`'s `include`.
 ## Decisions taken
 
 - **Design direction: Warm & Clear.** Settled; see above.
-- **Client stack: Expo for mobile, Next.js for web and desktop**, both consuming
-  `packages/*`. Not yet scaffolded.
+- **Client stack: Expo for mobile, Next.js for web and desktop**, all three
+  consuming `packages/*`. Scaffolded and built; see the sections above for what
+  is verified on each and what is not.
 - **Step prompt copy stays `null`** until the PRD supplies it. Do not invent it.
 - **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders. What a
   plan _allows_ is settled, though: see below.
