@@ -131,8 +131,16 @@ final class SessionController extends Controller
     {
         $this->authorizeOwnership($request, $session);
 
+        // `required` and `string`, and deliberately no `max`. A length rule
+        // here was a refusal in front of the screen: a 5,222-character
+        // outpouring ending in "I want to kill myself" answered 422 and was
+        // never screened at all. What is kept is bounded instead, by
+        // `App\Domain\Utterance`, after the screen has read all of it.
+        //
+        // `required` and `string` stay because there is no text to screen
+        // otherwise, so nothing is lost by refusing those.
         $validated = $request->validate([
-            'utterance' => ['required', 'string', 'max:5000'],
+            'utterance' => ['required', 'string'],
         ]);
 
         // Read rather than validated, deliberately. A rule here would refuse

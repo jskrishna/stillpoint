@@ -56,10 +56,19 @@ final readonly class Conversation
             return new TurnResult($session, '', false, RiskAssessment::none(), false);
         }
 
+        // The whole utterance, however long. Nothing refuses a turn for its
+        // length: the longest thing somebody writes is quite often the one
+        // that matters most, and a limit that can refuse it is a limit in
+        // front of the screen.
         $assessment = $this->risk->assess($utterance);
 
+        // What may be written down is bounded, and only after the screen has
+        // read all of it. See `Utterance` for why the bound is storage and not
+        // speech.
+        $recorded = Utterance::recordable($utterance);
+
         $flag = $assessment->level->mustFlag() && $assessment->category !== null
-            ? new SafetyFlag($assessment->level, $assessment->category, trim($utterance))
+            ? new SafetyFlag($assessment->level, $assessment->category, trim($recorded))
             : null;
 
         // Record the signal first, whatever it was: a Medium flag must survive
@@ -89,7 +98,7 @@ final readonly class Conversation
             return new TurnResult($next, '', false, $assessment, false, $flag, throttled: true);
         }
 
-        $reply = $this->guide->respond($next, $version, $utterance);
+        $reply = $this->guide->respond($next, $version, $recorded);
 
         $next = $reply->advance
             ? $next->withStepSatisfied($reply->capture)

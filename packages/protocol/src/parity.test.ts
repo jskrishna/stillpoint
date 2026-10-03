@@ -24,6 +24,7 @@ import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
 import type { JournalEntry } from './journal.js';
 import type { SessionKind } from './session.js';
 import { baselineRiskScreen } from './risk.js';
+import { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
 import type { StepId } from './steps.js';
 
 interface RiskCase {
@@ -63,11 +64,18 @@ interface PlanCase {
   readonly left: number | null;
 }
 
+interface Limits {
+  readonly recordedUtterance: number;
+  readonly keptFromALongAnswer: number;
+  readonly keptFromAnEmojiAnswer: number;
+}
+
 interface Cases {
   readonly risk: readonly RiskCase[];
   readonly extraction: readonly ExtractionCase[];
   readonly plans: readonly PlanCase[];
   readonly coach: readonly CoachCase[];
+  readonly limits: Limits;
 }
 
 const cases = JSON.parse(
@@ -147,4 +155,34 @@ describe('plan allowances match the shared cases', () => {
       }).toEqual({ allowed: c.allowed, limit: c.limit, left: c.left });
     });
   }
+});
+
+/**
+ * A number in the fixture rather than a case, because a case would be a
+ * 20,000-character utterance in a checked-in file nobody could then read.
+ *
+ * It is here at all because the bound is a rule: the two languages trimming an
+ * answer at different lengths would mean the journal and the safety queue
+ * disagreeing about what somebody said.
+ */
+describe('the recorded-utterance bound matches the shared limits', () => {
+  it('is the same number in both languages', () => {
+    expect(RECORDED_UTTERANCE_LIMIT).toBe(cases.limits.recordedUtterance);
+  });
+
+  it('keeps the same amount of a long answer in Devanagari', () => {
+    // Characters, not bytes. A byte bound would keep a third as much Hindi as
+    // English, in a product that is India-first.
+    expect([...recordable('मुझे मरना है। '.repeat(4000))]).toHaveLength(
+      cases.limits.keptFromALongAnswer,
+    );
+  });
+
+  it('keeps the same amount of an answer made of surrogate pairs', () => {
+    // Code points, so the bound never lands inside a character and leaves half
+    // of one as the last thing somebody wrote.
+    expect([...recordable('😢'.repeat(RECORDED_UTTERANCE_LIMIT + 10))]).toHaveLength(
+      cases.limits.keptFromAnEmojiAnswer,
+    );
+  });
 });

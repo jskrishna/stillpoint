@@ -14,6 +14,7 @@ import { toCapture, type Guide, type GuideReply } from './guide.js';
 import { mustFlag, mustStop, type SafetyCategory, type SafetyLevel } from './safety.js';
 import type { RiskAssessment, RiskScreen } from './risk.js';
 import type { ProtocolVersion } from './version.js';
+import { recordable } from './utterance.js';
 
 /** What one turn produced. */
 export interface TurnResult {
@@ -126,14 +127,21 @@ export function takeTurn(
     };
   }
 
+  // The whole utterance, however long. Nothing refuses a turn for its length:
+  // the longest thing somebody writes is quite often the one that matters
+  // most, and a limit that can refuse it is a limit in front of the screen.
   const assessment = risk.assess(utterance);
+
+  // What may be written down is bounded, and only after the screen has read
+  // all of it. See `utterance.ts` for why the bound is storage and not speech.
+  const recorded = recordable(utterance);
 
   const flagged =
     mustFlag(assessment.level) && assessment.category !== undefined
       ? {
           level: assessment.level as Exclude<SafetyLevel, 'none'>,
           category: assessment.category,
-          excerpt: utterance.trim(),
+          excerpt: recorded.trim(),
         }
       : undefined;
 
@@ -190,7 +198,7 @@ export function takeTurn(
     };
   }
 
-  const reply: GuideReply = guide.respond({ session: next, version, utterance });
+  const reply: GuideReply = guide.respond({ session: next, version, utterance: recorded });
 
   // exactOptionalPropertyTypes: omit `capture` entirely when there is nothing
   // to record, rather than setting it to undefined.

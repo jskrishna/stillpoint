@@ -140,6 +140,51 @@ loses is catching a client's typo; what validating it would lose is someone
 saying they are not safe. The client's third argument is required rather than
 optional so no surface can quietly stop sending it.
 
+### Length is a storage bound, not a refusal
+
+The turns route validates `utterance` as `required|string` and **no `max`**. It
+used to be `max:5000`, which made length a refusal in front of the screen — the
+same objection as a rate limit, and not a theoretical one: a 5,222-character
+outpouring ending in "I want to kill myself" answered 422 and was never
+screened. Five thousand characters is about 800 words, which somebody typing at
+2am reaches, and the longest thing a person writes is quite often the one that
+matters most.
+
+What is bounded is what gets written down, after the screen has read all of it:
+`recordable()` / `Utterance::recordable()`, at 20,000 characters — roughly 3,300
+words, far past any answer to one question, so in practice nobody is trimmed.
+The bound exists because the journal decrypts rows one at a time and "export my
+data" reads all of them, not because anybody should say less.
+
+It counts **characters, not bytes**, and whole ones. Bytes would keep a third as
+much Hindi as English, and a naive slice would leave half a surrogate pair as
+the last thing somebody wrote. `parity/cases.json` carries the number and two
+worked examples under `limits`, because the two languages trimming at different
+lengths would mean the journal and the safety queue disagreeing about what was
+said.
+
+### `text` is 65,535 bytes, and Devanagari costs three of them a character
+
+Every column holding encrypted personal text is `mediumText`, not `text`, and
+that is load-bearing rather than generous. MySQL's `TEXT` is 65,535 **bytes**;
+Devanagari is three bytes a character in UTF-8, and Laravel's `encrypted` cast
+roughly doubles what it stores on top of that. Measured: one full session
+answered in Hindi, at the 5,000-character ceiling the API used to enforce,
+encrypts to **90,400 bytes** of `guided_sessions.data` and does not fit, while
+the same session in English fits twice over. It failed for the language the
+product is for and for nobody else.
+
+Nothing here caught it, because the suite and the development container run on
+sqlite where `text` is unbounded. On MySQL in strict mode the write errors and
+the turn 500s; with strict mode off it would truncate, and a truncated
+ciphertext does not decrypt — the session's whole content would be unreadable
+rather than short. `tests/Feature/EncryptedColumnsAreWideEnoughTest.php` asserts
+what can be asserted off MySQL: that the widening migration covers every column
+an `encrypted` cast writes to, and the arithmetic that made `text` too small.
+
+**A new `encrypted` cast needs a column wide enough for it**, and that test is
+what says so.
+
 ### The guide is a stand-in, and so is what it records
 
 `scriptedGuide` / `ScriptedGuide` decide what to say by reading the protocol and

@@ -35,6 +35,15 @@ sqlite passing proves nothing about MySQL until CI says so.
 `database/database.sqlite` is for running the app by hand (`php artisan serve`),
 not for the tests.
 
+**Column widths are one of the things sqlite will not tell you.** `text` is
+unbounded there and 65,535 *bytes* on MySQL, and the encrypted columns were
+`text` while a single session answered in Hindi encrypted to 90,400 bytes —
+Devanagari costs three bytes a character and the `encrypted` cast roughly
+doubles what it stores. They are `mediumText` now, and
+`tests/Feature/EncryptedColumnsAreWideEnoughTest.php` asserts that every
+`encrypted` cast has a widened column behind it. Add a new one and that test is
+what reminds you.
+
 The guided sessions table is `guided_sessions`, not `sessions`: Laravel's
 session driver owns that name.
 
@@ -45,6 +54,11 @@ happened, belief, forgiveness, memory and note, and a safety flag's excerpt.
 Encrypted columns cannot be queried or indexed, which is deliberate: aggregates
 run in PHP over a user's own window rather than with `GROUP BY`. Do not drop the
 encryption to make a query easier.
+
+They are also **`mediumText`, not `text`** — see the database section above, and
+the root `CLAUDE.md` for the measurement. One answer is bounded at 20,000
+characters by `App\Domain\Utterance`, which is a storage bound applied after
+the safety screen and never a limit on what someone may say.
 
 ## Pint, not Prettier
 

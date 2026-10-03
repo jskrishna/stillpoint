@@ -10,6 +10,7 @@ use App\Domain\PhraseRiskScreen;
 use App\Domain\Plan;
 use App\Domain\SessionKind;
 use App\Domain\StepId;
+use App\Domain\Utterance;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -162,7 +163,38 @@ final class ParityTest extends TestCase
         ], CoachView::summarise($entries), "Coach parity broke on: {$case['name']}");
     }
 
-    /** @return array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, plans: list<array<string, mixed>>, coach: list<array<string, mixed>>} */
+    /**
+     * The bound on what is recorded from one answer.
+     *
+     * A number in the fixture rather than a case, because a case would be a
+     * 20,000-character utterance in a checked-in file nobody could then read.
+     * It is there at all because the bound is a rule: the two languages
+     * trimming an answer at different lengths would mean the journal and the
+     * safety queue disagreeing about what somebody said.
+     */
+    public function test_the_recorded_utterance_bound_matches_the_shared_limits(): void
+    {
+        /** @var array{recordedUtterance: int, keptFromALongAnswer: int, keptFromAnEmojiAnswer: int} $limits */
+        $limits = self::cases()['limits'];
+
+        $this->assertSame($limits['recordedUtterance'], Utterance::RECORDED_LIMIT);
+
+        // Characters, not bytes. A byte bound would keep a third as much Hindi
+        // as English, in a product that is India-first.
+        $this->assertSame(
+            $limits['keptFromALongAnswer'],
+            mb_strlen(Utterance::recordable(str_repeat('मुझे मरना है। ', 4000))),
+        );
+
+        // Whole characters, so the bound never lands inside one and leaves
+        // half of it as the last thing somebody wrote.
+        $this->assertSame(
+            $limits['keptFromAnEmojiAnswer'],
+            mb_strlen(Utterance::recordable(str_repeat('😢', Utterance::RECORDED_LIMIT + 10))),
+        );
+    }
+
+    /** @return array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, plans: list<array<string, mixed>>, coach: list<array<string, mixed>>, limits: array<string, int>} */
     private static function cases(): array
     {
         $path = dirname(__DIR__, 4).'/parity/cases.json';
@@ -172,7 +204,7 @@ final class ParityTest extends TestCase
             throw new \RuntimeException("Parity fixture missing at {$path}. It is checked in; do not delete it.");
         }
 
-        /** @var array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, plans: list<array<string, mixed>>, coach: list<array<string, mixed>>} $decoded */
+        /** @var array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, plans: list<array<string, mixed>>, coach: list<array<string, mixed>>, limits: array<string, int>} $decoded */
         $decoded = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
 
         return $decoded;
