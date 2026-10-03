@@ -768,21 +768,24 @@ flattering the numbers.
 
 ## The API pages, and is bounded
 
-`GET /journal` and `GET /admin/safety-flags` are paged, and they are the only
-two endpoints with an envelope:
+Four endpoints are paged, and they are the only ones with an envelope:
+`GET /journal`, `GET /admin/safety-flags`, `GET /admin/users` and
+`GET /admin/role-changes`. Everything else is a bare resource or a bare array.
 
 ```json
 { "items": [...], "nextCursor": "..." | null, "total": 42 }
 ```
 
-Cursor, not offset: both lists are ordered by time and grow at the top, and an
-offset page silently repeats or skips a row when something is inserted between
-two requests. For the queue that would mean a reviewer never seeing a flag.
+Cursor, not offset: these lists grow while they are being read, and an offset
+page silently repeats or skips a row when something is inserted between two
+requests. For the queue that would mean a reviewer never seeing a flag.
 
-A cursor is built from the ordering columns, so **both orderings end in `id`** —
-`occurred_at` and `raised_at` are not unique, and a tie with no tiebreaker makes
-a page repeat a row. The queue's severity is a stored `severity` column for the
-same reason: it used to be a `CASE level ...` expression, which sorts correctly
+A cursor is built from the ordering columns, so **every one of those orderings
+ends in `id`** — `occurred_at`, `raised_at`, a name and `created_at` are none of
+them unique, and a tie with no tiebreaker makes a page repeat a row. Check that
+when adding a paged list; it is the whole reason the rule is written down. The
+queue's severity is a stored `severity` column for the same reason: it used to
+be a `CASE level ...` expression, which sorts correctly
 but is not a column a cursor can read, and two pages overlapped. The rank itself
 is still the domain's (`SafetyLevel::rank()`); the model keeps the column in
 step on write.
