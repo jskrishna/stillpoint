@@ -72,6 +72,47 @@ const RULES: readonly Rule[] = [
       'cut myself',
       'suicide',
       'suicidal',
+      // Past tense, because people say it that way: "I wanted to die". This
+      // also trips on reported speech ("a film about someone who wanted to
+      // die"), which is the error this screen is meant to make.
+      'wanted to die',
+      'wanted to kill myself',
+      'tried to kill myself',
+      'tried to end my life',
+    ],
+  },
+  {
+    // Hopelessness and perceived burdensomeness: among the best-attested
+    // warning signs, and nothing like a statement of intent. Medium flags them
+    // for a reviewer without ending a session, which is the right trade — an
+    // upset person saying "I can't go on" is having an ordinary bad day often
+    // enough that stopping on it would make the product unusable.
+    level: 'medium',
+    category: 'self_harm',
+    phrases: [
+      'feel like a burden',
+      'burden to everyone',
+      'burden to my family',
+      'burden on everyone',
+      "can't go on",
+      'cannot go on',
+      "can't keep going",
+      'tired of living',
+      "don't want to live",
+      'do not want to live',
+      'no point in living',
+      "better off if i wasn't here",
+      'better off if i was not here',
+    ],
+  },
+  {
+    level: 'low',
+    category: 'self_harm',
+    phrases: [
+      'nothing matters any more',
+      'nothing matters anymore',
+      "what's the point any more",
+      "what's the point anymore",
     ],
   },
   {
@@ -93,12 +134,45 @@ const RULES: readonly Rule[] = [
       'stopped my medication',
       'stopped taking my medication',
       'off my meds',
+      // Disordered eating, stated as a thing the person is doing to themselves.
+      "haven't eaten in",
+      'have not eaten in',
+      'stopped eating',
+      'starve myself',
+      'starving myself',
+      'make myself sick',
+      'making myself sick',
+      // Drinking or using to blunt feeling, which is what a session is for.
+      'drank a whole bottle',
+      'drinking every day',
+      'drink to forget',
+      'relapsed',
     ],
   },
   {
     level: 'medium',
     category: 'trauma',
-    phrases: ['abused me', 'he hit me', 'she hit me', 'they hit me', 'assaulted me'],
+    phrases: [
+      'abused me',
+      'he hit me',
+      'she hit me',
+      'they hit me',
+      'hits me',
+      'beats me',
+      'assaulted me',
+      'raped me',
+      'molested me',
+      // Threats and fear of a specific person: a disclosure, not a feeling.
+      'threatens me',
+      'threatened me',
+      'threatens to kill',
+      'threatened to kill',
+      'forced me',
+      'afraid of him',
+      'afraid of her',
+      'scared of him',
+      'scared of her',
+    ],
   },
   {
     level: 'low',

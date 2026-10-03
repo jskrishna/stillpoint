@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONSENT_ITEMS,
+  COACH_SHARINGS,
   COACH_SHARING_LABEL,
   DEFAULT_PREFERENCES,
   GUIDE_VOICES,
   REQUIRED_CONSENT,
+  TALK_MODES,
   TALK_MODE_LABEL,
   hasRequiredConsent,
   missingConsent,
@@ -62,6 +64,16 @@ describe('voices and modes', () => {
 
   it('names every coach sharing choice', () => {
     expect(Object.keys(COACH_SHARING_LABEL)).toEqual(['ask_each_time', 'never', 'always']);
+  });
+
+  // The lists are what the settings screen iterates. `satisfies` stops an id
+  // that is not a mode getting in; only this catches a mode left out.
+  it('lists every talk mode it has a label for', () => {
+    expect([...TALK_MODES]).toEqual(Object.keys(TALK_MODE_LABEL));
+  });
+
+  it('lists every sharing choice it has a label for', () => {
+    expect([...COACH_SHARINGS]).toEqual(Object.keys(COACH_SHARING_LABEL));
   });
 });
 

@@ -1,38 +1,86 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FEELINGS, withNote, withSharing, type JournalEntry } from '@stillpoint/protocol';
-import { browserJournalStore } from '../../../../lib/journal-store';
+import { FEELINGS } from '@stillpoint/protocol';
+import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
 import { duration, relativeDay } from '../../../../lib/format';
 import styles from '../../app.module.css';
 
-const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
+const LABEL = new Map<string, string>(FEELINGS.map((f) => [f.id, f.label]));
 
-/** One journal entry, with the note, sharing and delete the designs give it. */
+/** How long after the last keystroke the note is sent. */
+const SAVE_AFTER_MS = 700;
+
+/**
+ * One journal entry, with the note, sharing and delete the designs give it.
+ *
+ * The note and the sharing flag are sent as separate PATCHes carrying only the
+ * field that changed. The server applies each on its own, so one cannot clobber
+ * the other — which is how the note used to vanish the moment sharing was
+ * toggled.
+ */
 export default function EntryDetail({ entryId }: { entryId: string }) {
-  const [entry, setEntry] = useState<JournalEntry | null | undefined>(undefined);
+  const [entry, setEntry] = useState<ApiJournalEntry | null | undefined>(undefined);
   const [note, setNote] = useState('');
   const [now, setNow] = useState<Date | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const loadedNote = useRef<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const found = browserJournalStore.get(entryId);
-    setEntry(found ?? null);
-    setNote(found?.note ?? '');
     setNow(new Date());
-  }, [entryId]);
+    api
+      .journalEntry(entryId)
+      .then((found) => {
+        setEntry(found);
+        setNote(found.note ?? '');
+        loadedNote.current = found.note ?? '';
+      })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          router.push('/welcome');
+          return;
+        }
+        setEntry(null);
+      });
+  }, [entryId, router]);
 
-  if (entry === undefined) return <p className={styles.empty}>Loading…</p>;
+  // The note is saved after typing stops, not inside the change handler: a
+  // save belongs to an effect, where React decides when it runs, and not to a
+  // render that may happen twice.
+  useEffect(() => {
+    if (loadedNote.current === null || note === loadedNote.current) return;
+    const timer = setTimeout(() => {
+      setSaving(true);
+      api
+        .updateJournalEntry(entryId, { note: note === '' ? null : note })
+        .then((updated) => {
+          loadedNote.current = updated.note ?? '';
+          setEntry(updated);
+          setFailed(null);
+        })
+        .catch(() => {
+          setFailed('Your note is not saved. Check your connection.');
+        })
+        .finally(() => {
+          setSaving(false);
+        });
+    }, SAVE_AFTER_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [note, entryId]);
+
+  if (entry === undefined) return <p className={styles.loading}>Loading…</p>;
   if (entry === null) {
     return (
       <>
         <h1 className={styles.title}>Not found</h1>
-        <p className={styles.empty}>
-          This entry is not in this browser. Journal entries are stored on the device they were
-          written on.
-        </p>
+        <p className={styles.empty}>This entry is no longer in your journal.</p>
         <Link href="/app/journal" className={styles.cta}>
           Back to journal
         </Link>
@@ -40,29 +88,22 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     );
   }
 
-  // Both of these change the stored entry through an updater rather than
-  // writing back a copy held in state. Writing the whole entry back loses
-  // whatever the other control changed in between — which is exactly how the
-  // note disappeared the moment sharing was toggled.
-  const saveNote = (value: string) => {
-    setNote(value);
-    browserJournalStore.update(entry.id, (e) => withNote(e, value));
-    setEntry((current) =>
-      current === null || current === undefined ? current : withNote(current, value),
-    );
+  const toggleShare = async () => {
+    try {
+      setEntry(await api.updateJournalEntry(entry.id, { sharedWithCoach: !entry.sharedWithCoach }));
+      setFailed(null);
+    } catch {
+      setFailed('Could not change sharing. Check your connection.');
+    }
   };
 
-  const toggleShare = () => {
-    const shared = !entry.sharedWithCoach;
-    browserJournalStore.update(entry.id, (e) => withSharing(e, shared));
-    setEntry((current) =>
-      current === null || current === undefined ? current : withSharing(current, shared),
-    );
-  };
-
-  const remove = () => {
-    browserJournalStore.remove(entry.id);
-    router.push('/app/journal');
+  const remove = async () => {
+    try {
+      await api.deleteJournalEntry(entry.id);
+      router.push('/app/journal');
+    } catch {
+      setFailed('Could not delete this entry. Check your connection.');
+    }
   };
 
   const rows = [
@@ -73,11 +114,11 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     {
       label:
         entry.memory?.age === undefined ? 'MEMORY' : `MEMORY (AGE ${String(entry.memory.age)})`,
-      value: entry.memory?.description,
+      value: entry.memory?.description ?? null,
     },
-    { label: 'OLD BELIEF', value: entry.belief === undefined ? undefined : `“${entry.belief}”` },
+    { label: 'OLD BELIEF', value: entry.belief === null ? null : `“${entry.belief}”` },
     { label: 'FORGIVENESS', value: entry.forgiveness },
-  ].filter((r): r is { label: string; value: string } => r.value !== undefined && r.value !== '');
+  ].filter((r): r is { label: string; value: string } => r.value !== null && r.value !== '');
 
   return (
     <>
@@ -85,7 +126,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         ← Journal
       </Link>
       <span className={styles.label} style={{ marginTop: 10 }}>
-        {now === null ? '' : relativeDay(entry.occurredAt, now).toUpperCase()} ·{' '}
+        {now === null ? '' : relativeDay(new Date(entry.occurredAt), now).toUpperCase()} ·{' '}
         {duration(entry.durationMinutes).toUpperCase()}
         {entry.calmerRating === 'yes' ? ' · FELT CALMER' : ''}
       </span>
@@ -101,13 +142,13 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
       </div>
 
       <label className={styles.label} style={{ marginTop: 16 }}>
-        My note
+        My note{saving ? ' · saving…' : ''}
       </label>
       <textarea
         rows={3}
         value={note}
         onChange={(e) => {
-          saveNote(e.target.value);
+          setNote(e.target.value);
         }}
         placeholder="Anything you want to remember."
         style={{
@@ -123,13 +164,28 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         }}
       />
 
+      {failed === null ? null : (
+        <p className={styles.failure} role="alert">
+          {failed}
+        </p>
+      )}
+
       <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', gap: 10 }}>
-        <button type="button" onClick={toggleShare} className={styles.cta} style={{ flexGrow: 1 }}>
+        <button
+          type="button"
+          onClick={() => {
+            void toggleShare();
+          }}
+          className={styles.cta}
+          style={{ flexGrow: 1 }}
+        >
           {entry.sharedWithCoach ? 'Shared with coach' : 'Share with coach'}
         </button>
         <button
           type="button"
-          onClick={remove}
+          onClick={() => {
+            void remove();
+          }}
           className={styles.cta}
           style={{
             flexGrow: 1,

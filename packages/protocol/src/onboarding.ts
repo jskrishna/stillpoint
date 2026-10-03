@@ -78,6 +78,9 @@ export const TALK_MODE_LABEL = {
   type: 'Type instead',
 } as const satisfies Readonly<Record<TalkMode, string>>;
 
+/** Every talk mode, in the order the settings screen lists them. */
+export const TALK_MODES = ['hold', 'hands_free', 'type'] as const satisfies readonly TalkMode[];
+
 /** How a user's journal is offered to their coach. */
 export type CoachSharing = 'ask_each_time' | 'never' | 'always';
 
@@ -86,6 +89,13 @@ export const COACH_SHARING_LABEL = {
   never: 'Never share',
   always: 'Share every session',
 } as const satisfies Readonly<Record<CoachSharing, string>>;
+
+/** Every sharing choice, in the order the settings screen lists them. */
+export const COACH_SHARINGS = [
+  'ask_each_time',
+  'never',
+  'always',
+] as const satisfies readonly CoachSharing[];
 
 /** Everything chosen during onboarding and changeable in settings. */
 export interface Preferences {

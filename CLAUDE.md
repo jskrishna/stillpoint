@@ -45,6 +45,15 @@ Shipping needs a trained model and sign-off from someone qualified to judge it.
 It is tuned for recall on purpose: a false flag costs a reviewer a minute, a
 missed one costs something that cannot be undone. Grade an ambiguous phrase up.
 
+Grading up has a ceiling, though: `high` ends the session, so hopelessness and
+burdensomeness ("I can't go on", "I feel like a burden", "nothing matters any
+more") are `medium` and `low`. They are flagged for a reviewer, not stopped on —
+an upset person says them on an ordinary bad day often enough that stopping
+would make the product unusable. Only a statement of intent or of an act is
+`high`. Past tense is in the screen because people speak that way, and it trips
+on reported speech ("a film about someone who wanted to die"); that false
+positive is deliberate, and `parity/cases.json` says so beside the case.
+
 ## Safety is screened before the guide speaks
 
 `takeTurn()` assesses risk first and, on a high-risk utterance, ends the session
@@ -52,6 +61,22 @@ missed one costs something that cannot be undone. Grade an ambiguous phrase up.
 said they are not safe is the exact failure this ordering prevents. There is a
 test asserting the guide is never called; treat a change that breaks it as a
 bug, not a failing test to update.
+
+### The guide is a stand-in, and so is what it records
+
+`scriptedGuide` / `ScriptedGuide` decide what to say by reading the protocol and
+nothing else. What they _record_ is `literalExtraction` (TS) /
+`LiteralExtraction` (PHP): the answer taken at face value — whatever was said at
+a step is what that step was asking for. Both are stand-ins for a model, both
+exist in both languages, and the parity fixture covers them.
+
+Step 3 is not answered in prose. The designs give it a grid of the twelve
+feelings and "Choose up to 3", so `answerKindOf('feel')` is `'feelings'` and the
+client posts feeling **ids**, not labels. The guide's word-count heuristic is
+only applied to prose: judging a selection by its length stalled step 3 for
+anyone who did not happen to pick exactly three feelings. Answer kind belongs to
+the step _id_, not to a protocol version — staff editing prompts in the admin
+console must not be able to turn a selection into a sentence.
 
 ## Do not invent product copy
 
@@ -95,6 +120,8 @@ apps/api/                 Laravel 13 + MySQL — the backend, and the authority 
 packages/protocol/        @stillpoint/protocol — the same domain in TypeScript (see below)
 packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, type, space
 apps/web/                 @stillpoint/web — Next.js: marketing site and web app
+parity/                   the cross-language fixture both suites assert against
+e2e/                      a by-hand browser check of web against a running API
 ```
 
 ### The backend is Laravel, and it owns the rules
@@ -111,6 +138,19 @@ risk screen's output across both.
 The TypeScript protocol package is on its way to being types plus client-side
 display state. Until that is finished, **a rule changed in one must be changed
 in the other, in the same commit**.
+
+That is enforced, not just asked for. `parity/cases.json` is a checked-in table
+of utterances and step answers with the expected risk grade and the expected
+capture. Both suites assert against that one file —
+`packages/protocol/src/parity.test.ts` and `apps/api/tests/Unit/ParityTest.php` —
+so a rule that moves in one language and not the other turns one of the two red,
+in whichever CI job runs first.
+
+The TypeScript side generates the file, because its tests were the port's
+specification: `pnpm run parity:generate`. Run that only after deliberately
+changing both languages. **Regenerating to turn a red parity test green records
+the divergence instead of fixing it**, which is the whole failure the file
+exists to prevent.
 
 Note `pnpm-workspace.yaml` lists `apps/web` and not `apps/*`: Laravel ships a
 `package.json` for Vite scaffolding this API does not use, and globbing pulled
@@ -140,6 +180,15 @@ pnpm run build   # every workspace project, packages first
 ./vendor/bin/phpunit     # the domain tests
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
+
+`e2e/flow.mjs` is a by-hand check of the web app against a running API —
+register, consent, a full session, journal, insights, settings, the safety stop
+and sign-out. It needs two servers, so it is not in `check` and not in CI; see
+`e2e/README.md`. Run it after changing the session flow, `apps/web/src/lib/api.ts`
+or anything in `apps/api/app/Domain`. Its last section is the one that matters:
+it types crisis language into a real browser and asserts the **server** ended the
+session, refuses another turn on it (409), shows Tele-MANAS and 112, and wrote no
+journal row.
 
 CI runs both as separate jobs. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest
 5 needs 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
@@ -175,6 +224,32 @@ make a query easier.
 The journal table is also the rule, not just a store: **a session that ended for
 safety never gets a row.** `JournalEntry::fromSession()` returns null for it,
 and the absence of the row is how that is kept.
+
+## The API's shape
+
+Resource responses carry **no `data` envelope**: `JsonResource::withoutWrapping()`
+is called in `AppServiceProvider`. Assert `step.ordinal`, not
+`data.step.ordinal`, and a collection comes back as a bare JSON array.
+
+It is stated there because the default was already being defeated by accident —
+Laravel skips its wrapper when the payload has its own `data` key, and
+`SessionResource` has one. So sessions came back unwrapped while the journal came
+back wrapped, and renaming that key would have silently reshaped every session
+response.
+
+An unauthenticated request answers **401**, with or without an `Accept` header.
+Laravel's default sends a guest to `route('login')`, which this API does not
+have, and the auth middleware resolves that before the exception handler decides
+on JSON — so a bare request used to get a 500. `bootstrap/app.php` sets
+`redirectGuestsTo` to null; there is a test for it.
+
+CORS is a list, never `*`: `CORS_ALLOWED_ORIGINS`, defaulting to the two local
+spellings of the dev server. This API carries personal health content behind
+bearer tokens.
+
+The web client keeps its token in `localStorage`, which an XSS can read. The
+right answer is Sanctum's cookie mode; the shortcut is documented at the top of
+`apps/web/src/lib/api.ts` and is not an opinion that it is fine.
 
 ## Conventions
 

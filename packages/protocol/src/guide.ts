@@ -11,8 +11,10 @@
  * against. It understands nothing.
  */
 
+import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
 import type { FeelingId } from './feelings.js';
 import type { Memory, Session, SessionData } from './session.js';
+import type { StepId } from './steps.js';
 import type { ProtocolVersion } from './version.js';
 import { stepIn } from './version.js';
 
@@ -48,19 +50,15 @@ export interface Guide {
   respond(context: GuideContext): GuideReply;
 }
 
-/** Whether an answer is substantial enough to be worth treating as one. */
-function isSubstantive(utterance: string): boolean {
-  return utterance.trim().split(/\s+/).filter(Boolean).length >= 3;
-}
-
 /**
  * A deterministic guide that reads the protocol and nothing else.
  *
  * It opens with the step's main question, falls back through the backups when
  * an answer is too thin, and gives up on a step once the version's turn limit
- * is reached rather than pressing someone who cannot answer. It does not
- * interpret anything: extraction is left to the caller, which is exactly the
- * seam a real model slots into.
+ * is reached rather than pressing someone who cannot answer.
+ *
+ * It interprets nothing. What it records is {@link literalExtraction}: the
+ * answer taken at face value, which is the stand-in a real model replaces.
  */
 export const scriptedGuide: Guide = {
   respond({ session, version, utterance }: GuideContext): GuideReply {
@@ -75,8 +73,8 @@ export const scriptedGuide: Guide = {
       return { say: step.prompts.main ?? '', advance: false };
     }
 
-    if (isSubstantive(utterance)) {
-      return { say: '', advance: true };
+    if (isSubstantiveAnswer(stepId, utterance)) {
+      return { say: '', advance: true, ...capture(stepId, utterance) };
     }
 
     // Too thin to move on. Offer the next backup, if the step has one left.
@@ -89,12 +87,20 @@ export const scriptedGuide: Guide = {
     // upset and cannot answer: the protocol's own limit says when to stop.
     const limit = step.maxGuideTurns;
     if (limit !== null && used + 1 >= limit) {
-      return { say: '', advance: true };
+      // Giving up on the step still records whatever was said: a thin answer is
+      // the user's answer, and dropping it would lose it from their journal.
+      return { say: '', advance: true, ...capture(stepId, utterance) };
     }
 
     return { say: step.prompts.main ?? '', advance: false };
   },
 };
+
+/** The `capture` field of a reply, omitted entirely when there is nothing. */
+function capture(stepId: StepId, utterance: string): { capture?: Extraction } {
+  const extraction = literalExtraction(stepId, utterance);
+  return extraction === undefined ? {} : { capture: extraction };
+}
 
 /** Narrows an extraction to the fields a session actually stores. */
 export function toCapture(

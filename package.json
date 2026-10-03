@@ -2,7 +2,7 @@
   "name": "stillpoint",
   "version": "0.1.0",
   "private": true,
-  "description": "Stillpoint — a voice guide through the six-step Choose Again process",
+  "description": "Stillpoint \u2014 a voice guide through the six-step Choose Again process",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -21,7 +21,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check": "pnpm run build:packages && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
-    "build:packages": "pnpm --filter './packages/*' run build"
+    "build:packages": "pnpm --filter './packages/*' run build",
+    "parity:generate": "pnpm run build:packages && node parity/generate.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

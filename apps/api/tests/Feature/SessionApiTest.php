@@ -69,7 +69,7 @@ final class SessionApiTest extends TestCase
             ->assertJsonPath('say', 'You’re upset, and that’s okay. What happened?');
     }
 
-    public function test_a_substantial_answer_advances_the_step(): void
+    public function test_a_substantial_answer_advances_the_step_and_is_recorded(): void
     {
         $this->consentedUser();
         $id = $this->newSession();
@@ -77,7 +77,28 @@ final class SessionApiTest extends TestCase
         $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'My manager called me out in front of everyone'])
             ->assertOk()
             ->assertJsonPath('step.ordinal', 2)
-            ->assertJsonPath('data.whatHappened', null);
+            ->assertJsonPath('data.whatHappened', 'My manager called me out in front of everyone');
+    }
+
+    /**
+     * Step 3's answer is a selection, not prose.
+     *
+     * The guide judged every answer by word count, so one feeling never counted
+     * as an answer and the session stalled at step 3 unless the user happened
+     * to pick exactly three.
+     */
+    public function test_one_named_feeling_advances_step_three(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'My manager called me out in front of everyone']);
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'I can see how I took it that way']);
+
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'angry'])
+            ->assertOk()
+            ->assertJsonPath('step.ordinal', 4)
+            ->assertJsonPath('data.feelings', ['angry']);
     }
 
     public function test_a_thin_answer_does_not_advance(): void

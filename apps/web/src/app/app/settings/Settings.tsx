@@ -2,45 +2,62 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
+  COACH_SHARINGS,
   COACH_SHARING_LABEL,
   GUIDE_VOICES,
+  TALK_MODES,
   TALK_MODE_LABEL,
   type CoachSharing,
   type GuideVoice,
-  type Preferences,
   type TalkMode,
 } from '@stillpoint/protocol';
-import { browserPreferences } from '../../../lib/preferences-store';
-import { browserJournalStore } from '../../../lib/journal-store';
+import { ApiError, api, type ApiJournalEntry, type Profile } from '../../../lib/api';
 import styles from '../app.module.css';
 
 /**
  * Settings.
  *
- * Every control changes a stored preference and nothing else: the labels come
- * from the protocol, so a mode added there appears here without this screen
- * being touched.
+ * Every control sends one field to `PATCH /me` and renders what comes back, so
+ * the screen cannot disagree with the account. The labels come from the
+ * protocol: a mode added there appears here without this screen being touched.
  */
 export default function Settings() {
-  const [prefs, setPrefs] = useState<Preferences | null>(null);
-  const [entryCount, setEntryCount] = useState(0);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [entries, setEntries] = useState<readonly ApiJournalEntry[]>([]);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    setPrefs(browserPreferences.read());
-    setEntryCount(browserJournalStore.list().length);
-  }, []);
+    Promise.all([api.me(), api.journal()])
+      .then(([me, journal]) => {
+        setProfile(me);
+        setEntries(journal);
+      })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          router.push('/welcome');
+          return;
+        }
+        setFailed('Could not load your settings. Check your connection.');
+      });
+  }, [router]);
 
-  const update = (change: (p: Preferences) => Preferences) => {
-    setPrefs(browserPreferences.write(change));
+  const save = async (changes: Parameters<typeof api.updateMe>[0]) => {
+    try {
+      setProfile(await api.updateMe(changes));
+      setFailed(null);
+    } catch {
+      setFailed('Could not save that. Check your connection.');
+    }
   };
 
   const exportData = () => {
-    const payload = JSON.stringify(
-      { preferences: browserPreferences.read(), journal: browserJournalStore.list() },
-      null,
-      2,
-    );
+    // The user's own copy of their own data, assembled from what the server
+    // sent this screen. Nothing is re-fetched and nothing is sent anywhere.
+    const payload = JSON.stringify({ account: profile, journal: entries }, null, 2);
     const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -49,19 +66,36 @@ export default function Settings() {
     URL.revokeObjectURL(url);
   };
 
-  const deleteEverything = () => {
-    for (const entry of browserJournalStore.list()) browserJournalStore.remove(entry.id);
-    browserPreferences.write(() => ({
-      voice: 'sage',
-      talkMode: 'hold',
-      coachSharing: 'ask_each_time',
-      acceptedConsent: [],
-    }));
-    setPrefs(browserPreferences.read());
-    setEntryCount(0);
+  const deleteEverything = async () => {
+    try {
+      // One request per entry, because each delete is authorised on its own.
+      for (const entry of entries) await api.deleteJournalEntry(entry.id);
+      setEntries([]);
+      setConfirming(false);
+      setFailed(null);
+    } catch {
+      setEntries(await api.journal().catch(() => entries));
+      setFailed('Some entries were not deleted. Check your connection and try again.');
+    }
   };
 
-  if (prefs === null) return <h1 className={styles.title}>Settings</h1>;
+  const signOut = async () => {
+    await api.logout();
+    router.push('/welcome');
+  };
+
+  if (profile === null) {
+    return (
+      <>
+        <h1 className={styles.title}>Settings</h1>
+        {failed === null ? (
+          <p className={styles.loading}>Loading…</p>
+        ) : (
+          <p className={styles.failure}>{failed}</p>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -71,60 +105,128 @@ export default function Settings() {
       <Link href="/pricing" className={styles.settingRow}>
         <span>Upgrade to Plus</span>
         <span className={styles.settingValue}>
-          Free plan<span className={styles.chevron}>›</span>
+          {profile.plan === 'plus' ? 'Plus plan' : 'Free plan'}
+          <span className={styles.chevron}>›</span>
         </span>
       </Link>
+      <div className={styles.settingRow}>
+        <span>Signed in as</span>
+        <span className={styles.settingValue}>{profile.email}</span>
+      </div>
 
       <span className={styles.label}>VOICE</span>
       <Choice
         name="Guide voice"
-        value={prefs.voice}
+        value={profile.guideVoice}
         options={GUIDE_VOICES.map((v: GuideVoice) => ({ value: v.id, label: v.name }))}
-        onChange={(voice) => {
-          update((p) => ({ ...p, voice: voice as GuideVoice['id'] }));
+        onChange={(guideVoice) => {
+          void save({ guideVoice });
         }}
       />
       <Choice
         name="Talk mode"
-        value={prefs.talkMode}
-        options={Object.entries(TALK_MODE_LABEL).map(([value, label]) => ({ value, label }))}
-        onChange={(mode) => {
-          update((p) => ({ ...p, talkMode: mode as TalkMode }));
+        value={profile.talkMode}
+        options={TALK_MODES.map((m: TalkMode) => ({ value: m, label: TALK_MODE_LABEL[m] }))}
+        onChange={(talkMode) => {
+          void save({ talkMode });
         }}
       />
 
       <span className={styles.label}>PRIVACY</span>
       <Choice
         name="Coach sharing"
-        value={prefs.coachSharing}
-        options={Object.entries(COACH_SHARING_LABEL).map(([value, label]) => ({ value, label }))}
-        onChange={(sharing) => {
-          update((p) => ({ ...p, coachSharing: sharing as CoachSharing }));
+        value={profile.coachSharing}
+        options={COACH_SHARINGS.map((c: CoachSharing) => ({
+          value: c,
+          label: COACH_SHARING_LABEL[c],
+        }))}
+        onChange={(coachSharing) => {
+          void save({ coachSharing });
         }}
       />
 
       <button type="button" className={styles.settingRow} onClick={exportData}>
         <span>Export my data</span>
         <span className={styles.settingValue}>
-          {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
+          {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
           <span className={styles.chevron}>›</span>
         </span>
       </button>
 
-      <button type="button" className={styles.settingRow} onClick={deleteEverything}>
-        <span className={styles.danger}>Delete everything on this device</span>
+      <button
+        type="button"
+        className={styles.settingRow}
+        onClick={() => {
+          setConfirming(true);
+        }}
+        disabled={entries.length === 0}
+      >
+        <span className={styles.danger}>Delete my journal</span>
         <span className={styles.chevron}>›</span>
       </button>
 
+      {confirming ? (
+        <div className={styles.notice}>
+          <p>
+            This deletes all {entries.length} {entries.length === 1 ? 'entry' : 'entries'} from your
+            account. It cannot be undone.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+            <button
+              type="button"
+              className={styles.cta}
+              style={{ flexGrow: 1 }}
+              onClick={() => {
+                setConfirming(false);
+              }}
+            >
+              Keep them
+            </button>
+            <button
+              type="button"
+              className={styles.cta}
+              style={{
+                flexGrow: 1,
+                background: 'var(--sp-color-panel)',
+                color: 'var(--sp-color-danger)',
+                boxShadow: 'var(--sp-shadow-button)',
+              }}
+              onClick={() => {
+                void deleteEverything();
+              }}
+            >
+              Delete everything
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        className={styles.settingRow}
+        onClick={() => {
+          void signOut();
+        }}
+      >
+        <span>Sign out</span>
+        <span className={styles.chevron}>›</span>
+      </button>
+
+      {failed === null ? null : (
+        <p className={styles.failure} role="alert">
+          {failed}
+        </p>
+      )}
+
       <p className={styles.footnote}>
-        Your journal and settings are stored in this browser only. Clearing site data removes them,
-        and nothing syncs between devices.
+        Your journal is stored on your account and encrypted at rest. Deleting an entry removes it
+        for good.
       </p>
     </>
   );
 }
 
-function Choice({
+function Choice<T extends string>({
   name,
   value,
   options,
@@ -132,8 +234,8 @@ function Choice({
 }: {
   name: string;
   value: string;
-  options: readonly { value: string; label: string }[];
-  onChange: (value: string) => void;
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
 }) {
   return (
     <label className={styles.settingRow}>
@@ -142,7 +244,10 @@ function Choice({
         className={styles.select}
         value={value}
         onChange={(e) => {
-          onChange(e.target.value);
+          // Looked up rather than cast: the only values this can emit are the
+          // ones it was given.
+          const picked = options.find((o) => o.value === e.target.value);
+          if (picked !== undefined) onChange(picked.value);
         }}
       >
         {options.map((o) => (

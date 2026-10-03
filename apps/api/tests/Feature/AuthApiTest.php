@@ -102,6 +102,16 @@ final class AuthApiTest extends TestCase
         $this->getJson('/api/me')->assertUnauthorized();
     }
 
+    /**
+     * Without an Accept header this used to be a 500: Laravel's default sends a
+     * guest to route('login'), which this API does not have, and the auth
+     * middleware resolves that before the handler decides on JSON.
+     */
+    public function test_an_unauthenticated_request_is_401_even_without_an_accept_header(): void
+    {
+        $this->get('/api/me')->assertUnauthorized();
+    }
+
     public function test_a_token_from_login_works_on_a_protected_route(): void
     {
         User::factory()->create(['email' => 'a@example.com', 'password' => 'a-long-enough-password']);

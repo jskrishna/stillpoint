@@ -31,6 +31,24 @@ export const STEP_COUNT = STEP_ORDER.length;
 export type StepOrdinal = 1 | 2 | 3 | 4 | 5 | 6;
 
 /**
+ * What kind of answer a step takes.
+ *
+ * Five steps are answered in the user's own words. Step 3 is not: the designs
+ * give it a grid of the twelve feelings and "Choose up to 3", so its answer is
+ * a selection of {@link FeelingId}s and not prose.
+ *
+ * This belongs to the step *id*, not to a protocol version: it is the shape of
+ * the screen, not copy, and staff editing prompts in the admin console must not
+ * be able to turn a selection into a sentence.
+ */
+export type AnswerKind = 'prose' | 'feelings';
+
+/** The kind of answer a step takes. */
+export function answerKindOf(id: StepId): AnswerKind {
+  return id === 'feel' ? 'feelings' : 'prose';
+}
+
+/**
  * What the guide says to move a step along.
  *
  * The guide opens with `main`. If the user cannot answer, it falls back through

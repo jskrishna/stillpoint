@@ -32,8 +32,24 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.js'],
+    // Plain scripts: not part of any tsconfig project, so type-aware rules
+    // cannot run on them. `parity/generate.mjs` is one — it writes the fixture
+    // both test suites read and belongs to neither package.
+    files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      parserOptions: { project: null, projectService: false },
+      // Declared by hand rather than pulling in `globals` for two names.
+      // `e2e/flow.mjs` also runs snippets inside the browser via Playwright.
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        document: 'readonly',
+        window: 'readonly',
+        fetch: 'readonly',
+      },
+    },
   },
   prettier,
 );

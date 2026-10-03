@@ -1,0 +1,161 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ApiError, api } from '../../lib/api';
+import styles from './welcome.module.css';
+
+/**
+ * Sign in, or make an account.
+ *
+ * The designs show Google, Apple and a passwordless sign-in link. None of the
+ * three exists on the server, so none is offered here as though it did: the
+ * buttons stay visible and disabled, and say why. A button that looked like
+ * Google sign-in and quietly skipped to the next screen would be a lie about
+ * who is signed in.
+ */
+export default function SignInForm() {
+  const [mode, setMode] = useState<'signIn' | 'create'>('signIn');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
+
+  const creating = mode === 'create';
+  const canSubmit =
+    email.trim() !== '' && password !== '' && (!creating || name.trim() !== '') && !busy;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const profile = creating
+        ? await api.register(name.trim(), email.trim(), password)
+        : await api.login(email.trim(), password);
+
+      // Consent is the server's gate, not this screen's: it decides whether a
+      // session may start, so it decides where the user goes next.
+      router.push(profile.hasRequiredConsent ? '/welcome/voice' : '/welcome/consent');
+    } catch (e: unknown) {
+      setError(describe(e));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={styles.screen}>
+      <div className={styles.mark} aria-hidden="true" />
+      <h1 className={styles.title}>Welcome to Stillpoint</h1>
+      <p className={styles.lead}>A calm voice guide for when something upsets you.</p>
+
+      <div className={styles.choices}>
+        <button
+          type="button"
+          className={`${styles.button} ${styles.secondary} ${styles.unavailable}`}
+          disabled
+        >
+          Continue with Google
+        </button>
+        <button
+          type="button"
+          className={`${styles.button} ${styles.secondary} ${styles.unavailable}`}
+          disabled
+        >
+          Continue with Apple
+        </button>
+        <p className={styles.unavailableNote}>
+          Google and Apple sign-in are not built yet. Use an email and password for now.
+        </p>
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        {creating ? (
+          <label className={styles.field}>
+            Name
+            <input
+              className={styles.input}
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+              }}
+            />
+          </label>
+        ) : null}
+
+        <label className={styles.field}>
+          Email
+          <input
+            className={styles.input}
+            type="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+            }}
+          />
+        </label>
+
+        <label className={styles.field}>
+          Password
+          <input
+            className={styles.input}
+            type="password"
+            autoComplete={creating ? 'new-password' : 'current-password'}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+            }}
+          />
+        </label>
+
+        {error === null ? null : (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className={styles.actions}>
+          <button
+            type="submit"
+            className={`${styles.button} ${styles.primary}`}
+            disabled={!canSubmit}
+          >
+            {busy ? 'One moment…' : creating ? 'Create my account' : 'Sign in'}
+          </button>
+          <button
+            type="button"
+            className={styles.toggle}
+            onClick={() => {
+              setMode(creating ? 'signIn' : 'create');
+              setError(null);
+            }}
+          >
+            {creating ? 'I already have an account' : 'Create an account instead'}
+          </button>
+          <p className={styles.terms}>By continuing you agree to the Terms and Privacy Policy.</p>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function describe(e: unknown): string {
+  if (e instanceof ApiError) {
+    const first = Object.values(e.errors)[0]?.[0];
+    if (first !== undefined) return first;
+    if (e.status === 429) return 'Too many attempts. Wait a minute and try again.';
+    return e.message;
+  }
+  return 'Could not reach Stillpoint. Check your connection and try again.';
+}

@@ -22,6 +22,8 @@ export {
   nextStep,
   isComplete,
   incompleteSteps,
+  answerKindOf,
+  type AnswerKind,
   type StepId,
   type StepOrdinal,
   type StepPrompts,
@@ -138,7 +140,9 @@ export {
   GUIDE_VOICES,
   DEFAULT_VOICE,
   TALK_MODE_LABEL,
+  TALK_MODES,
   COACH_SHARING_LABEL,
+  COACH_SHARINGS,
   DEFAULT_PREFERENCES,
   hasRequiredConsent,
   missingConsent,
@@ -151,6 +155,8 @@ export {
 } from './onboarding.js';
 
 export { baselineRiskScreen, noRiskScreen, type RiskAssessment, type RiskScreen } from './risk.js';
+
+export { feelingsIn, isSubstantiveAnswer, literalExtraction } from './extraction.js';
 
 export {
   scriptedGuide,

@@ -288,3 +288,18 @@
   line-height: var(--sp-leading-normal);
   color: var(--sp-color-muted);
 }
+
+/* Loading and failure, for the screens that fetch. */
+.loading {
+  font-size: var(--sp-text-body);
+  line-height: var(--sp-leading-normal);
+  color: var(--sp-color-muted);
+  margin: var(--sp-space-lg) 0;
+}
+
+.failure {
+  font-size: var(--sp-text-body);
+  line-height: var(--sp-leading-normal);
+  color: var(--sp-color-accent-text);
+  margin: var(--sp-space-lg) 0;
+}

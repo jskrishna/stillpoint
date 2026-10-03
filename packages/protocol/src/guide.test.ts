@@ -42,13 +42,34 @@ describe('scriptedGuide', () => {
     });
   });
 
-  it('captures nothing — interpretation is not its job', () => {
+  it('records the answer at face value, interpreting nothing', () => {
     const reply = scriptedGuide.respond({
       session: startSession(),
       version: V,
       utterance: 'My manager called me out',
     });
+    expect(reply.capture).toEqual({
+      whatHappened: 'My manager called me out',
+      title: 'My manager called me out',
+    });
+  });
+
+  it('records nothing for a step the designs give no field', () => {
+    const onStepTwo = { ...startSession(), stepId: 'responsibility' as const };
+    const reply = scriptedGuide.respond({
+      session: onStepTwo,
+      version: V,
+      utterance: 'I can see how I took it',
+    });
+    expect(reply.advance).toBe(true);
     expect(reply.capture).toBeUndefined();
+  });
+
+  it('moves step 3 on for a single named feeling', () => {
+    const onFeel = { ...startSession(), stepId: 'feel' as const };
+    const reply = scriptedGuide.respond({ session: onFeel, version: V, utterance: 'angry' });
+    expect(reply.advance).toBe(true);
+    expect(reply.capture).toEqual({ feelings: ['angry'] });
   });
 });
 

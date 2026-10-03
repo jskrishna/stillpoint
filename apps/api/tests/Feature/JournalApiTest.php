@@ -46,7 +46,7 @@ final class JournalApiTest extends TestCase
         Sanctum::actingAs($mine);
         $response = $this->getJson('/api/journal')->assertOk();
 
-        $titles = array_column($response->json('data'), 'title');
+        $titles = array_column($response->json(), 'title');
         $this->assertSame(['Mine'], $titles);
     }
 
@@ -57,7 +57,7 @@ final class JournalApiTest extends TestCase
         $this->entry($user, ['title' => 'Newer', 'occurred_at' => now()->subDay()]);
 
         Sanctum::actingAs($user);
-        $titles = array_column($this->getJson('/api/journal')->json('data'), 'title');
+        $titles = array_column($this->getJson('/api/journal')->json(), 'title');
 
         $this->assertSame(['Newer', 'Older'], $titles);
     }
@@ -68,7 +68,7 @@ final class JournalApiTest extends TestCase
         $this->entry($user, ['belief' => 'I’m not good enough.']);
 
         Sanctum::actingAs($user);
-        $this->getJson('/api/journal')->assertJsonPath('data.0.summary', '“I’m not good enough.”');
+        $this->getJson('/api/journal')->assertJsonPath('0.summary', '“I’m not good enough.”');
     }
 
     public function test_labels_a_quick_session_with_no_belief(): void
@@ -77,7 +77,7 @@ final class JournalApiTest extends TestCase
         $this->entry($user, ['kind' => SessionKind::Quick]);
 
         Sanctum::actingAs($user);
-        $this->getJson('/api/journal')->assertJsonPath('data.0.summary', 'Quick session');
+        $this->getJson('/api/journal')->assertJsonPath('0.summary', 'Quick session');
     }
 
     public function test_cannot_read_someone_elses_entry(): void
@@ -98,7 +98,7 @@ final class JournalApiTest extends TestCase
 
         $this->patchJson("/api/journal/{$entry->id}", ['note' => '  Felt lighter after this one.  '])
             ->assertOk()
-            ->assertJsonPath('data.note', 'Felt lighter after this one.');
+            ->assertJsonPath('note', 'Felt lighter after this one.');
     }
 
     public function test_an_empty_note_is_removed_rather_than_stored(): void
@@ -109,7 +109,7 @@ final class JournalApiTest extends TestCase
 
         $this->patchJson("/api/journal/{$entry->id}", ['note' => '   '])
             ->assertOk()
-            ->assertJsonPath('data.note', null);
+            ->assertJsonPath('note', null);
     }
 
     public function test_sharing_can_be_turned_on_and_off_without_losing_the_note(): void
@@ -120,13 +120,13 @@ final class JournalApiTest extends TestCase
 
         $this->patchJson("/api/journal/{$entry->id}", ['note' => 'Felt lighter.']);
         $this->patchJson("/api/journal/{$entry->id}", ['sharedWithCoach' => true])
-            ->assertJsonPath('data.sharedWithCoach', true)
+            ->assertJsonPath('sharedWithCoach', true)
             // Each field is applied on its own, so one cannot clobber the other.
-            ->assertJsonPath('data.note', 'Felt lighter.');
+            ->assertJsonPath('note', 'Felt lighter.');
 
         $this->patchJson("/api/journal/{$entry->id}", ['sharedWithCoach' => false])
-            ->assertJsonPath('data.sharedWithCoach', false)
-            ->assertJsonPath('data.note', 'Felt lighter.');
+            ->assertJsonPath('sharedWithCoach', false)
+            ->assertJsonPath('note', 'Felt lighter.');
     }
 
     public function test_an_entry_is_private_until_shared(): void
@@ -135,7 +135,7 @@ final class JournalApiTest extends TestCase
         $entry = $this->entry($user);
         Sanctum::actingAs($user);
 
-        $this->getJson("/api/journal/{$entry->id}")->assertJsonPath('data.sharedWithCoach', false);
+        $this->getJson("/api/journal/{$entry->id}")->assertJsonPath('sharedWithCoach', false);
     }
 
     public function test_an_entry_can_be_deleted(): void

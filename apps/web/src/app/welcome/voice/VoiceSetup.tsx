@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
-import { browserPreferences } from '../../../lib/preferences-store';
+import { ApiError, api } from '../../../lib/api';
 import styles from '../welcome.module.css';
 
 /**
@@ -15,11 +15,25 @@ import styles from '../welcome.module.css';
  */
 export default function VoiceSetup() {
   const [voice, setVoice] = useState<GuideVoice['id']>('sage');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const go = (talkMode: 'hold' | 'type') => {
-    browserPreferences.write((p) => ({ ...p, voice, talkMode }));
-    router.push('/app');
+  const go = async (talkMode: 'hold' | 'type') => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateMe({ guideVoice: voice, talkMode });
+      router.push('/app');
+    } catch (e: unknown) {
+      if (e instanceof ApiError && e.isUnauthenticated) {
+        router.push('/welcome');
+        return;
+      }
+      setError('Could not save that. Check your connection and try again.');
+      setBusy(false);
+    }
   };
 
   return (
@@ -64,8 +78,9 @@ export default function VoiceSetup() {
           type="button"
           className={`${styles.button} ${styles.primary}`}
           onClick={() => {
-            go('hold');
+            void go('hold');
           }}
+          disabled={busy}
         >
           Allow microphone
         </button>
@@ -73,11 +88,17 @@ export default function VoiceSetup() {
           type="button"
           className={styles.quiet}
           onClick={() => {
-            go('type');
+            void go('type');
           }}
+          disabled={busy}
         >
           I’ll type instead
         </button>
+        {error === null ? null : (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -1,25 +1,59 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DEFAULT_WINDOW_DAYS, insights, type Insights } from '@stillpoint/protocol';
-import { FEELING_COLOR } from '@stillpoint/design-tokens';
-import { browserJournalStore } from '../../../lib/journal-store';
+import { useRouter } from 'next/navigation';
+import { DEFAULT_WINDOW_DAYS } from '@stillpoint/protocol';
+import { FEELING_SWATCHES } from '@stillpoint/design-tokens';
+import { ApiError, api, type ApiInsights } from '../../../lib/api';
 import styles from '../app.module.css';
 
+// The server sends feeling ids as plain strings; the colour for one is
+// presentation, and lives here.
+const COLOR = new Map<string, string>(FEELING_SWATCHES.map((s) => [s.id, s.color]));
+
+/**
+ * Insights, computed by the server.
+ *
+ * The aggregation runs in PHP over the user's own window because the columns it
+ * reads are encrypted and cannot be grouped in SQL. It is not repeated here:
+ * two answers to "the belief that comes back" is one too many.
+ */
 export default function InsightsPage() {
-  const [result, setResult] = useState<Insights | null>(null);
+  const [result, setResult] = useState<ApiInsights | null>(null);
+  const [failed, setFailed] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    setResult(insights(browserJournalStore.list(), new Date()));
-  }, []);
+    api
+      .insights()
+      .then(setResult)
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          router.push('/welcome');
+          return;
+        }
+        setFailed(true);
+      });
+  }, [router]);
+
+  if (failed) {
+    return (
+      <>
+        <h1 className={styles.title}>Insights</h1>
+        <p className={styles.failure}>Could not load your insights. Check your connection.</p>
+      </>
+    );
+  }
 
   if (result === null || result.sessions === 0) {
     return (
       <>
         <h1 className={styles.title}>Insights</h1>
-        <p className={styles.subtitle}>Last {DEFAULT_WINDOW_DAYS} days</p>
-        <p className={styles.empty}>
-          Nothing to show yet. Insights appear once you have finished a session.
+        <p className={styles.subtitle}>Last {result?.windowDays ?? DEFAULT_WINDOW_DAYS} days</p>
+        <p className={result === null ? styles.loading : styles.empty}>
+          {result === null
+            ? 'Loading…'
+            : 'Nothing to show yet. Insights appear once you have finished a session.'}
         </p>
       </>
     );
@@ -50,7 +84,7 @@ export default function InsightsPage() {
                     className={styles.barFill}
                     style={{
                       width: `${String(Math.round((f.count / top) * 100))}%`,
-                      background: FEELING_COLOR[f.id],
+                      background: COLOR.get(f.id) ?? 'transparent',
                       display: 'block',
                     }}
                   />
@@ -62,7 +96,7 @@ export default function InsightsPage() {
         </>
       )}
 
-      {result.recurringBelief === undefined ? null : (
+      {result.recurringBelief === null ? null : (
         <>
           <span className={styles.label}>BELIEF THAT COMES BACK</span>
           <div className={styles.beliefCard}>

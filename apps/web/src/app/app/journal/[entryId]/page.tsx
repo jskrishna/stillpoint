@@ -3,8 +3,8 @@ import EntryDetail from './EntryDetail';
 export const dynamicParams = true;
 
 export function generateStaticParams() {
-  // Entries live in the browser, so there is nothing to prerender; the route
-  // exists and the component resolves the entry on the client.
+  // An entry is the user's own private content, fetched with their token, so
+  // there is nothing to prerender; the route exists and the component loads it.
   return [];
 }
 

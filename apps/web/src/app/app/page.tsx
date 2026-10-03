@@ -2,27 +2,43 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { STEP_COUNT, byNewest, type JournalEntry } from '@stillpoint/protocol';
-import { browserJournalStore, storageAvailable } from '../../lib/journal-store';
+import { useRouter } from 'next/navigation';
+import { STEP_COUNT } from '@stillpoint/protocol';
+import { ApiError, api, hasToken, type ApiJournalEntry } from '../../lib/api';
 import { greeting } from '../../lib/greeting';
 import { relativeDay } from '../../lib/format';
 import styles from './app.module.css';
 
 /** The app home: start a session, and the most recent entries. */
 export default function Home() {
-  const [entries, setEntries] = useState<readonly JournalEntry[]>([]);
+  const [entries, setEntries] = useState<readonly ApiJournalEntry[] | null>(null);
   const [now, setNow] = useState<Date | null>(null);
-  const [canStore, setCanStore] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const router = useRouter();
 
-  // Read after mount: the journal lives in this browser, so the server has
-  // nothing to render and a first paint from it would flash the wrong state.
+  // Fetched after mount with the user's token, which the server has no access
+  // to — so there is nothing to render until then.
   useEffect(() => {
-    setEntries(byNewest(browserJournalStore.list()));
     setNow(new Date());
-    setCanStore(storageAvailable());
-  }, []);
 
-  const recent = entries.slice(0, 3);
+    if (!hasToken()) {
+      router.push('/welcome');
+      return;
+    }
+
+    api
+      .journal()
+      .then(setEntries)
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          router.push('/welcome');
+          return;
+        }
+        setFailed(true);
+      });
+  }, [router]);
+
+  const recent = (entries ?? []).slice(0, 3);
 
   return (
     <>
@@ -37,14 +53,12 @@ export default function Home() {
         Start talking
       </Link>
 
-      {canStore ? null : (
-        <p className={styles.notice}>
-          This browser is blocking storage, so sessions cannot be saved to your journal.
-        </p>
-      )}
-
       <span className={styles.label}>RECENT</span>
-      {recent.length === 0 ? (
+      {failed ? (
+        <p className={styles.failure}>Could not load your journal. Check your connection.</p>
+      ) : entries === null ? (
+        <p className={styles.loading}>Loading…</p>
+      ) : recent.length === 0 ? (
         <p className={styles.empty}>Nothing yet. Your finished sessions will appear here.</p>
       ) : (
         recent.map((entry) => (
@@ -52,7 +66,7 @@ export default function Home() {
             <span className={styles.cardText}>
               <span className={styles.cardTitle}>{entry.title}</span>
               <span className={styles.cardMeta}>
-                {now === null ? '' : relativeDay(entry.occurredAt, now)}
+                {now === null ? '' : relativeDay(new Date(entry.occurredAt), now)}
                 {entry.calmerRating === 'yes' ? ' · Felt calmer' : ''}
               </span>
             </span>

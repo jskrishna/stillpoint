@@ -42,6 +42,12 @@ enum StepId: string
         };
     }
 
+    /** What kind of answer this step takes. */
+    public function answerKind(): AnswerKind
+    {
+        return $this === self::Feel ? AnswerKind::Feelings : AnswerKind::Prose;
+    }
+
     /** One line describing the step, as the marketing site states it. */
     public function summary(): string
     {

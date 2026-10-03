@@ -1,168 +1,204 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  BASELINE,
   FEELINGS,
   MAX_FEELINGS,
   MORE_FEELINGS,
   PRIMARY_FEELINGS,
-  STEP_COUNT,
-  STEP_LIST,
-  apply,
-  baselineRiskScreen,
   canSelectMore,
-  currentOrdinal,
-  entryFrom,
-  helplinesFor,
-  openingLine,
-  startSession,
-  stepIn,
-  takeTurn,
   toggleFeeling,
-  type CalmerRating,
   type FeelingId,
-  type Session,
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
-import { browserJournalStore } from '../../lib/journal-store';
-import { webGuide } from '../../lib/guide';
+import { ApiError, api, hasToken, type ApiSession } from '../../lib/api';
 import styles from './session.module.css';
 
-const RATINGS: readonly { value: CalmerRating; label: string }[] = [
+const RATINGS = [
   { value: 'yes', label: 'Yes' },
   { value: 'a_little', label: 'A little' },
   { value: 'no', label: 'No' },
-];
+] as const;
 
 const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
 
-const DEPS = { guide: webGuide, risk: baselineRiskScreen };
-
 /**
- * The six-step flow.
+ * The six-step flow, run by the server.
  *
- * The screen does not decide anything. Every answer goes through takeTurn(),
- * which screens safety first and only then asks the guide whether the step is
- * done — so the session advances because the guide said so, not because a
- * button was pressed. The typed path is built because the voice stack is not
- * chosen; "Type instead" is a first-class route on every designed screen.
- *
- * Step 3 is the one exception, and by design: it is a chip picker, not a
- * conversation, so there is no utterance to screen or interpret.
+ * The screen holds no rules at all now. Every answer is posted to
+ * `/sessions/{id}/turns`, which screens for risk before the guide is consulted
+ * and returns the session as the server believes it to be. What is rendered is
+ * whatever came back, so the two cannot diverge — and a client cannot skip the
+ * safety check, because there is no other way to advance.
  */
 export default function SessionFlow() {
-  const [session, setSession] = useState<Session>(() => startSession('full', BASELINE.number));
-  const [guideLine, setGuideLine] = useState<string>(() =>
-    openingLine(startSession('full', BASELINE.number), BASELINE, webGuide),
-  );
+  const [session, setSession] = useState<ApiSession | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState('');
   const [lastSaid, setLastSaid] = useState('');
   const [feelings, setFeelings] = useState<readonly FeelingId[]>([]);
   const [showMore, setShowMore] = useState(false);
-
-  const startedAt = useRef(Date.now());
-  const entryId = `s_${String(startedAt.current)}`;
-  const saved = useRef(false);
+  const started = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
-    if (session.phase !== 'ended' || saved.current) return;
-    const entry = entryFrom(session, {
-      id: entryId,
-      occurredAt: new Date(startedAt.current),
-      durationMinutes: Math.max(1, Math.round((Date.now() - startedAt.current) / 60000)),
-    });
-    if (entry !== undefined) browserJournalStore.add(entry);
-    saved.current = true;
-  }, [session, entryId]);
+    if (started.current) return;
+    started.current = true;
 
-  const ordinal = currentOrdinal(session);
-  const definition = session.stepId === null ? null : stepIn(BASELINE, session.stepId);
+    if (!hasToken()) {
+      router.push('/welcome');
+      return;
+    }
 
-  /** Submits a typed answer through the turn loop. */
-  const submit = useCallback(() => {
-    const text = answer.trim();
-    if (text === '') return;
-
-    const result = takeTurn(session, BASELINE, text, DEPS);
-    setSession(result.session);
-    setLastSaid(text);
-    setAnswer('');
-
-    if (result.stopped) return;
-    setGuideLine(
-      result.advanced ? openingLine(result.session, BASELINE, webGuide) : result.say || guideLine,
-    );
-  }, [answer, session, guideLine]);
-
-  /** Step 3 is a selection, so it advances without an utterance to screen. */
-  const submitFeelings = useCallback(() => {
-    if (feelings.length === 0) return;
-    const next = apply(session, { type: 'step_satisfied', capture: { feelings } });
-    setSession(next);
-    setLastSaid(feelings.map((id) => LABEL.get(id) ?? id).join(', '));
-    setGuideLine(openingLine(next, BASELINE, webGuide));
-  }, [feelings, session]);
-
-  const stop = useCallback(() => {
-    setSession((current) => apply(current, { type: 'user_stopped' }));
-  }, []);
-
-  const raiseSafety = useCallback(() => {
-    setSession((current) => apply(current, { type: 'safety_signal', level: 'high' }));
-  }, []);
-
-  const rate = useCallback(
-    (rating: CalmerRating) => {
-      setSession((current) => apply(current, { type: 'rated', rating }));
-      browserJournalStore.update(entryId, (e) => ({ ...e, calmerRating: rating }));
-    },
-    [entryId],
-  );
-
-  const finish = useCallback(() => {
-    router.push('/app/journal');
+    api
+      .startSession()
+      .then(setSession)
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          router.push('/welcome');
+          return;
+        }
+        if (e instanceof ApiError && e.status === 403) {
+          router.push('/welcome/consent');
+          return;
+        }
+        setError(describe(e));
+      });
   }, [router]);
 
-  if (session.phase === 'ended') {
-    return session.endReason === 'safety_stop' ? (
-      <SafetyPause />
-    ) : (
-      <Summary session={session} onRate={rate} onFinish={finish} />
+  const send = useCallback(
+    /**
+     * `utterance` is what the server screens and records; `said` is what this
+     * screen echoes back. They differ at step 3, where the answer is a
+     * selection: the server is sent feeling ids, which are domain, and the user
+     * is shown their labels, which are not.
+     */
+    async (utterance: string, said: string = utterance) => {
+      if (session === null || busy) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const next = await api.takeTurn(session.id, utterance);
+        setSession(next);
+        setLastSaid(said);
+        setAnswer('');
+        setFeelings([]);
+      } catch (e: unknown) {
+        if (e instanceof ApiError && e.isConflict) {
+          // The session already ended; take the server's word for it.
+          setSession(await api.session(session.id));
+        } else {
+          setError(describe(e));
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session, busy],
+  );
+
+  const stop = useCallback(async () => {
+    if (session === null) return;
+    try {
+      setSession(await api.stopSession(session.id));
+    } catch (e: unknown) {
+      setError(describe(e));
+    }
+  }, [session]);
+
+  const rate = useCallback(
+    async (rating: (typeof RATINGS)[number]['value']) => {
+      if (session === null) return;
+      try {
+        setSession(await api.rateSession(session.id, rating));
+      } catch (e: unknown) {
+        setError(describe(e));
+      }
+    },
+    [session],
+  );
+
+  if (error !== null && session === null) {
+    return (
+      <div className={styles.screen}>
+        <p className={styles.missing}>{error}</p>
+        <div className={styles.actions}>
+          <Link href="/app" className={`${styles.button} ${styles.secondary}`}>
+            Back
+          </Link>
+        </div>
+      </div>
     );
   }
 
-  const onFeelStep = session.stepId === 'feel';
+  if (session === null) {
+    return (
+      <div className={styles.screen}>
+        <p className={styles.hint}>Starting…</p>
+      </div>
+    );
+  }
+
+  if (session.ended) {
+    return session.safety !== null ? (
+      <SafetyPause safety={session.safety} />
+    ) : (
+      <Summary
+        session={session}
+        onRate={(r) => {
+          void rate(r);
+        }}
+        onFinish={() => {
+          router.push('/app/journal');
+        }}
+      />
+    );
+  }
+
+  const onFeelStep = session.step?.id === 'feel';
   const canContinue = onFeelStep ? feelings.length > 0 : answer.trim() !== '';
 
   return (
     <div className={styles.screen}>
-      <Exits onLeave={stop} onGetHelp={raiseSafety} />
+      <div className={styles.exits}>
+        <button type="button" className={styles.exit} onClick={() => void stop()}>
+          <CloseIcon />
+          Leave
+        </button>
+        {/* Asks the server to screen it, exactly like any other answer. */}
+        <button
+          type="button"
+          className={styles.getHelp}
+          onClick={() => void send('I need help, I do not feel safe')}
+        >
+          Get help
+        </button>
+      </div>
 
       <div className={styles.progressBlock}>
         <span className={styles.stepLabel}>
-          Step {ordinal} of {STEP_COUNT} · {definition?.name}
+          Step {session.step?.ordinal} of {session.stepCount} · {session.step?.name}
         </span>
         <div className={styles.bars} role="presentation">
-          {STEP_LIST.map((s) => (
+          {Array.from({ length: session.stepCount }, (_, i) => (
             <div
-              key={s.id}
-              className={`${styles.bar} ${ordinal !== null && s.ordinal <= ordinal ? styles.barDone : ''}`}
+              key={i}
+              className={`${styles.bar} ${i < (session.step?.ordinal ?? 0) ? styles.barDone : ''}`}
             />
           ))}
         </div>
       </div>
 
-      {guideLine === '' ? (
+      {session.say === null || session.say === '' ? (
         <p className={styles.missing}>
-          This step has no question yet. The copy for it is still owed by the PRD, so the protocol
-          cannot be published — see <code>incompleteSteps()</code>.
+          This step has no question yet. Its copy is still owed by the PRD, so the protocol cannot
+          be published.
         </p>
       ) : (
-        <p className={styles.question}>{guideLine}</p>
+        <p className={styles.question}>{session.say}</p>
       )}
 
       {lastSaid === '' ? null : (
@@ -197,32 +233,31 @@ export default function SessionFlow() {
         </label>
       )}
 
+      {error === null ? null : <p className={styles.missing}>{error}</p>}
+
       <div className={styles.actions}>
         <button
           type="button"
           className={`${styles.button} ${styles.primary}`}
-          onClick={onFeelStep ? submitFeelings : submit}
-          disabled={!canContinue}
+          disabled={!canContinue || busy}
+          onClick={() => {
+            if (onFeelStep) {
+              void send(feelings.join(' '), feelings.map((id) => LABEL.get(id) ?? id).join(', '));
+            } else {
+              void send(answer.trim());
+            }
+          }}
         >
-          Continue
+          {busy ? 'Sending…' : 'Continue'}
         </button>
       </div>
     </div>
   );
 }
 
-function Exits({ onLeave, onGetHelp }: { onLeave: () => void; onGetHelp: () => void }) {
-  return (
-    <div className={styles.exits}>
-      <button type="button" className={styles.exit} onClick={onLeave}>
-        <CloseIcon />
-        Leave
-      </button>
-      <button type="button" className={styles.getHelp} onClick={onGetHelp}>
-        Get help
-      </button>
-    </div>
-  );
+function describe(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  return 'Something went wrong. Please try again.';
 }
 
 function FeelingPicker({
@@ -275,29 +310,23 @@ function Summary({
   onRate,
   onFinish,
 }: {
-  session: Session;
-  onRate: (r: CalmerRating) => void;
+  session: ApiSession;
+  onRate: (r: (typeof RATINGS)[number]['value']) => void;
   onFinish: () => void;
 }) {
   const { data } = session;
-  const rows = useMemo(
-    () =>
-      [
-        { label: 'WHAT HAPPENED', value: data.whatHappened },
-        {
-          label: 'WHAT YOU FELT',
-          value:
-            data.feelings.length > 0
-              ? data.feelings.map((id) => LABEL.get(id) ?? id).join(', ')
-              : undefined,
-        },
-        { label: 'OLD BELIEF', value: data.belief === undefined ? undefined : `“${data.belief}”` },
-        { label: 'FORGIVENESS', value: data.forgiveness },
-      ].filter(
-        (r): r is { label: string; value: string } => r.value !== undefined && r.value !== '',
-      ),
-    [data],
-  );
+  const rows = [
+    { label: 'WHAT HAPPENED', value: data.whatHappened },
+    {
+      label: 'WHAT YOU FELT',
+      value:
+        data.feelings.length > 0
+          ? data.feelings.map((id) => LABEL.get(id as FeelingId) ?? id).join(', ')
+          : null,
+    },
+    { label: 'OLD BELIEF', value: data.belief === null ? null : `“${data.belief}”` },
+    { label: 'FORGIVENESS', value: data.forgiveness },
+  ].filter((r): r is { label: string; value: string } => r.value !== null && r.value !== '');
 
   return (
     <div className={styles.screen}>
@@ -348,20 +377,18 @@ function Summary({
 /**
  * The safety pause.
  *
- * No progress bar, no Continue, no way back into the flow: the session is over.
- * Helplines come from the protocol so this screen and the marketing page can
- * never disagree about which number to call.
+ * Rendered entirely from what the server sent: the wording and the helplines
+ * come from the protocol version the session ran on, so this screen cannot
+ * disagree with the rest of the product about which number to call.
  */
-function SafetyPause() {
-  const helplines = helplinesFor('IN');
-
+function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) {
   return (
     <div className={styles.screen}>
       <div className={styles.safety}>
-        <h1 className={styles.safetyTitle}>{BASELINE.safety.pauseTitle}</h1>
-        <p className={styles.safetyBody}>{BASELINE.safety.pauseBody}</p>
+        <h1 className={styles.safetyTitle}>{safety.title}</h1>
+        <p className={styles.safetyBody}>{safety.body}</p>
 
-        {helplines.map((h) => (
+        {safety.helplines.map((h) => (
           <a
             key={h.number}
             href={`tel:${h.number}`}
