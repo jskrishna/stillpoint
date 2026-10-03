@@ -17,6 +17,14 @@
  * stolen session. The right answer for production is Sanctum's cookie mode: an
  * httpOnly cookie the page cannot read. This is a deliberate, documented
  * shortcut, not an opinion that it is fine.
+ *
+ * What there is instead, until then, is the second half of the attack taken
+ * away: the Content-Security-Policy in `next.config.ts` allows `connect-src`
+ * to this origin and the API's and nothing else, so a token that is read still
+ * cannot be sent anywhere. `e2e/privacy.mjs` asserts that from inside a real
+ * page by trying it. It is a mitigation, not the fix — injected inline script
+ * still runs, because `script-src` keeps `'unsafe-inline'` — and it is not a
+ * reason to leave the token here.
  */
 
 import { createClient, type TokenStore } from '@stillpoint/client';

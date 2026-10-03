@@ -92,7 +92,7 @@ export interface RunningServer {
  * `ELECTRON_RUN_AS_NODE` makes Electron's binary behave as plain Node for the
  * child, which is how the server runs without Node being installed.
  */
-export async function startWeb(root: string, apiUrl: string | undefined): Promise<RunningServer> {
+export async function startWeb(root: string): Promise<RunningServer> {
   const port = wantedPort();
   if (!(await portIsFree(port))) {
     throw new PortTakenError(port);
@@ -106,7 +106,12 @@ export async function startWeb(root: string, apiUrl: string | undefined): Promis
       PORT: String(port),
       HOSTNAME: '127.0.0.1',
       NODE_ENV: 'production',
-      ...(apiUrl === undefined ? {} : { NEXT_PUBLIC_API_URL: apiUrl }),
+      // Deliberately no `NEXT_PUBLIC_API_URL`. It used to be passed here, from
+      // `STILLPOINT_API_URL`, and it did nothing: every route is statically
+      // prerendered and `NEXT_PUBLIC_*` is inlined into the client bundle at
+      // build time, so the renderer called whatever the build was given and
+      // ignored this. A knob that silently has no effect is worse than no knob.
+      // Set `NEXT_PUBLIC_API_URL` when building instead; `README.md` says so.
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -755,6 +755,24 @@ The web client keeps its token in `localStorage`, which an XSS can read. The
 right answer is Sanctum's cookie mode; the shortcut is documented at the top of
 `apps/web/src/lib/api.ts` and is not an opinion that it is fine.
 
+What stands in for it meanwhile is the Content-Security-Policy in
+`apps/web/next.config.ts`: `connect-src` names this origin and the API's and
+nothing else, so a token that is read cannot be sent anywhere, and `img-src`,
+`form-action` and `base-uri` close the other ways out. The API's origin comes
+from the same `NEXT_PUBLIC_API_URL` the client reads, so the policy cannot name
+a different API from the one the app calls. `script-src` keeps `'unsafe-inline'`
+on purpose — the alternative is a per-request nonce, and every route here is
+statically prerendered, so the middleware minting it would make all of them
+dynamic. Be plain about what that leaves: injected inline script still runs.
+
+A strict policy is only available because the app loads nothing from anywhere
+else — no analytics, no tag manager, no webfont CDN. `e2e/privacy.mjs` keeps
+both halves honest: it asserts no screen trips the policy, and then, from
+inside a real page, it does what a payload would do — pulls in a script from
+another origin and tries to `fetch` the token out — and asserts the browser
+refuses both. `Permissions-Policy` denies the microphone, which is true only
+while `UserEar` is unbound; binding a listener means changing that line.
+
 ## Conventions
 
 - In `packages/*`, use `.js` extensions in relative import specifiers, even for

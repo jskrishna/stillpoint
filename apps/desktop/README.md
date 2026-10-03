@@ -45,9 +45,22 @@ local development and the end-to-end job use, so standalone is opt-in behind
 whichever ran last decides what `next start` finds, which is why this one
 writes `.next-standalone` instead.
 
-`STILLPOINT_API_URL` is passed through to the bundled server as
-`NEXT_PUBLIC_API_URL`, for pointing a build at something other than
-`http://localhost:8000/api`.
+The API's address is fixed **when the web app is built**, not when the shell
+runs. `NEXT_PUBLIC_*` is inlined into the client bundle and every route here is
+statically prerendered, so the renderer calls whatever the build was given:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.example.com/api pnpm --filter @stillpoint/desktop run build
+```
+
+There used to be a `STILLPOINT_API_URL` that the shell passed to the bundled
+server at launch. It did nothing, for the reason above, and it has been removed
+rather than left looking like a setting. The Docker image has the same property
+and `deploy/README.md` has always said so.
+
+It matters a little more now: the build also writes the API's origin into the
+app's `connect-src`, so a build pointed at one API cannot talk to another even
+if something tried.
 
 ## Security
 

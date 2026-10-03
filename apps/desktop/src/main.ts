@@ -33,9 +33,6 @@ import { DEFAULT_STATE, MINIMUM, readState, writeState } from './window-state.js
 /** Set to point the shell at a running `next dev`/`next start`. */
 const DEV_URL = process.env['STILLPOINT_DEV_URL'];
 
-/** Passed through to the web app, which talks to the API from the renderer. */
-const API_URL = process.env['STILLPOINT_API_URL'];
-
 const ACCELERATOR = 'CommandOrControl+Shift+S';
 
 /**
@@ -221,7 +218,7 @@ async function boot(): Promise<void> {
     origin = DEV_URL;
   } else if (haveBundledWeb(root)) {
     try {
-      web = await startWeb(root, API_URL);
+      web = await startWeb(root);
     } catch (e: unknown) {
       // Named, because the fix is specific and the user can act on it. Moving
       // to another port by itself would sign them out — see `server.ts`.
