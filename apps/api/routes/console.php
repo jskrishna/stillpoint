@@ -30,3 +30,23 @@ Schedule::command('sanctum:prune-expired --hours=24')
     ->daily()
     ->onOneServer()
     ->description('Remove personal access tokens that expired over a day ago');
+
+/*
+ * Spent password resets.
+ *
+ * `password_reset_tokens` is keyed by the **email address**, has no foreign key
+ * to anything, and nothing was clearing it — so a row sat there holding
+ * somebody's address long after the token in it had stopped working. A reset
+ * expires after sixty minutes (`config/auth.php`), which makes this the one
+ * cleanup here that needs no retention decision: `auth:clear-resets` deletes
+ * only rows that are already past that, and a dead token is not a record of
+ * anything.
+ *
+ * Erasing an account removes its row directly, through the broker — see
+ * `AccountDeletionService`. This is for the addresses nobody erased: a reset
+ * asked for and never used, by someone who then thought better of it.
+ */
+Schedule::command('auth:clear-resets')
+    ->hourly()
+    ->onOneServer()
+    ->description('Remove password reset tokens that have already expired');

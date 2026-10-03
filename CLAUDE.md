@@ -751,6 +751,23 @@ Ending a pairing does **not** unshare the entries: `shared_with_coach` is a
 separate decision and stays where the user put it. What ends is anyone being
 able to read them, because reading goes through the pairing.
 
+**Open question for someone qualified:** a `coach_invites` row holds the
+address it was sent to, and nothing deletes it. The address is not a user's —
+that is the point of the table, a coach can invite somebody who has no account —
+so this product stores an email address indefinitely because a third party typed
+it, for an invitation that expired or was withdrawn and can never be accepted
+again. Erasure covers the case where the invitee does have an account
+(`AccountDeletionService` sweeps by address); it cannot cover the case where
+they never signed up and never agreed to anything.
+
+Any fix is a retention period, and picking one is a DPDP and product decision
+rather than a refactor — the coach's screen is also the only record that they
+invited somebody, which is a reason to keep it for a while and not a reason to
+keep it forever. Expired reset tokens are the contrast worth noting: those have
+a non-arbitrary answer, because a token past `config('auth.passwords')`'s
+`expire` is dead by definition, so `auth:clear-resets` runs hourly on the
+scheduler and no policy had to be invented.
+
 A withdrawn invitation does not undo an accepted pairing, and the API refuses
 rather than implying it might. There is no mail driver yet, so an invitation's
 link comes back to the coach to pass on; the screen says so rather than implying

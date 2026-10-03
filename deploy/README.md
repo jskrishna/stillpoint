@@ -72,7 +72,12 @@ front of real people:
   that is deliberately not finished, and it needs a provider decision.
 - **There is no queue.** Nothing in the product needs one yet; `php artisan
 queue:work` has nothing to do. There _is_ a scheduler now — the `scheduler`
-  service, running the same image as the API — and one task on it.
+  service, running the same image as the API — with two tasks:
+  `sanctum:prune-expired` daily and `auth:clear-resets` hourly. Both remove rows
+  whose contents have already stopped working, and the second matters a little
+  more than it sounds: `password_reset_tokens` is keyed by the email address and
+  has no foreign key, so without it a dead token sat there holding somebody's
+  address.
 - **Tokens expire after thirty days** (`SANCTUM_TOKEN_MINUTES`), and there is
   no refresh flow, so that is how often someone signs in again.
   `sanctum:prune-expired` runs daily on the scheduler; expired tokens are
