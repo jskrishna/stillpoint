@@ -12,6 +12,8 @@ import {
   helplinesFor,
   relativeDay,
 } from '@stillpoint/protocol';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../api';
 import { describe } from '../../describe';
 import { NO_EAR_REASON } from '../../voice';
@@ -43,6 +45,7 @@ export default function Settings() {
   const [eraseConfirm, setEraseConfirm] = useState('');
   const [eraseProblem, setEraseProblem] = useState<string | null>(null);
   const [erasingBusy, setErasingBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,6 +76,45 @@ export default function Settings() {
       setProblem(null);
     } catch (e: unknown) {
       setProblem(describe(e));
+    }
+  };
+
+  /**
+   * The user's own copy of their own data.
+   *
+   * Written to the app's cache and handed to the system share sheet, which is
+   * what a phone has instead of a download. It goes to wherever they choose
+   * and to no service of ours — the whole journal is fetched here and nowhere
+   * else, because this is the one place that genuinely needs all of it.
+   *
+   * The file is left in the cache afterwards rather than deleted: the share
+   * sheet may still be reading it when this returns, and the cache is a
+   * directory the system empties by itself.
+   */
+  const exportData = async () => {
+    setExporting(true);
+    try {
+      const journal = await api.wholeJournal();
+      const file = new File(Paths.cache, 'stillpoint-data.json');
+      file.create({ overwrite: true });
+      file.write(JSON.stringify({ account: profile, journal }, null, 2));
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/json',
+          UTI: 'public.json',
+          dialogTitle: 'Your Stillpoint data',
+        });
+        setProblem(null);
+      } else {
+        // A device with nothing to share to. Saying where the file is beats
+        // saying nothing, and beats pretending the share happened.
+        setProblem(`Sharing is not available here. The file is at ${file.uri}`);
+      }
+    } catch (e: unknown) {
+      setProblem(describe(e));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -254,6 +296,20 @@ export default function Settings() {
           void signOut();
         }}
       />
+
+      <Text style={s.label}>Your data</Text>
+      <Button
+        label={exporting ? 'Gathering it…' : 'Export everything'}
+        tone="secondary"
+        busy={exporting}
+        onPress={() => {
+          void exportData();
+        }}
+      />
+      <Text style={s.caption}>
+        Every session you have finished, as a file you keep. It goes where you send it and nowhere
+        else.
+      </Text>
 
       <Text style={s.label}>Delete my account</Text>
       {erasing ? (

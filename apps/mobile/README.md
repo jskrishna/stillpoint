@@ -32,8 +32,10 @@ component that throws on first render fails it.
 **Nothing here has run on a phone.** There is no simulator in the development
 container and no device attached to CI. What that leaves unverified is real:
 the keychain (`expo-secure-store`), text-to-speech (`expo-speech`), `tel:`
-links on the safety screen, the splash screen, safe-area insets on a notched
-device, and how any of it behaves when the app is backgrounded mid-session.
+links on the safety screen, writing the export and handing it to the share
+sheet (`expo-file-system`, `expo-sharing`), the splash screen, safe-area insets
+on a notched device, and how any of it behaves when the app is backgrounded
+mid-session.
 Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 
