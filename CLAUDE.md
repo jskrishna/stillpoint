@@ -288,6 +288,24 @@ there is no local echo of a turn, built from what the server sent: a resumed
 session has no history in the browser, and carrying on with no sign of what you
 had already said was disorienting.
 
+**And how long a session lasted is start to the last thing said into it**, not
+to when it ended — `GuidedSession::activeMinutes()`, which the journal stores
+and the console reads, one method because two would disagree about one session.
+Ending is not something the person is necessarily present for: `POST /sessions`
+ends whatever was open, so somebody who answered two questions on Monday and
+came back on Friday had Monday's session journalled on Friday. Measured before
+the fix: **5,760 minutes**, shown back to them in their own journal as "5760
+min", on a product whose home screen says a session takes about 10 to 15
+minutes.
+
+Start to last turn still counts a pause between two answers, and that is
+deliberate: excluding only the gaps that do not look like attention needs a
+threshold for what does, which is a product decision rather than a column.
+What it removes is the dead stretch between somebody's last word and whenever
+the session got closed, which is where the absurd numbers came from. A session
+nothing was said into has no last turn and reports the journal's floor of one
+minute.
+
 ## A plan's allowance is a promise too
 
 The pricing page says Free gets "3 full sessions a week" and "Unlimited quick

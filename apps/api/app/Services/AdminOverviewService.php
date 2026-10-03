@@ -148,7 +148,10 @@ final readonly class AdminOverviewService
     {
         $rows = [];
         $sessions = GuidedSession::query()
-            ->select(['id', 'user_id', 'kind', 'furthest_step_id', 'end_reason', 'started_at', 'ended_at'])
+            ->select([
+                'id', 'user_id', 'kind', 'furthest_step_id', 'end_reason',
+                'started_at', 'ended_at', 'last_turn_at',
+            ])
             ->orderByDesc('started_at')
             // `started_at` is not unique, so without this the last rows of a
             // busy second come back in whatever order the database likes.
@@ -189,11 +192,17 @@ final readonly class AdminOverviewService
             : (is_string($rating) && $rating !== '' ? $rating : 'unrated');
     }
 
+    /**
+     * The same definition the journal stores, from the same method.
+     *
+     * It used to be start to `ended_at ?? now()`, which made a session
+     * somebody abandoned read as however long it sat there — up to days. Two
+     * copies of this arithmetic is how the console and the journal come to
+     * disagree about one session, so there is one.
+     */
     private static function minutes(GuidedSession $session): int
     {
-        $ended = $session->ended_at ?? now();
-
-        return max(1, (int) round($session->started_at->diffInSeconds($ended) / 60));
+        return $session->activeMinutes();
     }
 
     private static function percent(int $part, int $whole): int

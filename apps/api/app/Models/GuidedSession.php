@@ -30,6 +30,7 @@ final class GuidedSession extends Model
     protected $fillable = [
         'user_id', 'kind', 'step_id', 'furthest_step_id', 'guide_turns_used', 'end_reason',
         'safety_level', 'protocol_version', 'data', 'started_at', 'ended_at',
+        'last_turn_at',
     ];
 
     protected function casts(): array
@@ -45,6 +46,7 @@ final class GuidedSession extends Model
             'unreadable_turns' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
+            'last_turn_at' => 'datetime',
         ];
     }
 
@@ -64,6 +66,36 @@ final class GuidedSession extends Model
     }
 
     /** Rebuilds the domain object this row represents. */
+    /**
+     * How long this session lasted, in minutes, as the journal and the console
+     * both report it.
+     *
+     * Start to the last thing said into it — **not** to when it ended. Ending
+     * is not something the person is necessarily present for: `POST /sessions`
+     * ends whatever was open, so a session answered on Monday and abandoned
+     * was journalled on Friday as having lasted 5,760 minutes, and the journal
+     * showed that back to them as "5760 min".
+     *
+     * It is one method because two would drift, and then the journal and the
+     * console would disagree about the same session. It is not a perfect
+     * measure of attention — a pause between two answers still counts — but it
+     * invents nothing. Excluding only the gaps that do not look like attention
+     * would need a threshold for what does, which is a product decision.
+     *
+     * A session nothing was said into lasted no time, and the floor of one
+     * minute is the journal's own: an entry saying "0 min" reads like a bug.
+     */
+    public function activeMinutes(): int
+    {
+        $last = $this->last_turn_at;
+
+        if ($last === null || $last->lessThan($this->started_at)) {
+            return 1;
+        }
+
+        return (int) max(1, round($this->started_at->diffInSeconds($last) / 60));
+    }
+
     public function toDomain(): DomainSession
     {
         $data = $this->data ?? [];

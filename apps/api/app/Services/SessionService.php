@@ -185,6 +185,12 @@ final readonly class SessionService
                 $row->unreadable_turns = $row->unreadable_turns + 1;
             }
 
+            // Every screened utterance counts: the person was there and
+            // typing, whether or not the turn advanced the step. It is what
+            // `activeMinutes()` measures a session by, and it is set here
+            // under the lock with everything else the turn writes.
+            $row->last_turn_at = now();
+
             $row->storeDomain($result->session)->save();
 
             if ($result->flag !== null) {
@@ -272,8 +278,9 @@ final readonly class SessionService
             return null;
         }
 
-        $minutes = (int) max(1, round($row->started_at->diffInSeconds(now()) / 60));
-        $entry = JournalEntry::fromSession($row, $minutes);
+        // Start to the last thing said, not to now: this runs when a session
+        // ends, and ending can be days after the person stopped answering.
+        $entry = JournalEntry::fromSession($row, $row->activeMinutes());
         $entry?->save();
 
         return $entry;
