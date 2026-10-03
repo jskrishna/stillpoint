@@ -8,6 +8,7 @@ use App\Domain\CalmerRating;
 use App\Domain\ConsentItem;
 use App\Domain\Plan;
 use App\Domain\SessionKind;
+use App\Domain\StepId;
 use App\Exceptions\SessionAlreadyEnded;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SessionResource;
@@ -134,6 +135,16 @@ final class SessionController extends Controller
             'utterance' => ['required', 'string', 'max:5000'],
         ]);
 
+        // Read rather than validated, deliberately. A rule here would refuse
+        // the request before the screen had seen it — the same objection as a
+        // rate limit in front of this route — so a `step` that is missing,
+        // misspelled or not a string at all is treated as the client not
+        // having said, and the turn proceeds to be screened. Only a step that
+        // is recognised *and* has moved on refuses anything, and that refusal
+        // happens inside the domain, after the screen.
+        $said = $request->input('step');
+        $answering = is_string($said) ? StepId::tryFrom($said) : null;
+
         if ($session->toDomain()->hasEnded()) {
             return response()->json(['message' => 'This session has ended.'], Response::HTTP_CONFLICT);
         }
@@ -150,6 +161,7 @@ final class SessionController extends Controller
                 $session,
                 $validated['utterance'],
                 guideAvailable: $budget->remaining() > 0,
+                answering: $answering,
             );
         } catch (SessionAlreadyEnded $e) {
             // The check above is the fast path; this is the one that ran under
@@ -157,6 +169,23 @@ final class SessionController extends Controller
             // this session — most often by screening a crisis — and that stop
             // is not something a turn already in flight may write away.
             return response()->json(['message' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
+
+        if ($result->stale) {
+            // The answer was to a question this session has moved past, most
+            // often because the client's last reply was lost on the way back
+            // and it sent the same words again. Recording them against the
+            // step now in progress would put the wrong words in the journal
+            // and leave the real question unasked, so this refuses and the
+            // client asks the server where the session actually is.
+            //
+            // The signal was screened and recorded first, and a flag was
+            // raised if one was due: the words were said, and that they
+            // answered an old question does not make them less of a
+            // disclosure.
+            return response()->json([
+                'message' => 'That answer was for an earlier step. The session has moved on.',
+            ], Response::HTTP_CONFLICT);
         }
 
         if ($result->throttled) {

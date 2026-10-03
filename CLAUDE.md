@@ -116,6 +116,30 @@ The screen still runs, a flag is still raised, a stop still stops. Only the
 guide is charged for: `TurnResult::guideConsulted()` is false for a stop and for
 a refusal, so neither spends the budget.
 
+### A lost response is not a lost turn
+
+A turn names the step it answers (`step` in the request body,
+`session.step?.id` on the client, `answering` in both domains). A client whose
+POST succeeded but whose reply was dropped sends the same words again, and
+without that field the second request is indistinguishable from a new turn: the
+words are recorded against the **next** step, whose real question is then never
+answered by anybody. Reproduced before it was fixed; on mobile data it is not
+an edge case.
+
+`answering` is read in the same place as `guideAvailable` — **after** the
+screen, never before it — and for the same reason. So a stale answer still
+raises its flag and a stale answer disclosing a crisis still stops the session
+and still shows the helplines. Only an ordinary turn is refused, with a 409, and
+the client asks the server where the session actually is.
+
+It is therefore **not validated**. A rule on `step` would be a refusal in front
+of the screen, exactly like a rate limit: the controller reads the field with
+`StepId::tryFrom()` and treats anything it does not recognise — a typo, an
+array, nothing at all — as the caller not having said, which is safe. What that
+loses is catching a client's typo; what validating it would lose is someone
+saying they are not safe. The client's third argument is required rather than
+optional so no surface can quietly stop sending it.
+
 ### The guide is a stand-in, and so is what it records
 
 `scriptedGuide` / `ScriptedGuide` decide what to say by reading the protocol and

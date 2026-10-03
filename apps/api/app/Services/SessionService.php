@@ -9,6 +9,7 @@ use App\Domain\Conversation;
 use App\Domain\EndReason;
 use App\Domain\Session as DomainSession;
 use App\Domain\SessionKind;
+use App\Domain\StepId;
 use App\Domain\TurnResult;
 use App\Exceptions\SessionAlreadyEnded;
 use App\Models\GuidedSession;
@@ -131,9 +132,13 @@ final readonly class SessionService
      * current one, so a publish part-way through never changes the questions
      * under someone already in a session.
      */
-    public function takeTurn(GuidedSession $row, string $utterance, bool $guideAvailable = true): TurnResult
-    {
-        return DB::transaction(function () use ($row, $utterance, $guideAvailable) {
+    public function takeTurn(
+        GuidedSession $row,
+        string $utterance,
+        bool $guideAvailable = true,
+        ?StepId $answering = null,
+    ): TurnResult {
+        return DB::transaction(function () use ($row, $utterance, $guideAvailable, $answering) {
             $row = $this->locked($row);
 
             // Asked again, under the lock. The controller asks before it, which
@@ -145,7 +150,13 @@ final readonly class SessionService
             }
 
             $version = $this->versions->forSession($row);
-            $result = $this->conversation->takeTurn($row->toDomain(), $version, $utterance, $guideAvailable);
+            $result = $this->conversation->takeTurn(
+                $row->toDomain(),
+                $version,
+                $utterance,
+                $guideAvailable,
+                $answering,
+            );
 
             // Counted, never flagged. The screen has phrases in Latin and
             // Devanagari only, so a turn in any other Indian script is not

@@ -156,15 +156,24 @@ export default function Session() {
       // The user has answered, so the question no longer needs saying.
       voice?.hush();
       try {
-        const next = await api.takeTurn(session.id, utterance);
+        // The step goes with the answer. Without it, a reply lost on the way
+        // back and then sent again is recorded against the *next* step, whose
+        // question is then never answered by anybody — and on a phone, a reply
+        // lost on the way back is a Tuesday.
+        const next = await api.takeTurn(session.id, utterance, session.step?.id ?? null);
         setSession(next);
         setLastSaid(said);
         setAnswer('');
         setFeelings([]);
       } catch (e: unknown) {
         if (e instanceof ApiError && e.isConflict) {
-          // The session already ended; take the server's word for it.
+          // The session ended, or this answer was for a step that has moved
+          // on. Either way the server knows where this session is and this
+          // screen does not, so take its word for it — and clear the box,
+          // because what is in it is not an answer to whatever is asked next.
           setSession(await api.session(session.id));
+          setAnswer('');
+          setFeelings([]);
         } else {
           setError(describe(e));
         }

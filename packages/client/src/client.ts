@@ -133,9 +133,27 @@ export function createClient(config: ClientConfig) {
         : null;
     },
 
-    /** The only way to advance a session, and so the only path safety covers. */
-    takeTurn: (id: string, utterance: string) =>
-      t.request<ApiSession>(`/sessions/${id}/turns`, { method: 'POST', body: { utterance } }),
+    /**
+     * The only way to advance a session, and so the only path safety covers.
+     *
+     * `step` is the id of the step this answer is for — `session.step?.id`,
+     * the step the screen was showing when the user answered. It is required
+     * rather than optional so that no surface can quietly stop sending it: a
+     * client that does not say which question it answered will have a retried
+     * turn recorded against the *next* step, whose real answer is then never
+     * asked for. A lost response is not a lost turn, and on mobile data
+     * responses get lost.
+     *
+     * The server refuses a step that has moved on with a 409, **after**
+     * screening what was said — so a stale answer that discloses a crisis
+     * still stops the session. Pass `null` only when there genuinely is no
+     * step to name.
+     */
+    takeTurn: (id: string, utterance: string, step: string | null) =>
+      t.request<ApiSession>(`/sessions/${id}/turns`, {
+        method: 'POST',
+        body: step === null ? { utterance } : { utterance, step },
+      }),
 
     stopSession: (id: string) => t.request<ApiSession>(`/sessions/${id}/stop`, { method: 'POST' }),
 

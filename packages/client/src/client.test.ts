@@ -260,10 +260,35 @@ describe('the paths', () => {
   it('advances a session only through the turns route', async () => {
     const { api, calls } = clientWith([{ status: 200, body: { id: 's1' } }], 'tok');
 
-    await api.takeTurn('s1', 'I am upset');
+    await api.takeTurn('s1', 'I am upset', 'notice');
 
     expect(calls[0]?.url).toBe('https://api.test/api/sessions/s1/turns');
     expect(calls[0]?.init.method).toBe('POST');
+    expect(calls[0]?.init.body).toBe(JSON.stringify({ utterance: 'I am upset', step: 'notice' }));
+  });
+
+  /**
+   * The step goes with the answer, because without it a retried turn is
+   * recorded against the next step — whose real question is then never asked.
+   * A required argument is what stops a surface from quietly omitting it.
+   */
+  it('sends the step the answer was for', async () => {
+    const { api, calls } = clientWith([{ status: 200, body: { id: 's1' } }], 'tok');
+
+    await api.takeTurn('s1', 'I snapped at him first', 'responsibility');
+
+    expect(calls[0]?.init.body).toBe(
+      JSON.stringify({ utterance: 'I snapped at him first', step: 'responsibility' }),
+    );
+  });
+
+  it('omits the step rather than sending null when there is none to name', async () => {
+    const { api, calls } = clientWith([{ status: 200, body: { id: 's1' } }], 'tok');
+
+    await api.takeTurn('s1', 'I am upset', null);
+
+    // The server reads a missing step as "the caller did not say", which is
+    // what this is. A literal null would be a value it has to interpret.
     expect(calls[0]?.init.body).toBe(JSON.stringify({ utterance: 'I am upset' }));
   });
 

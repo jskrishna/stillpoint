@@ -23,22 +23,34 @@ final readonly class Conversation
 
     /**
      * @param  bool  $guideAvailable  Whether the guide may be consulted at all.
+     * @param  ?StepId  $answering  The step the caller believes it is answering.
+     *
+     * Both are read **after** the screen and never before it, and for the same
+     * reason: a check in front of this method can refuse a request before
+     * anything has looked at what was said, and the request it would refuse is
+     * someone saying they are not safe — and then the helplines never appear.
+     * So the screen always runs, the signal is always recorded, and what these
+     * two withhold is only what comes after it.
      *
      * The budget is the caller's — a rate limit, a quota, whatever the surface
-     * uses to stop one client running the guide flat out. It is an argument
-     * rather than something checked before this method because of *where* it
-     * has to apply: after the screen and never before it.
+     * uses to stop one client running the guide flat out. A spent one
+     * withholds the guide and nothing else.
      *
-     * A limit that can refuse a request before it is screened can refuse
-     * someone saying they are not safe, and then the helplines never appear.
-     * So the screen always runs, the signal is always recorded, and a spent
-     * budget only withholds the guide.
+     * `$answering` exists because a lost response is not a lost turn. A client
+     * that sends an answer, has the reply dropped by a flaky network and sends
+     * it again would otherwise have the same words recorded twice — the second
+     * time against the next step, whose real answer is then never asked for.
+     * On a phone on mobile data that is not an edge case. Null when the caller
+     * cannot say, which is treated as not having said rather than as a
+     * mismatch: a check that refuses what it cannot understand would refuse a
+     * crisis, and this arrives in a request body where anything may arrive.
      */
     public function takeTurn(
         Session $session,
         ProtocolVersion $version,
         string $utterance,
         bool $guideAvailable = true,
+        ?StepId $answering = null,
     ): TurnResult {
         if ($session->hasEnded()) {
             return new TurnResult($session, '', false, RiskAssessment::none(), false);
@@ -59,6 +71,14 @@ final readonly class Conversation
             // safety screen takes over the surface from here. Never throttled:
             // a stop is the one reply that must always be given.
             return new TurnResult($next, '', false, $assessment, true, $flag);
+        }
+
+        // Screened and recorded, and then no further. Checked before the
+        // budget because "that question has moved on" is the more useful
+        // answer of the two: waiting and sending it again would not make it
+        // apply.
+        if ($answering !== null && $answering !== $next->stepId) {
+            return new TurnResult($next, '', false, $assessment, false, $flag, stale: true);
         }
 
         if (! $guideAvailable) {

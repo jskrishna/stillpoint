@@ -9,6 +9,7 @@
  */
 
 import { apply, type Session } from './session.js';
+import type { StepId } from './steps.js';
 import { toCapture, type Guide, type GuideReply } from './guide.js';
 import { mustFlag, mustStop, type SafetyCategory, type SafetyLevel } from './safety.js';
 import type { RiskAssessment, RiskScreen } from './risk.js';
@@ -30,6 +31,15 @@ export interface TurnResult {
    * was withheld.
    */
   readonly throttled: boolean;
+  /**
+   * True when {@link TurnDeps.answering} named a step this session has already
+   * moved past, so the answer was not applied to anything.
+   *
+   * The signal was still screened and recorded. Nothing else was: the answer
+   * was to a question that is no longer on the screen, and recording it
+   * against the one that is would put the wrong words in the journal.
+   */
+  readonly stale: boolean;
   /** Set when a reviewer should see this turn. */
   readonly flag?: {
     readonly level: Exclude<SafetyLevel, 'none'>;
@@ -41,12 +51,13 @@ export interface TurnResult {
 /**
  * Whether the guide was actually consulted.
  *
- * The two reasons it was not are a safety stop and a spent budget, and neither
- * should be charged for: a stop never reaches the guide, and a refusal is the
- * caller being told to wait, not work done for them.
+ * The three reasons it was not are a safety stop, a spent budget and an answer
+ * to a step that had already moved on, and none should be charged for: a stop
+ * never reaches the guide, and a refusal is the caller being told to wait or to
+ * ask again, not work done for them.
  */
 export function guideConsulted(result: TurnResult): boolean {
-  return !result.stopped && !result.throttled;
+  return !result.stopped && !result.throttled && !result.stale;
 }
 
 export interface TurnDeps {
@@ -68,6 +79,25 @@ export interface TurnDeps {
    * Defaults to true, because most callers have no budget to speak of.
    */
   readonly guideAvailable?: boolean;
+  /**
+   * The step the caller believes it is answering.
+   *
+   * It exists because a lost response is not a lost turn. A client that sends
+   * an answer, has the reply dropped by a flaky network and sends it again
+   * would otherwise have the same words recorded twice — the second time
+   * against the next step, whose real answer is then never asked for. On a
+   * phone on mobile data that is not an edge case.
+   *
+   * Like {@link guideAvailable}, it is read **after** the screen and never
+   * before it, and for the same reason: nothing about which step a client
+   * thinks it is on may refuse a turn before anything has looked at what was
+   * said. A stale answer still raises its flag and still stops the session.
+   *
+   * Omitted when the caller cannot say, which is treated as not having said
+   * rather than as a mismatch — a check that refuses what it cannot
+   * understand would refuse a crisis.
+   */
+  readonly answering?: StepId;
 }
 
 /**
@@ -80,7 +110,7 @@ export function takeTurn(
   session: Session,
   version: ProtocolVersion,
   utterance: string,
-  { guide, risk, guideAvailable = true }: TurnDeps,
+  { guide, risk, guideAvailable = true, answering }: TurnDeps,
 ): TurnResult {
   if (session.phase === 'ended') {
     return {
@@ -92,6 +122,7 @@ export function takeTurn(
       risk: { level: 'none', unreadable: false },
       stopped: false,
       throttled: false,
+      stale: false,
     };
   }
 
@@ -119,8 +150,26 @@ export function takeTurn(
       advanced: false,
       risk: assessment,
       stopped: true,
-      // Never throttled: a stop is the one reply that must always be given.
+      // Never throttled and never stale: a stop is the one reply that must
+      // always be given, whatever step the caller thought it was on.
       throttled: false,
+      stale: false,
+      ...(flagged === undefined ? {} : { flag: flagged }),
+    };
+  }
+
+  // Screened and recorded, and then no further. Checked before the budget
+  // because "that question has moved on" is the more useful answer of the two:
+  // waiting and sending it again would not make it apply.
+  if (answering !== undefined && answering !== next.stepId) {
+    return {
+      session: next,
+      say: '',
+      advanced: false,
+      risk: assessment,
+      stopped: false,
+      throttled: false,
+      stale: true,
       ...(flagged === undefined ? {} : { flag: flagged }),
     };
   }
@@ -136,6 +185,7 @@ export function takeTurn(
       risk: assessment,
       stopped: false,
       throttled: true,
+      stale: false,
       ...(flagged === undefined ? {} : { flag: flagged }),
     };
   }
@@ -159,6 +209,7 @@ export function takeTurn(
     risk: assessment,
     stopped: false,
     throttled: false,
+    stale: false,
     ...(flagged === undefined ? {} : { flag: flagged }),
   };
 }

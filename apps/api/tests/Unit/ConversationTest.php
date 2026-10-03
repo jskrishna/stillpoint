@@ -191,6 +191,123 @@ final class ConversationTest extends TestCase
         $this->assertSame(SafetyLevel::None, $r->risk->level);
     }
 
+    /**
+     * The bug this closes, stated as a test.
+     *
+     * A client sends an answer, the response is dropped on the way back, and
+     * the client sends the same words again. Without `$answering`, the second
+     * request is indistinguishable from a new turn: the words are recorded
+     * against the *next* step, and the question that step actually asks is
+     * never answered by anybody. On a phone on mobile data that is not an edge
+     * case.
+     */
+    public function test_refuses_an_answer_to_a_step_that_has_moved_on(): void
+    {
+        $v = $this->runnable();
+        $c = $this->quiet();
+        $said = 'My manager called me out in front of everyone';
+
+        $first = $c->takeTurn(Session::start(), $v, $said, answering: StepId::Notice);
+        $this->assertSame(StepId::Responsibility, $first->session->stepId);
+
+        // The retry, carrying the step the client still thinks it is on.
+        $retry = $c->takeTurn($first->session, $v, $said, answering: StepId::Notice);
+
+        $this->assertTrue($retry->stale);
+        $this->assertFalse($retry->advanced);
+        $this->assertSame('', $retry->say);
+        $this->assertSame(StepId::Responsibility, $retry->session->stepId);
+        $this->assertFalse($retry->guideConsulted());
+    }
+
+    public function test_does_not_consult_the_guide_on_a_stale_answer(): void
+    {
+        $spy = new class implements Guide
+        {
+            public bool $called = false;
+
+            public function respond(Session $s, ProtocolVersion $v, string $u): GuideReply
+            {
+                $this->called = true;
+
+                return new GuideReply('', false);
+            }
+        };
+
+        $v = $this->runnable();
+        $moved = Session::start()->withStepSatisfied();
+        (new Conversation($spy, new PhraseRiskScreen))
+            ->takeTurn($moved, $v, 'My manager called me out', answering: StepId::Notice);
+
+        $this->assertFalse($spy->called);
+    }
+
+    /**
+     * The ordering rule, again. Nothing about which step a client thinks it is
+     * on may refuse a turn before anything has looked at what was said — the
+     * request it would refuse is someone saying they are not safe.
+     */
+    public function test_still_stops_the_session_when_a_stale_answer_says_someone_is_not_safe(): void
+    {
+        $moved = Session::start()->withStepSatisfied();
+        $r = $this->screened()->takeTurn(
+            $moved,
+            $this->runnable(),
+            'I want to die',
+            answering: StepId::Notice,
+        );
+
+        $this->assertTrue($r->stopped);
+        $this->assertFalse($r->stale);
+        $this->assertSame(EndReason::SafetyStop, $r->session->endReason);
+        $this->assertSame(SafetyCategory::SelfHarm, $r->flag->category);
+    }
+
+    public function test_still_raises_a_flag_on_a_stale_answer(): void
+    {
+        $moved = Session::start()->withStepSatisfied();
+        $r = $this->screened()->takeTurn(
+            $moved,
+            $this->runnable(),
+            'I stopped my meds last week honestly',
+            answering: StepId::Notice,
+        );
+
+        // The words were said. That they answered a question the session has
+        // moved past does not make them less of a disclosure.
+        $this->assertTrue($r->stale);
+        $this->assertSame(SafetyLevel::Medium, $r->flag->level);
+        $this->assertSame(SafetyLevel::Medium, $r->session->safetyLevel);
+    }
+
+    public function test_applies_the_answer_when_the_caller_names_the_step_in_progress(): void
+    {
+        $r = $this->quiet()->takeTurn(
+            Session::start(),
+            $this->runnable(),
+            'My manager called me out in front of everyone',
+            answering: StepId::Notice,
+        );
+
+        $this->assertFalse($r->stale);
+        $this->assertTrue($r->advanced);
+    }
+
+    /**
+     * A caller that cannot say is treated as not having said, rather than as a
+     * mismatch. A check that refuses what it cannot understand would refuse a
+     * crisis, and the step arrives in a request body where anything may
+     * arrive.
+     */
+    public function test_applies_the_answer_when_the_caller_does_not_say_which_step(): void
+    {
+        $moved = Session::start()->withStepSatisfied();
+        $r = $this->quiet()->takeTurn($moved, $this->runnable(), 'I snapped at him first');
+
+        $this->assertFalse($r->stale);
+        $this->assertTrue($r->advanced);
+    }
+
     public function test_cannot_be_resumed_after_a_safety_stop(): void
     {
         $v = $this->runnable();

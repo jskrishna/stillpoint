@@ -245,3 +245,104 @@ describe('the guide budget', () => {
     expect(guideConsulted(result)).toBe(true);
   });
 });
+
+describe('an answer to a step that has moved on', () => {
+  /**
+   * The bug this closes, stated as a test.
+   *
+   * A client sends an answer, the response is dropped on the way back, and the
+   * client sends the same words again. Without `answering`, the second request
+   * is indistinguishable from a new turn: the words are recorded against the
+   * *next* step, and the question that step actually asks is never answered by
+   * anybody. On a phone on mobile data that is not an edge case.
+   */
+  it('is refused rather than applied to the step now in progress', () => {
+    const first = takeTurn(startSession(), V, 'My manager called me out in front of everyone', {
+      ...deps,
+      answering: 'notice',
+    });
+    expect(first.session.stepId).toBe('responsibility');
+
+    // The retry, carrying the step the client still thinks it is on.
+    const retry = takeTurn(first.session, V, 'My manager called me out in front of everyone', {
+      ...deps,
+      answering: 'notice',
+    });
+
+    expect(retry.stale).toBe(true);
+    expect(retry.advanced).toBe(false);
+    expect(retry.say).toBe('');
+    expect(retry.session.stepId).toBe('responsibility');
+    expect(retry.session.data.whatHappened).toBe('My manager called me out in front of everyone');
+  });
+
+  it('does not consult the guide, and is not charged for', () => {
+    const session = apply(startSession(), { type: 'step_satisfied' });
+    const result = takeTurn(session, V, 'My manager called me out', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      answering: 'notice',
+    });
+
+    expect(result.stale).toBe(true);
+    expect(guideConsulted(result)).toBe(false);
+  });
+
+  /**
+   * The ordering rule, again. Nothing about which step a client thinks it is
+   * on may refuse a turn before anything has looked at what was said — the
+   * request it would refuse is someone saying they are not safe.
+   */
+  it('still stops the session when the stale answer says someone is not safe', () => {
+    const session = apply(startSession(), { type: 'step_satisfied' });
+    const result = takeTurn(session, V, 'I want to kill myself', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      answering: 'notice',
+    });
+
+    expect(result.stopped).toBe(true);
+    expect(result.stale).toBe(false);
+    expect(result.session.endReason).toBe('safety_stop');
+    expect(result.flag?.category).toBe('self_harm');
+  });
+
+  it('still raises a medium flag on a stale answer', () => {
+    const session = apply(startSession(), { type: 'step_satisfied' });
+    const result = takeTurn(session, V, 'he hit me again last night', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      answering: 'notice',
+    });
+
+    // The words were said. That they answered a question the session has
+    // moved past does not make them less of a disclosure.
+    expect(result.stale).toBe(true);
+    expect(result.flag?.level).toBe('medium');
+    expect(result.session.safetyLevel).toBe('medium');
+  });
+
+  it('applies the answer when the caller names the step in progress', () => {
+    const result = takeTurn(startSession(), V, 'My manager called me out in front of everyone', {
+      ...deps,
+      answering: 'notice',
+    });
+
+    expect(result.stale).toBe(false);
+    expect(result.advanced).toBe(true);
+  });
+
+  /**
+   * A caller that cannot say is treated as not having said, rather than as a
+   * mismatch. A check that refuses what it cannot understand would refuse a
+   * crisis, and the step is carried in the request body where anything may
+   * arrive.
+   */
+  it('applies the answer when the caller does not say which step it is on', () => {
+    const session = apply(startSession(), { type: 'step_satisfied' });
+    const result = takeTurn(session, V, 'I snapped at him first', deps);
+
+    expect(result.stale).toBe(false);
+    expect(result.advanced).toBe(true);
+  });
+});
