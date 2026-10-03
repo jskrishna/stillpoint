@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Plan;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AccountDeletionService;
 use App\Services\SessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class AuthController extends Controller
 {
+    /** What a user types to confirm erasing their account. */
+    public const DELETE_CONFIRMATION = 'DELETE';
+
     public function register(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -133,6 +137,49 @@ final class AuthController extends Controller
         $user->save();
 
         return response()->json(self::profile($user->refresh()));
+    }
+
+    /**
+     * Erases the account and everything it owns.
+     *
+     * Guarded by the account's own password, not by a checkbox. This is not
+     * reversible and it takes the most personal text the product holds with it,
+     * so it should not be something a stray tap on an unlocked phone can do —
+     * and a password is the one thing a person who is not the owner does not
+     * have.
+     */
+    public function destroy(Request $request, AccountDeletionService $deletions): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'string'],
+            // Typed out, so the confirmation is an act rather than a reflex.
+            'confirm' => ['required', 'string'],
+        ]);
+
+        $user = $request->user();
+
+        if (! Hash::check($validated['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => ['That password is not right.'],
+            ]);
+        }
+
+        if (trim($validated['confirm']) !== self::DELETE_CONFIRMATION) {
+            throw ValidationException::withMessages([
+                'confirm' => ['Type '.self::DELETE_CONFIRMATION.' to confirm.'],
+            ]);
+        }
+
+        $removed = $deletions->erase($user);
+
+        // The session goes with it, for the same reason logout drops one.
+        Auth::guard('web')->logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json(['removed' => $removed]);
     }
 
     /** @return array<string, mixed> */

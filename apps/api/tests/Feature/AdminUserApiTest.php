@@ -10,6 +10,7 @@ use App\Domain\SessionKind;
 use App\Models\JournalEntry;
 use App\Models\RoleChange;
 use App\Models\User;
+use App\Services\AccountDeletionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -245,21 +246,27 @@ final class AdminUserApiTest extends TestCase
         $this->getJson('/api/admin/role-changes')->assertNotFound();
     }
 
-    public function test_the_trail_survives_the_actor_being_deleted(): void
+    public function test_the_trail_outlives_the_accounts_it_names(): void
     {
         $admin = User::factory()->admin()->create(['email' => 'leaving@example.com']);
         User::factory()->admin()->create();
-        $user = User::factory()->create();
+        $user = User::factory()->create(['email' => 'granted@example.com']);
 
         Sanctum::actingAs($admin);
         $this->patchJson("/api/admin/users/{$user->id}", ['role' => 'coach'])->assertOk();
 
-        $admin->delete();
+        // Both accounts erased, by the route a person would use.
+        app(AccountDeletionService::class)->erase($admin);
+        app(AccountDeletionService::class)->erase($user->refresh());
 
-        // The foreign key goes null; the address stays, so the record of what
-        // they did does not leave with the account.
+        // The record survives, because the trail exists so a grant has a date
+        // and a name on it — one that disappears with the account is not a
+        // trail. What it no longer holds is either address.
         $change = RoleChange::query()->sole();
-        $this->assertNull($change->changed_by);
-        $this->assertSame('leaving@example.com', $change->changed_by_email);
+        $this->assertSame(Role::Coach, $change->to_role);
+        $this->assertSame(AccountDeletionService::ERASED, $change->user_email);
+        $this->assertSame(AccountDeletionService::ERASED, $change->changed_by_email);
+        $this->assertStringNotContainsString('leaving@example.com', $change->toJson());
+        $this->assertStringNotContainsString('granted@example.com', $change->toJson());
     }
 }

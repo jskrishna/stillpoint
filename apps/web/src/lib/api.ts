@@ -594,4 +594,26 @@ export const api = {
 
   /** Immediate, and the user's alone. A coach cannot do this for them. */
   endCoaching: (coachId: string) => request<void>(`/me/coaches/${coachId}`, { method: 'DELETE' }),
+
+  /* --------------------------------------------------- erasing the account */
+
+  /** What a user types to confirm. Matches the server's own constant. */
+  DELETE_CONFIRMATION: 'DELETE',
+
+  /**
+   * Erases the account and everything it owns. Not reversible.
+   *
+   * Guarded by the password rather than a checkbox: it takes the most personal
+   * text the product holds with it, and a password is the one thing somebody
+   * who is not the owner does not have.
+   */
+  deleteAccount: async (password: string, confirm: string): Promise<Record<string, number>> => {
+    const result = await request<{ removed: Record<string, number> }>('/me', {
+      method: 'DELETE',
+      body: { password, confirm },
+    });
+    // Whatever the server said, this browser is signed out.
+    storeToken(null);
+    return result.removed;
+  },
 };

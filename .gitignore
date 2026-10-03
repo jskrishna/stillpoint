@@ -46,3 +46,6 @@ apps/api/storage/logs/*
 apps/api/bootstrap/cache/*
 apps/api/.env
 apps/api/.phpunit.cache/
+
+# Screenshots taken for review. Generated, never source.
+screens/

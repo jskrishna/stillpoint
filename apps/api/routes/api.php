@@ -38,6 +38,8 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::get('me', [AuthController::class, 'me']);
     Route::patch('me', [AuthController::class, 'updateMe']);
     Route::post('me/consent', [AuthController::class, 'consent']);
+    // Erasing the account. Guarded by the password, and it takes everything.
+    Route::delete('me', [AuthController::class, 'destroy']);
 
     Route::post('sessions', [SessionController::class, 'store']);
     Route::get('sessions/{session}', [SessionController::class, 'show']);

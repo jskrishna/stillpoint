@@ -31,6 +31,11 @@ export default function Settings() {
   const [failed, setFailed] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [erasing, setErasing] = useState(false);
+  const [erasePassword, setErasePassword] = useState('');
+  const [eraseConfirm, setEraseConfirm] = useState('');
+  const [eraseProblem, setEraseProblem] = useState<string | null>(null);
+  const [erasingBusy, setErasingBusy] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -117,6 +122,29 @@ export default function Settings() {
       setFailed(null);
     } catch {
       setFailed('Could not end that. Check your connection and try again.');
+    }
+  };
+
+  /**
+   * Erases the account.
+   *
+   * Not reversible, and it takes everything: sessions, journal, who could read
+   * it. The password and the typed confirmation are both the server's
+   * requirement, not this screen's — so a client cannot skip either.
+   */
+  const eraseAccount = async () => {
+    setErasingBusy(true);
+    setEraseProblem(null);
+    try {
+      await api.deleteAccount(erasePassword, eraseConfirm);
+      router.push('/welcome');
+    } catch (e: unknown) {
+      setEraseProblem(
+        e instanceof ApiError
+          ? (Object.values(e.errors)[0]?.[0] ?? e.message)
+          : 'Could not delete your account. Check your connection.',
+      );
+      setErasingBusy(false);
     }
   };
 
@@ -324,9 +352,94 @@ export default function Settings() {
         </p>
       )}
 
+      <span className={styles.label}>DELETE MY ACCOUNT</span>
+      {erasing ? (
+        <div className={styles.notice}>
+          <p>
+            This removes your account and everything in it — every session, every journal entry, and
+            anyone’s ability to read them. It cannot be undone, and we cannot get it back for you.
+          </p>
+          <label className={styles.label} style={{ marginTop: 12 }}>
+            Your password
+            <input
+              className={styles.select}
+              type="password"
+              autoComplete="current-password"
+              value={erasePassword}
+              onChange={(e) => {
+                setErasePassword(e.target.value);
+              }}
+            />
+          </label>
+          <label className={styles.label} style={{ marginTop: 12 }}>
+            Type {api.DELETE_CONFIRMATION} to confirm
+            <input
+              className={styles.select}
+              type="text"
+              autoComplete="off"
+              value={eraseConfirm}
+              onChange={(e) => {
+                setEraseConfirm(e.target.value);
+              }}
+            />
+          </label>
+          {eraseProblem === null ? null : (
+            <p className={styles.failure} role="alert">
+              {eraseProblem}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+            <button
+              type="button"
+              className={styles.cta}
+              style={{ flexGrow: 1 }}
+              onClick={() => {
+                setErasing(false);
+                setErasePassword('');
+                setEraseConfirm('');
+                setEraseProblem(null);
+              }}
+            >
+              Keep my account
+            </button>
+            <button
+              type="button"
+              className={styles.cta}
+              style={{
+                flexGrow: 1,
+                background: 'var(--sp-color-panel)',
+                color: 'var(--sp-color-danger)',
+                boxShadow: 'var(--sp-shadow-button)',
+              }}
+              disabled={
+                erasingBusy ||
+                erasePassword === '' ||
+                eraseConfirm.trim() !== api.DELETE_CONFIRMATION
+              }
+              onClick={() => {
+                void eraseAccount();
+              }}
+            >
+              {erasingBusy ? 'Deleting…' : 'Delete everything'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.settingRow}
+          onClick={() => {
+            setErasing(true);
+          }}
+        >
+          <span className={styles.danger}>Delete my account</span>
+          <span className={styles.chevron}>›</span>
+        </button>
+      )}
+
       <p className={styles.footnote}>
         Your journal is stored on your account and encrypted at rest. Deleting an entry removes it
-        for good.
+        for good, and deleting your account removes all of it.
       </p>
     </>
   );

@@ -573,20 +573,91 @@ else
     `${String(rowsBeforeStop)} → ${String(rowsAfterStop)}`,
   );
 
-// ------------------------------------------------- 8. sign out
-console.log('\n8. Sign out');
+// Erasing the account. Last, because it ends the account this script has been
+// using — which is also the honest place to check it from.
+console.log('\n7b. Deleting the account');
+
 await page.goto(`${WEB}/app/settings`, { waitUntil: 'networkidle' });
-await page.waitForTimeout(1500);
-await page
-  .locator('button', { hasText: /^Sign out/ })
-  .first()
-  .click();
+await page.waitForTimeout(1800);
+
+const journalBefore = await page.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const r = await fetch('http://localhost:8000/api/journal?limit=1', {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  });
+  return r.ok ? (await r.json()).total : -1;
+});
+if (journalBefore > 0) ok(`the account has ${String(journalBefore)} entries to lose`);
+else bad('the account has entries to lose', String(journalBefore));
+
+const savedToken = await page.evaluate(() => window.localStorage.getItem('stillpoint.token.v1'));
+
+await page.getByRole('button', { name: 'Delete my account' }).click();
+await page.waitForTimeout(400);
+
+// The confirmation is not a single tap: a password and the typed word, both
+// required by the server rather than by this screen.
+const confirmButton = page.locator('button', { hasText: /^Delete everything$/ });
+if (await confirmButton.isDisabled()) ok('the delete button is inert until both are given');
+else bad('the delete button is inert until both are given');
+
+await page.getByLabel('Your password').fill('correct-horse-battery-staple');
+await page.getByLabel(/Type DELETE to confirm/).fill('yes please');
+await page.waitForTimeout(300);
+if (await confirmButton.isDisabled()) ok('and a wrong confirmation does not enable it');
+else bad('and a wrong confirmation does not enable it');
+
+// The server refuses it too, whatever the screen allows.
+const serverRefusal = await page.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const r = await fetch('http://localhost:8000/api/me', {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ password: 'wrong-password', confirm: 'DELETE' }),
+  });
+  return r.status;
+});
+if (serverRefusal === 422) ok('the server refuses a wrong password (422)');
+else bad('the server refuses a wrong password', String(serverRefusal));
+
+await page.getByLabel(/Type DELETE to confirm/).fill('DELETE');
+await page.waitForTimeout(300);
+await confirmButton.click();
 await page.waitForURL('**/welcome', { timeout: 15000 });
-ok('sign out returns to welcome');
+ok('deleting lands back at the start');
+
+// The token is dead, and so is everything it reached.
+const afterErasure = await page.evaluate(async (token) => {
+  const headers = { Accept: 'application/json', Authorization: `Bearer ${String(token)}` };
+  const me = await fetch('http://localhost:8000/api/me', { headers });
+  const journal = await fetch('http://localhost:8000/api/journal', { headers });
+  return {
+    me: me.status,
+    journal: journal.status,
+    stored: window.localStorage.getItem('stillpoint.token.v1'),
+  };
+}, savedToken);
+
+if (afterErasure.me === 401) ok('the token no longer works');
+else bad('the token no longer works', String(afterErasure.me));
+if (afterErasure.journal === 401) ok('and neither does it reach the journal');
+else bad('and neither does it reach the journal', String(afterErasure.journal));
+if (afterErasure.stored === null) ok('and the browser is signed out');
+else bad('and the browser is signed out');
+
+// ------------------------------------------------- 8. sign out
+console.log('\n8. Signed out');
+// The deletion above already signed this browser out, which is the stronger
+// version of the same check: the app must be unreachable without a token,
+// whether it was handed back or revoked underneath it.
 await page.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
-if (page.url().includes('/welcome')) ok('the app is unreachable once signed out');
-else bad('the app is unreachable once signed out', page.url());
+if (page.url().includes('/welcome')) ok('the app is unreachable without a token');
+else bad('the app is unreachable without a token', page.url());
 
 await browser.close();
 console.log(

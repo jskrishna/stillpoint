@@ -261,6 +261,23 @@ cost: aggregates over beliefs (the "belief that comes back") are computed in PHP
 over a user's own window, not with `GROUP BY`. Do not drop the encryption to
 make a query easier.
 
+A user can erase their own account, and it has to actually take everything:
+`AccountDeletionService`. Most of the removal is the schema's — sessions,
+journal, flags, pairings and invitations all cascade from `users` — and what is
+in the service is the rest, which cascades get wrong: Sanctum tokens, which have
+no foreign key so nothing would remove them, and the role-change trail, which
+must outlive the account but must not keep its address. It is guarded by the
+account's own password and a typed confirmation, because it is not reversible
+and should not be something a stray tap on an unlocked phone can do.
+
+**Open question for someone qualified:** a safety flag is deleted with the
+account, because that is what erasure means and it is what the schema already
+did. But it also means that if a person said they were in danger and then
+deleted their account, a reviewer cannot follow it up. Whether an anonymised
+flag should outlive an erasure, and for how long, is a safeguarding and DPDP
+decision — not a refactor. Deleting is the answer that needs no sign-off; keeping
+someone's words against their wish is the one that does.
+
 The journal table is also the rule, not just a store: **a session that ended for
 safety never gets a row.** `JournalEntry::fromSession()` returns null for it,
 and the absence of the row is how that is kept.
