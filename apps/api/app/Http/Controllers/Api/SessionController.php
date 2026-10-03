@@ -86,6 +86,31 @@ final class SessionController extends Controller
         ))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
+    /**
+     * The session this user is in the middle of, or null.
+     *
+     * The first thing a client asks, so that closing a tab does not lose a
+     * session: it stays open on the server, and before this nothing could reach
+     * it again — while on a free plan it had already spent one of three full
+     * sessions for the week.
+     *
+     * Carries the step's question too, so resuming reads the same as starting.
+     */
+    public function current(Request $request): JsonResponse
+    {
+        $open = $this->sessions->current($request->user());
+
+        if ($open === null) {
+            return response()->json(null);
+        }
+
+        return (new SessionResource(
+            $open,
+            $this->versions->forSession($open),
+            $this->sessions->openingLine($open),
+        ))->response();
+    }
+
     public function show(Request $request, GuidedSession $session): SessionResource
     {
         $this->authorizeOwnership($request, $session);

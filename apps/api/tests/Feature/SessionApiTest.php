@@ -289,6 +289,109 @@ final class SessionApiTest extends TestCase
         $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 2);
     }
 
+    /**
+     * Closing a tab used to lose a session for good.
+     *
+     * It stayed open on the server, nothing could reach it again, and on a free
+     * plan it had already spent one of three full sessions for the week.
+     */
+    public function test_an_open_session_can_be_found_again(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'My manager dismissed my work'])
+            ->assertOk();
+
+        // As if the tab had been closed and reopened.
+        $current = $this->getJson('/api/sessions/current')->assertOk();
+
+        $current->assertJsonPath('id', $id)
+            ->assertJsonPath('ended', false)
+            // It carries on from where it got to, not from the start.
+            ->assertJsonPath('step.ordinal', 2)
+            ->assertJsonPath('data.whatHappened', 'My manager dismissed my work');
+    }
+
+    public function test_there_is_no_current_session_when_none_is_open(): void
+    {
+        $this->consentedUser();
+
+        $this->getJson('/api/sessions/current')->assertOk()->assertExactJson([]);
+    }
+
+    public function test_a_finished_session_is_not_offered_to_be_resumed(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+        $this->postJson("/api/sessions/{$id}/stop")->assertOk();
+
+        $this->getJson('/api/sessions/current')->assertOk()->assertExactJson([]);
+    }
+
+    public function test_a_safety_stopped_session_is_not_offered_to_be_resumed(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'I want to kill myself'])->assertOk();
+
+        // Never a resume path around a safety stop.
+        $this->getJson('/api/sessions/current')->assertOk()->assertExactJson([]);
+    }
+
+    public function test_resuming_is_the_same_session_and_costs_no_second_allowance(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 2);
+
+        // Found again and carried on. Nothing new was started.
+        $this->getJson('/api/sessions/current')->assertJsonPath('id', $id);
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'Something that happened today'])
+            ->assertOk();
+
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 2);
+    }
+
+    public function test_starting_a_session_ends_whatever_was_open(): void
+    {
+        $this->consentedUser();
+        $first = $this->newSession();
+        $second = $this->newSession();
+
+        $this->assertNotSame($first, $second);
+
+        // One at a time, because a person is in one at a time. Two open
+        // sessions would both offer to be resumed, and a user could not tell
+        // which one their answers were going into.
+        $this->getJson('/api/sessions/current')->assertJsonPath('id', $second);
+        $this->getJson("/api/sessions/{$first}")
+            ->assertOk()
+            ->assertJsonPath('ended', true)
+            // What happened is that they chose to start again.
+            ->assertJsonPath('endReason', 'user_stopped');
+    }
+
+    public function test_current_is_this_users_own_session_only(): void
+    {
+        $theirs = User::factory()->create([
+            'accepted_consent' => ['understands', 'adult'],
+            'consented_at' => now(),
+        ]);
+        Sanctum::actingAs($theirs);
+        $this->postJson('/api/sessions')->assertCreated();
+
+        $this->app['auth']->forgetGuards();
+        $this->consentedUser();
+        $this->getJson('/api/sessions/current')->assertOk()->assertExactJson([]);
+    }
+
+    public function test_current_requires_a_token(): void
+    {
+        $this->getJson('/api/sessions/current')->assertUnauthorized();
+    }
+
     public function test_a_thin_answer_does_not_advance(): void
     {
         $this->consentedUser();

@@ -42,6 +42,10 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::delete('me', [AuthController::class, 'destroy']);
 
     Route::post('sessions', [SessionController::class, 'store']);
+    // Before `{session}`, or the router would read "current" as an id. This is
+    // how a client finds the session someone is in the middle of, so that
+    // closing a tab does not lose it.
+    Route::get('sessions/current', [SessionController::class, 'current']);
     Route::get('sessions/{session}', [SessionController::class, 'show']);
     // The only way to advance a session, and so the only path safety screening
     // has to cover.

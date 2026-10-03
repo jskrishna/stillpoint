@@ -468,6 +468,21 @@ export const api = {
 
   session: (id: string) => request<ApiSession>(`/sessions/${id}`),
 
+  /**
+   * The session this user is in the middle of, or `null`.
+   *
+   * Asked first, so that closing a tab does not lose a session: it stays open
+   * on the server, and a free plan has already spent one of its three on it.
+   */
+  currentSession: async (): Promise<ApiSession | null> => {
+    const result = await request<unknown>('/sessions/current');
+    // The server answers `null` for "none open", which `request` hands back as
+    // an empty object rather than null.
+    return result !== null && typeof result === 'object' && 'id' in result
+      ? (result as ApiSession)
+      : null;
+  },
+
   /** The only way to advance a session, and so the only path safety covers. */
   takeTurn: (id: string, utterance: string) =>
     request<ApiSession>(`/sessions/${id}/turns`, { method: 'POST', body: { utterance } }),

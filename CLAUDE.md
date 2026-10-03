@@ -88,6 +88,28 @@ anyone who did not happen to pick exactly three feelings. Answer kind belongs to
 the step _id_, not to a protocol version — staff editing prompts in the admin
 console must not be able to turn a selection into a sentence.
 
+## One session at a time, and it survives the tab closing
+
+`GET /sessions/current` is the first thing a client asks. Closing a tab used to
+lose a session for good: it stayed open on the server, nothing could ever reach
+it again, and on a free plan it had already spent one of three full sessions for
+the week.
+
+`POST /sessions` **ends whatever was open**, as `user_stopped`, because a person
+is in one session at a time — it is a voice guide, not a set of tabs, and two
+open sessions would both offer to be resumed with no way to tell which one an
+answer was going into. It is not silent: the home screen offers to carry on
+first, and says what starting fresh costs.
+
+A resumed session is the same session, so it spends no second allowance. An
+ended one is never offered — including a safety stop, because there is never a
+resume path around one.
+
+The session screen shows a short recap of what the session already holds when
+there is no local echo of a turn, built from what the server sent: a resumed
+session has no history in the browser, and carrying on with no sign of what you
+had already said was disorienting.
+
 ## A plan's allowance is a promise too
 
 The pricing page says Free gets "3 full sessions a week" and "Unlimited quick

@@ -24,8 +24,11 @@ const COACH_PASSWORD = process.env.COACH_PASSWORD ?? 'correct-horse-battery-stap
 const CLIENT_EMAIL = process.env.CLIENT_EMAIL ?? 'client@stillpoint.test';
 const PASSWORD = 'correct-horse-battery-staple';
 
-const SHARED = 'My manager dismissed my work in front of the team';
-const PRIVATE = 'Something I am not ready to discuss';
+// Unique per run: a fixed title finds an earlier run's row, which is already
+// shared, and then nothing under test is actually being exercised.
+const RUN = String(Date.now()).slice(-6);
+const SHARED = `My manager dismissed my work in front of the team ${RUN}`;
+const PRIVATE = `Something I am not ready to discuss ${RUN}`;
 
 const fails = [];
 const ok = (l) => console.log(`  ok   ${l}`);
@@ -63,9 +66,14 @@ if (!clientSignedIn) {
     await client.waitForURL('**/welcome/voice', { timeout: 15000 });
   }
 
-  /** Runs a session to the end, answering every step. */
+  /**
+   * Runs a session to the end, answering every step.
+   *
+   * A quick session, because those are unlimited: a full one spends the free
+   * plan's weekly allowance and this script is run over and over.
+   */
   const runSession = async (what) => {
-    await client.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+    await client.goto(`${WEB}/session?kind=quick`, { waitUntil: 'networkidle' });
     await client.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
       timeout: 15000,
     });
@@ -112,12 +120,15 @@ if (!clientSignedIn) {
   if (await open(SHARED)) {
     await client.locator('textarea').fill('This one felt big. Want to talk about it.');
     await client.waitForTimeout(1500);
-    await client
-      .locator('button', { hasText: /^Share with coach$/ })
-      .first()
-      .click();
+
+    // Clicked only if it is not already shared, so a re-run does not unshare it.
+    const share = client.locator('button', { hasText: /^Share with coach$/ }).first();
+    if ((await share.count()) > 0) await share.click();
     await client.waitForTimeout(1200);
-    ok('one session is shared');
+
+    if ((await client.locator('body').innerText()).includes('Shared with coach'))
+      ok('one session is shared');
+    else bad('one session is shared', (await client.locator('body').innerText()).slice(0, 300));
   } else bad('the shared session is in the journal');
 
   await client.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });

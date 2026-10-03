@@ -210,6 +210,112 @@ if ((await done.count()) > 0) {
   await page.waitForTimeout(1200);
 }
 
+// Closing a tab used to lose a session for good: it stayed open on the server,
+// nothing could reach it again, and a free plan had already spent one of three
+// full sessions on it.
+console.log('\n3b. Carrying on where you left off');
+
+const leftOff = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const resumer = `resume+${String(Date.now())}@example.com`;
+await leftOff.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await leftOff.getByRole('button', { name: 'Create an account instead' }).click();
+await leftOff.getByLabel('Name').fill('Came Back');
+await leftOff.getByLabel('Email').fill(resumer);
+await leftOff.getByLabel('Password').fill('correct-horse-battery-staple');
+await leftOff.getByRole('button', { name: 'Create my account' }).click();
+await leftOff.waitForURL('**/welcome/consent', { timeout: 15000 });
+const resumeBoxes = leftOff.locator('input[type=checkbox]');
+await resumeBoxes.nth(0).check();
+await resumeBoxes.nth(1).check();
+await leftOff.getByRole('button', { name: /Continue|Saving/ }).click();
+await leftOff.waitForURL('**/welcome/voice', { timeout: 15000 });
+await leftOff.getByRole('button', { name: 'Keep it silent' }).click();
+await leftOff.waitForURL('**/app', { timeout: 15000 });
+
+// Start one, answer a step, then walk away.
+await leftOff.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+await leftOff.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
+  timeout: 15000,
+});
+await leftOff.locator('textarea, input[type=text]').first().fill('I was spoken over in a meeting');
+await leftOff
+  .locator('button', { hasText: /^Continue/ })
+  .first()
+  .click();
+await leftOff.waitForTimeout(1200);
+
+await leftOff.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
+await leftOff.waitForTimeout(1800);
+const athome = await leftOff.locator('body').innerText();
+
+if (/Carry on where you left off/.test(athome)) ok('home offers to carry on');
+else bad('home offers to carry on', athome.slice(0, 300));
+if (/You were on step 2 of 6/.test(athome)) ok('and says which step it was on');
+else bad('and says which step it was on', athome.slice(0, 300));
+if (/uses another full session/.test(athome)) ok('and says what starting fresh costs');
+else bad('and says what starting fresh costs');
+
+const spentBefore = await leftOff.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const me = await fetch('http://localhost:8000/api/me', {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  }).then((r) => r.json());
+  return me.fullSessionsLeft;
+});
+
+await leftOff.getByRole('link', { name: /Carry on where you left off/ }).click();
+await leftOff.waitForURL('**/session?resume=1', { timeout: 15000 });
+await leftOff.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
+  timeout: 15000,
+});
+await leftOff.waitForTimeout(800);
+const resumed = await leftOff.locator('body').innerText();
+
+if (/Step 2 of 6/.test(resumed)) ok('resuming carries on from the step it was on');
+else bad('resuming carries on from the step it was on', resumed.slice(0, 300));
+if (/WHERE YOU GOT TO/.test(resumed) && /spoken over in a meeting/.test(resumed))
+  ok('and it shows what was already told to it');
+else bad('and it shows what was already told to it', resumed.slice(0, 400));
+
+const spentAfter = await leftOff.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const me = await fetch('http://localhost:8000/api/me', {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  }).then((r) => r.json());
+  return me.fullSessionsLeft;
+});
+if (spentAfter === spentBefore)
+  ok(`resuming costs no second allowance (still ${String(spentAfter)})`);
+else bad('resuming costs no second allowance', `${String(spentBefore)} → ${String(spentAfter)}`);
+
+// Starting something new ends the one that was open, rather than leaving two.
+await leftOff.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
+await leftOff.waitForTimeout(1500);
+await leftOff.getByRole('link', { name: /Or start something new/ }).click();
+await leftOff.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
+  timeout: 15000,
+});
+await leftOff.waitForTimeout(800);
+if (/Step 1 of 6/.test(await leftOff.locator('body').innerText()))
+  ok('starting something new starts at step 1');
+else bad('starting something new starts at step 1');
+
+const onlyOne = await leftOff.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+  const current = await fetch('http://localhost:8000/api/sessions/current', { headers }).then((r) =>
+    r.json(),
+  );
+  const me = await fetch('http://localhost:8000/api/me', { headers }).then((r) => r.json());
+  return { step: current?.step?.ordinal, left: me.fullSessionsLeft };
+});
+if (onlyOne.step === 1) ok('and it is the only one open');
+else bad('and it is the only one open', JSON.stringify(onlyOne));
+if (onlyOne.left === spentAfter - 1) ok(`and it did cost another (${String(onlyOne.left)} left)`);
+else bad('and it did cost another', JSON.stringify(onlyOne));
+
+await leftOff.close();
+
 // ------------------------------------------------- 4. journal
 console.log('\n4. The journal holds it');
 await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });

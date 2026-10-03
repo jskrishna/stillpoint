@@ -4,7 +4,14 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { STEP_COUNT } from '@stillpoint/protocol';
-import { ApiError, api, hasToken, type ApiJournalEntry, type Profile } from '../../lib/api';
+import {
+  ApiError,
+  api,
+  hasToken,
+  type ApiJournalEntry,
+  type ApiSession,
+  type Profile,
+} from '../../lib/api';
 import { greeting } from '../../lib/greeting';
 import { relativeDay } from '../../lib/format';
 import styles from './app.module.css';
@@ -15,6 +22,7 @@ export default function Home() {
   const [now, setNow] = useState<Date | null>(null);
   const [failed, setFailed] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [open, setOpen] = useState<ApiSession | null>(null);
   const router = useRouter();
 
   // Fetched after mount with the user's token, which the server has no access
@@ -34,6 +42,16 @@ export default function Home() {
       .then(setProfile)
       .catch(() => {
         setProfile(null);
+      });
+
+    // A session someone is in the middle of. Offered rather than replaced:
+    // starting a new one ends it, and on a free plan that is the difference
+    // between spending one of three and spending two.
+    api
+      .currentSession()
+      .then(setOpen)
+      .catch(() => {
+        setOpen(null);
       });
 
     api
@@ -61,14 +79,36 @@ export default function Home() {
         Talk it through in {STEP_COUNT} simple steps. It takes about 10–15 minutes.
       </p>
 
-      <Link href="/session" className={styles.cta}>
-        <MicIcon />
-        Start talking
-      </Link>
+      {open === null ? (
+        <>
+          <Link href="/session" className={styles.cta}>
+            <MicIcon />
+            Start talking
+          </Link>
 
-      <Link href="/session?kind=quick" className={styles.quietCta}>
-        Or a quick session
-      </Link>
+          <Link href="/session?kind=quick" className={styles.quietCta}>
+            Or a quick session
+          </Link>
+        </>
+      ) : (
+        <>
+          <Link href="/session?resume=1" className={styles.cta}>
+            <MicIcon />
+            Carry on where you left off
+          </Link>
+          <p className={styles.allowance}>
+            You were on step {open.step?.ordinal ?? 1} of {open.stepCount}
+            {open.step === null ? '' : ` · ${open.step.name}`}.
+          </p>
+
+          <Link href="/session" className={styles.quietCta}>
+            Or start something new
+          </Link>
+          <p className={styles.allowance}>
+            Starting something new closes the one you left, and uses another full session.
+          </p>
+        </>
+      )}
 
       {profile === null || profile.fullSessionsLeft === null ? null : (
         <p className={styles.allowance}>

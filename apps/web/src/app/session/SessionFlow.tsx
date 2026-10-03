@@ -51,6 +51,10 @@ export default function SessionFlow() {
   // `?kind=quick` — the home screen offers both, and a quick session is the one
   // that is always available whatever the plan allows.
   const kind = search.get('kind') === 'quick' ? 'quick' : 'full';
+  // `?resume=1` carries on the open session instead of starting one. Starting
+  // one ends whatever was open, so the difference matters: on a free plan it is
+  // the difference between spending one of three and spending two.
+  const resuming = search.get('resume') === '1';
 
   useEffect(() => {
     if (started.current) return;
@@ -74,8 +78,12 @@ export default function SessionFlow() {
         setVoice(browserVoiceLoop('type'));
       });
 
-    api
-      .startSession(kind)
+    // Resuming asks for the open session; starting asks for a new one, which
+    // ends whatever was open. Both land in the same place from here.
+    (resuming
+      ? api.currentSession().then((open) => open ?? api.startSession(kind))
+      : api.startSession(kind)
+    )
       .then(setSession)
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
@@ -94,7 +102,7 @@ export default function SessionFlow() {
         }
         setError(describe(e));
       });
-  }, [router, kind]);
+  }, [router, kind, resuming]);
 
   /**
    * Says the step's question aloud, once per question.
@@ -234,6 +242,29 @@ export default function SessionFlow() {
     );
   }
 
+  /**
+   * What the session already holds, for someone coming back to it.
+   *
+   * Built from what the server sent, not from anything this screen remembered:
+   * a resumed session has no local history, and before this a person carried on
+   * with no sign of what they had already told it. The step's own echo
+   * ("YOU SAID") covers the turn just taken, so this only shows when there is
+   * no echo — coming back, rather than mid-flow.
+   */
+  const recap = [
+    { label: 'What happened', value: session.data.whatHappened },
+    {
+      label: 'What you felt',
+      value:
+        session.data.feelings.length === 0
+          ? null
+          : session.data.feelings.map((id) => LABEL.get(id as FeelingId) ?? id).join(', '),
+    },
+    { label: 'The belief', value: session.data.belief },
+  ].filter((line): line is { label: string; value: string } => {
+    return line.value !== null && line.value !== '';
+  });
+
   const onFeelStep = session.step?.id === 'feel';
   const canContinue = onFeelStep ? feelings.length > 0 : answer.trim() !== '';
 
@@ -275,6 +306,17 @@ export default function SessionFlow() {
         </p>
       ) : (
         <p className={styles.question}>{session.say}</p>
+      )}
+
+      {lastSaid !== '' || recap.length === 0 ? null : (
+        <div className={styles.saidCard}>
+          <span className={styles.label}>WHERE YOU GOT TO</span>
+          {recap.map((line) => (
+            <p key={line.label} className={styles.saidText}>
+              <strong>{line.label}:</strong> {line.value}
+            </p>
+          ))}
+        </div>
       )}
 
       {lastSaid === '' ? null : (

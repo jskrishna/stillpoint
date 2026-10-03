@@ -36,17 +36,57 @@ final readonly class SessionService
         private ProtocolVersionService $versions,
     ) {}
 
+    /**
+     * Starts a session, ending whatever was open.
+     *
+     * One at a time, because a person is in one at a time — it is a voice guide
+     * and not a set of tabs. Leaving the old one open would mean two sessions
+     * both offering to be resumed, and a user who could not tell which one
+     * their answers were going into.
+     *
+     * The old one ends as `user_stopped`, which is what happened: they chose to
+     * start again. It is *not* abandoned silently — `current()` is how a client
+     * finds it first, and the screen offers to carry on with it rather than
+     * replacing it behind their back.
+     */
     public function start(User $user, SessionKind $kind = SessionKind::Full): GuidedSession
     {
-        $version = $this->versions->current();
+        return DB::transaction(function () use ($user, $kind): GuidedSession {
+            $open = $this->current($user);
+            if ($open !== null) {
+                $this->stop($open);
+            }
 
-        $row = new GuidedSession([
-            'user_id' => $user->id,
-            'started_at' => now(),
-        ]);
-        $row->storeDomain(DomainSession::start($kind, $version->label()))->save();
+            $version = $this->versions->current();
 
-        return $row;
+            $row = new GuidedSession([
+                'user_id' => $user->id,
+                'started_at' => now(),
+            ]);
+            $row->storeDomain(DomainSession::start($kind, $version->label()))->save();
+
+            return $row;
+        });
+    }
+
+    /**
+     * The session this user is in the middle of, if any.
+     *
+     * Without this, closing a tab lost a session for good: it stayed open on
+     * the server, nothing could reach it again, and on a free plan it had
+     * already spent one of three full sessions for the week.
+     *
+     * Newest first, and only ever one — `start()` ends whatever was open.
+     */
+    public function current(User $user): ?GuidedSession
+    {
+        return GuidedSession::query()
+            ->where('user_id', $user->id)
+            ->whereNull('ended_at')
+            ->whereNull('end_reason')
+            ->orderByDesc('started_at')
+            ->orderByDesc('id')
+            ->first();
     }
 
     /** The guide's opening line for the step the session is on. */
