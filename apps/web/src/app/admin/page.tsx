@@ -75,6 +75,17 @@ export default function Overview() {
         })}
       </div>
 
+      <span className={styles.label}>WHAT THE SCREEN COULD NOT READ</span>
+      <p className={styles.sub}>
+        {overview.unreadableTurns === 0
+          ? 'Nothing this window. The safety screen reads English, Hinglish and Hindi; anything written in another script is not screened at all, and this is where that would show.'
+          : `${String(overview.unreadableTurns)} ${
+              overview.unreadableTurns === 1 ? 'turn' : 'turns'
+            } in ${String(overview.unreadableSessions)} ${
+              overview.unreadableSessions === 1 ? 'session' : 'sessions'
+            } were written in a script the safety screen has no phrases for, so they were not screened. Nobody was flagged for it — it is counted so the gap is visible.`}
+      </p>
+
       <span className={styles.label}>RECENT SESSIONS</span>
       {overview.recentSessions.length === 0 ? (
         <p className={styles.sub}>No sessions yet.</p>

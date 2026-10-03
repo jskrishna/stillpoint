@@ -37,7 +37,8 @@ final readonly class AdminOverviewService
     {
         $since = ($now ?? now())->copy()->subDays($windowDays);
 
-        $sessions = GuidedSession::query()->where('started_at', '>=', $since)->count();
+        $started = GuidedSession::query()->where('started_at', '>=', $since);
+        $sessions = (clone $started)->count();
         $entries = JournalEntry::query()->where('occurred_at', '>=', $since);
 
         $reachedFinal = (clone $entries)->where('reached_final_step', true)->count();
@@ -52,6 +53,13 @@ final readonly class AdminOverviewService
             'reachedFinalStepPct' => self::percent($reachedFinal, $sessions),
             'feltCalmerPct' => self::percent($feltCalmer, $sessions),
             'openFlags' => SafetyFlag::query()->open()->count(),
+            // Not a protocol figure — a figure about this screen's own reach.
+            // The phrase screen reads Latin and Devanagari and nothing else,
+            // so these are the sessions where somebody said something it could
+            // not read, which is the number that says whether the next
+            // language is worth covering. See `packages/protocol/src/risk.ts`.
+            'unreadableSessions' => (clone $started)->where('unreadable_turns', '>', 0)->count(),
+            'unreadableTurns' => (int) (clone $started)->sum('unreadable_turns'),
             'stepReach' => $this->stepReach($since, $sessions),
             'recentSessions' => $this->recent(),
         ];

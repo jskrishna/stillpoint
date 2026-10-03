@@ -82,6 +82,13 @@ Three things about it, all deliberate:
 Adding a script to the readable list without adding phrases for it is the wrong
 fix: it would make `unreadable` say no about text that still nobody reads.
 
+It is counted, in `guided_sessions.unreadable_turns`, and the console's
+overview reports it. That is the whole intervention — a count, because a count
+is what says whether the gap is worth closing and for whom, and because the
+alternatives are both wrong. Nothing stores which script it was: that needs a
+decision about whether a user's language is ours to keep, and knowing _whether_
+this happens is enough to decide whether to ask.
+
 Grading up has a ceiling, though: `high` ends the session, so hopelessness and
 burdensomeness ("I can't go on", "I feel like a burden", "nothing matters any
 more") are `medium` and `low`. They are flagged for a reviewer, not stopped on —
@@ -710,7 +717,7 @@ A no-op (setting the role it already has) records nothing: a trail of no-ops is
 a trail nobody reads.
 
 `AdminOverviewService` reads only plain columns — kind, step, end reason,
-rating. It touches none of the encrypted text: the console answers "how is the
+rating, and the count of turns the safety screen could not read. It touches none of the encrypted text: the console answers "how is the
 protocol working", and the one place staff read someone's words is the queue.
 Its percentages are of **sessions started**, so a session that stopped for
 safety (and therefore has no journal row) stays in the denominator rather than

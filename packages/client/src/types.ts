@@ -253,6 +253,16 @@ export interface ApiAdminOverview {
   readonly reachedFinalStepPct: number;
   readonly feltCalmerPct: number;
   readonly openFlags: number;
+  /**
+   * Sessions in the window where somebody said something the safety screen
+   * could not read, and how many such turns in all.
+   *
+   * The screen has phrases in Latin and Devanagari and in nothing else, so an
+   * utterance in any other Indian script is not screened. Nobody is flagged
+   * for it; it is counted so the gap is a number rather than an inference.
+   */
+  readonly unreadableSessions: number;
+  readonly unreadableTurns: number;
   /** How many of every 100 sessions reach each step, in protocol order. */
   readonly stepReach: readonly number[];
   readonly recentSessions: readonly {

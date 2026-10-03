@@ -41,6 +41,7 @@ final class GuidedSession extends Model
             'step_id' => StepId::class,
             'end_reason' => EndReason::class,
             'safety_level' => SafetyLevel::class,
+            'unreadable_turns' => 'integer',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
         ];

@@ -147,6 +147,16 @@ final readonly class SessionService
             $version = $this->versions->forSession($row);
             $result = $this->conversation->takeTurn($row->toDomain(), $version, $utterance, $guideAvailable);
 
+            // Counted, never flagged. The screen has phrases in Latin and
+            // Devanagari only, so a turn in any other Indian script is not
+            // screened at all — it says so, and this is where that is
+            // recorded. Flagging each one would drown the queue and make the
+            // product unusable for whole languages; a count is what tells
+            // somebody whether the gap is worth closing and for whom.
+            if ($result->risk->unreadable) {
+                $row->unreadable_turns = $row->unreadable_turns + 1;
+            }
+
             $row->storeDomain($result->session)->save();
 
             if ($result->flag !== null) {
