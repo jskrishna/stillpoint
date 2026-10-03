@@ -1,11 +1,26 @@
 name: CI
 
+# `push` only, deliberately. With `pull_request` as well, every commit on a
+# branch that has an open pull request ran this whole workflow **twice** — two
+# runs of four jobs, including the eight-minute browser check and three Docker
+# builds — and the `concurrency` group below could not collapse them, because
+# `github.ref` is `refs/heads/<branch>` for one event and `refs/pull/N/merge`
+# for the other.
+#
+# Nothing is lost by dropping it: a push-triggered check run is associated with
+# the pull request anyway, so the PR shows exactly these four checks. Verified
+# rather than assumed — a push run's check arrived reported against the open PR.
+#
+# What it would cost is a pull request from a **fork**, where `push` does not
+# fire in this repository. There are none; if that changes, add
+# `pull_request:` back and expect the duplication with it.
 on:
   push:
     branches: ['**']
-  pull_request:
   workflow_dispatch:
 
+# Successive pushes to one branch: the newer run cancels the older, because
+# there is no point finishing a run for a commit nobody is on any more.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
