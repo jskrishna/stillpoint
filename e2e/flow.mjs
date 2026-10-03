@@ -1,4 +1,5 @@
 import { WEB, launch } from './browser.mjs';
+import { reporter } from './report.mjs';
 
 /**
  * End-to-end check of the web app against the Laravel API.
@@ -21,12 +22,8 @@ import { WEB, launch } from './browser.mjs';
 // the one the container already has rather than one this script downloads.
 
 const email = `e2e+${Date.now()}@example.com`;
-const fails = [];
-const ok = (label) => console.log(`  ok   ${label}`);
-const bad = (label, detail) => {
-  fails.push(label);
-  console.log(`  FAIL ${label}${detail ? ` — ${detail}` : ''}`);
-};
+const { ok, bad, fails, watchForThrows } = reporter('the user journey');
+watchForThrows();
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });

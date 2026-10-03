@@ -1,4 +1,5 @@
 import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
+import { reporter } from './report.mjs';
 
 /**
  * The coach portal, against a running API.
@@ -21,12 +22,8 @@ const RUN = String(Date.now()).slice(-6);
 const SHARED = `My manager dismissed my work in front of the team ${RUN}`;
 const PRIVATE = `Something I am not ready to discuss ${RUN}`;
 
-const fails = [];
-const ok = (l) => console.log(`  ok   ${l}`);
-const bad = (l, d) => {
-  fails.push(l);
-  console.log(`  FAIL ${l}${d ? ` — ${d}` : ''}`);
-};
+const { ok, bad, fails, watchForThrows } = reporter('the coach portal');
+watchForThrows();
 
 const browser = await launch();
 

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
+import { reporter } from './report.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -167,6 +168,9 @@ const SETUP = { admin: 'e2e/admin.mjs', coach: 'e2e/coach.mjs', anonymous: 'e2e/
 
 let combinations = 0;
 let skipped = 0;
+const { ok, bad, watchForThrows } = reporter('WCAG 2.1 AA');
+watchForThrows();
+
 const violations = [];
 
 for (const { route, as } of ROUTES) {
@@ -199,9 +203,17 @@ for (const { route, as } of ROUTES) {
       const nodes = result.violations.reduce((n, v) => n + v.nodes.length, 0);
       const label = `${route} · ${theme} · ${size.name}`;
       if (nodes === 0) {
-        console.log(`  ok   ${label}`);
+        ok(label);
       } else {
-        console.log(`  FAIL ${label} — ${nodes} node${nodes === 1 ? '' : 's'}`);
+        // The rule ids and the first few offending selectors, in the annotation
+        // as well as the log: "3 nodes" on its own is not something anyone can
+        // act on without opening the log, and the log is not always reachable.
+        bad(
+          `${label} — ${String(nodes)} node${nodes === 1 ? '' : 's'}`,
+          result.violations
+            .map((v) => `${v.id} (${v.impact}): ${v.nodes[0]?.target.join(' ') ?? ''}`)
+            .join('; '),
+        );
         for (const v of result.violations) {
           console.log(`         ${v.id} (${v.impact}): ${v.help}`);
           for (const n of v.nodes.slice(0, 3)) console.log(`           ${n.target.join(' ')}`);

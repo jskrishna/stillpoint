@@ -1,4 +1,5 @@
 import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
+import { reporter } from './report.mjs';
 
 /**
  * The admin console, against a running API.
@@ -20,12 +21,8 @@ import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
 /** Distinctive enough that finding it in a response is unambiguous. */
 const FLAGGED = 'I feel like a burden to everyone and I cannot go on';
 
-const fails = [];
-const ok = (l) => console.log(`  ok   ${l}`);
-const bad = (l, d) => {
-  fails.push(l);
-  console.log(`  FAIL ${l}${d ? ` — ${d}` : ''}`);
-};
+const { ok, bad, fails, watchForThrows } = reporter('the admin console');
+watchForThrows();
 
 const browser = await launch();
 

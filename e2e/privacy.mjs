@@ -1,4 +1,5 @@
 import { ACCOUNTS, PASSWORD, WEB, launch } from './browser.mjs';
+import { reporter } from './report.mjs';
 
 /**
  * What the app sends, and where.
@@ -25,17 +26,26 @@ import { ACCOUNTS, PASSWORD, WEB, launch } from './browser.mjs';
  * of someone.
  */
 
-const fails = [];
-const ok = (l) => console.log(`  ok   ${l}`);
-const bad = (l, d) => {
-  fails.push(l);
-  console.log(`  FAIL ${l}${d ? ` — ${d}` : ''}`);
-};
+const { ok, bad, fails, watchForThrows } = reporter('nothing leaves this origin');
+watchForThrows();
 
-/** Loopback under any spelling, which is the app and the API locally. */
+/**
+ * Loopback under any spelling, which is the app and the API locally.
+ *
+ * Returns false rather than throwing on anything that is not a URL. It is also
+ * asked about CSP source tokens, and some of those — `ws:`, `data:`, `'self'` —
+ * are not parseable URLs; a `TypeError` here would end the whole check with a
+ * stack trace instead of a verdict, which is the wrong way for a security
+ * check to fail.
+ */
 function ours(url) {
-  const { hostname } = new URL(url);
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  try {
+    const { hostname } = new URL(url);
+
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
 }
 
 const browser = await launch();
@@ -128,10 +138,14 @@ if (typeof csp === 'string' && csp.includes("default-src 'self'")) {
 // wildcard here would make the rest of the policy decorative.
 const connect = /connect-src ([^;]*)/.exec(csp ?? '')?.[1]?.trim() ?? '';
 const destinations = connect.split(/\s+/).filter(Boolean);
-if (destinations.length > 0 && destinations.every((d) => d === "'self'" || ours(d))) {
+const foreign = destinations.filter((d) => d !== "'self'" && !ours(d));
+if (destinations.length > 0 && foreign.length === 0) {
   ok(`connect-src allows only this app and its API (${connect})`);
 } else {
-  bad('connect-src allows only this app and its API', connect);
+  bad(
+    'connect-src allows only this app and its API',
+    destinations.length === 0 ? `no connect-src in: ${csp ?? '(no header)'}` : foreign.join(' '),
+  );
 }
 
 for (const [header, expected] of [
