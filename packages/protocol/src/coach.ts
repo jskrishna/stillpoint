@@ -10,8 +10,20 @@
 import { recurringBelief, type RecurringBelief } from './insights.js';
 import type { JournalEntry } from './journal.js';
 
-/** Where a client is in their relationship with the coach. */
-export type ClientStatus = 'active' | 'invited';
+/**
+ * Where a client is in their relationship with the coach.
+ *
+ * One value, and that is the point: **a pairing means an accepted pairing.**
+ * There used to be an `'invited'` state here and in `App\Domain\ClientStatus`,
+ * from before invitations had a table of their own. Nothing wrote it, and what
+ * it described is a pairing the client never agreed to — which a coach could
+ * read shared journal entries through, because sharing is a property of the
+ * entry rather than of the pairing.
+ *
+ * An invitation that has not been accepted is a `coach_invites` row, and the
+ * coach's screen already lists those separately.
+ */
+export type ClientStatus = 'active';
 
 export interface Client {
   readonly id: string;

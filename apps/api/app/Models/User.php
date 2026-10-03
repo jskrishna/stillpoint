@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Domain\ClientStatus;
 use App\Domain\ConsentItem;
 use App\Domain\Role;
 use App\Notifications\ResetPassword;
@@ -86,6 +87,15 @@ class User extends Authenticatable
     /**
      * Clients this user coaches.
      *
+     * **Active pairings only**, and that belongs on the relation rather than on
+     * each caller. `CoachController::authorizePairing()` asks whether the row
+     * exists; a pairing in any other state would answer yes, and a coach would
+     * read somebody's shared sessions on the strength of a status nobody
+     * checked. Nothing writes a non-active pairing today — `ClientStatus` has
+     * `Invited` and an invitation is actually modelled by `coach_invites` — so
+     * this guards a door that is not open yet. It is one line here and a silent
+     * leak anywhere else.
+     *
      * @return BelongsToMany<self, $this>
      */
     public function clients(): BelongsToMany
@@ -93,11 +103,17 @@ class User extends Authenticatable
         return $this->belongsToMany(self::class, 'coach_client', 'coach_id', 'client_id')
             ->using(CoachClient::class)
             ->withPivot(['status', 'since', 'next_call_at', 'coach_notes'])
+            ->wherePivot('status', ClientStatus::Active->value)
             ->withTimestamps();
     }
 
     /**
      * Coaches this user has shared with.
+     *
+     * Active only, for the same reason and with a second one: this is what
+     * `/me/coaches` shows, and it must answer "who can read my sessions". A
+     * pairing that cannot read is not an answer to that question, and listing
+     * one would suggest access that does not exist.
      *
      * @return BelongsToMany<self, $this>
      */
@@ -106,6 +122,7 @@ class User extends Authenticatable
         return $this->belongsToMany(self::class, 'coach_client', 'client_id', 'coach_id')
             ->using(CoachClient::class)
             ->withPivot(['status', 'since', 'next_call_at'])
+            ->wherePivot('status', ClientStatus::Active->value)
             ->withTimestamps();
     }
 

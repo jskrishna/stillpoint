@@ -64,7 +64,6 @@ export default function Clients() {
           </thead>
           <tbody>
             {clients.map((client) => {
-              const invited = client.status === 'invited';
               return (
                 <tr key={client.id}>
                   <td className={styles.td}>{client.name}</td>
@@ -80,24 +79,21 @@ export default function Clients() {
                     {client.sharedCount === 0 ? '—' : client.sharedCount}
                   </td>
                   <td className={styles.td}>
-                    {invited
-                      ? 'Invite sent'
-                      : client.nextCallAt === null
-                        ? '—'
-                        : new Date(client.nextCallAt).toLocaleString('en-IN', {
-                            weekday: 'short',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })}
+                    {client.nextCallAt === null
+                      ? '—'
+                      : new Date(client.nextCallAt).toLocaleString('en-IN', {
+                          weekday: 'short',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
                   </td>
                   <td className={styles.td}>
-                    {invited ? (
-                      <span className={styles.open}>Resend</span>
-                    ) : (
-                      <Link href={`/coach/${client.id}`} className={styles.open}>
-                        Open
-                      </Link>
-                    )}
+                    {/* Every row here is an accepted pairing. Invitations that
+                        have not been accepted are listed by `InviteClient`
+                        below, which is where resending belongs. */}
+                    <Link href={`/coach/${client.id}`} className={styles.open}>
+                      Open
+                    </Link>
                   </td>
                 </tr>
               );

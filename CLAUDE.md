@@ -548,6 +548,17 @@ Two gates, both needed: `EnsureCoach` says this person is a coach at all, and
 Neither implies the other, and a route with only the first would let any coach
 read any client.
 
+**A pairing row means an accepted pairing.** `ClientStatus` has one case, and
+the `clients()` and `coaches()` relations filter on it, so a row that says
+anything else grants nothing — including to `/me/coaches`, which answers "who
+can read my sessions" and must not list someone who cannot. There used to be an
+`invited` case, from before invitations had a table; nothing wrote it, and what
+it described is a pairing the client never agreed to, which a coach would then
+read shared entries through — sharing is a property of the journal entry, not
+of the pairing, so "they have not accepted yet" would not have saved it. An
+unaccepted invitation is a `coach_invites` row, which is where the coach's
+screen already lists them.
+
 **The client creates the pairing, and the client ends it.** A coach can open an
 invitation to an email address; they cannot attach themselves to an account.
 Accepting is what pairs them, only the address it was sent to may accept, and

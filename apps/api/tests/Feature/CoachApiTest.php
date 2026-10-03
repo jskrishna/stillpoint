@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Domain\CalmerRating;
+use App\Domain\ClientStatus;
 use App\Domain\EndReason;
 use App\Domain\SafetyCategory;
 use App\Domain\SafetyLevel;
@@ -14,6 +15,7 @@ use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -230,25 +232,61 @@ final class CoachApiTest extends TestCase
         ])->assertOk()->assertJsonPath('coachNotes', 'Keep this.');
     }
 
-    public function test_an_invited_client_with_nothing_shared_reads_as_empty(): void
+    public function test_a_client_with_nothing_shared_reads_as_empty(): void
     {
         $coach = User::factory()->coach()->create();
         $client = User::factory()->create();
-        $this->pair($coach, $client, 'invited');
+        $this->pair($coach, $client);
 
         Sanctum::actingAs($coach);
         $this->getJson("/api/coach/clients/{$client->id}")
             ->assertOk()
-            ->assertJsonPath('status', 'invited')
+            ->assertJsonPath('status', 'active')
             ->assertJsonPath('sharedCount', 0)
             ->assertJsonPath('recurringBelief', null)
             ->assertJsonPath('sharedSessions', []);
     }
 
-    private function pair(User $coach, User $client, string $status = 'active'): void
+    /**
+     * A pairing row that does not say `active` grants nothing.
+     *
+     * Nothing writes one — accepting an invitation is the only thing that
+     * creates a pairing, and it writes `active`. This exists because the row
+     * used to be able to say `invited`, from before invitations had their own
+     * table, and a coach would have read shared entries through a pairing the
+     * client never agreed to. Sharing is a property of the journal entry, not
+     * of the pairing, so "they have not accepted yet" would not have saved it.
+     */
+    public function test_a_pairing_that_is_not_active_grants_nothing(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $client = User::factory()->create();
+
+        // Written past the model, because the pivot's cast now refuses to
+        // write anything else — which is itself part of the guarantee. What
+        // this stands in for is a row left behind by an older schema.
+        DB::table('coach_client')->insert([
+            'coach_id' => $coach->id,
+            'client_id' => $client->id,
+            'status' => 'invited',
+            'since' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($coach);
+        $this->getJson('/api/coach/clients')->assertOk()->assertJsonCount(0);
+        $this->getJson("/api/coach/clients/{$client->id}")->assertNotFound();
+
+        // And the client is not told they have a coach who cannot read them.
+        Sanctum::actingAs($client);
+        $this->getJson('/api/me/coaches')->assertOk()->assertJsonCount(0);
+    }
+
+    private function pair(User $coach, User $client): void
     {
         $coach->clients()->attach($client->id, [
-            'status' => $status,
+            'status' => ClientStatus::Active->value,
             'since' => now()->subMonths(3),
         ]);
     }
