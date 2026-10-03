@@ -409,6 +409,38 @@ jobs:
           # The migrations against the MySQL the compose file actually starts.
           docker compose exec -T api php artisan migrate --force
 
+          # The scheduler, which publishes no port — so the wait loop above
+          # cannot see it, and a container crash-looping on a missing
+          # environment variable or an unreachable database would pass this job
+          # in silence while neither cleanup task ever ran.
+          #
+          # Two checks, because "running" on its own is weak: a container that
+          # has restarted is one that already failed, and `restart:
+          # unless-stopped` hides that by bringing it back.
+          # Failures here are `::error::` so they arrive as annotations. A
+          # shell step that just exits 1 says "Process completed with exit code
+          # 1" and nothing else, and the log it says it in is not always
+          # reachable — which is the whole reason the end-to-end scripts report
+          # this way.
+          fail() { echo "::error title=Deployment::$1"; exit 1; }
+
+          id=$(docker compose ps -q scheduler)
+          test -n "$id" || fail "no scheduler container came up"
+          info=$(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$id")
+          state=${info%% *}
+          restarts=${info##* }
+          echo "scheduler: state=$state restarts=$restarts"
+          test "$state" = running || fail "the scheduler is $state, not running"
+          test "$restarts" = 0 || fail "the scheduler has restarted $restarts time(s)"
+
+
+          # And that it can actually do the work, in that container, with that
+          # environment and that database — which "running" does not prove.
+          docker compose exec -T scheduler php artisan auth:clear-resets \
+            || fail "the scheduler container cannot run auth:clear-resets"
+          docker compose exec -T scheduler php artisan schedule:list \
+            || fail "the scheduler container cannot list its tasks"
+
       - name: What the containers said, if anything failed
         if: failure()
         # Never let the diagnostic itself fail the job and bury the real error.
