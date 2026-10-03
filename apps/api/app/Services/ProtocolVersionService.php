@@ -10,6 +10,7 @@ use App\Domain\StepId;
 use App\Domain\StepPrompts;
 use App\Models\GuidedSession;
 use App\Models\ProtocolVersion as ProtocolVersionModel;
+use Illuminate\Support\Facades\DB;
 
 /** Resolves protocol versions, falling back to the baseline when none is live. */
 final class ProtocolVersionService
@@ -39,6 +40,94 @@ final class ProtocolVersionService
         $row = ProtocolVersionModel::query()->where('major', $major)->where('minor', $minor)->first();
 
         return $row === null ? ProtocolVersion::baseline() : self::toDomain($row);
+    }
+
+    /** The draft being edited, or null when there is none open. */
+    public function draft(): ?ProtocolVersion
+    {
+        $row = ProtocolVersionModel::query()->where('status', 'draft')->latest('id')->first();
+
+        return $row === null ? null : self::toDomain($row);
+    }
+
+    /**
+     * Opens a draft from the live version, or returns the one already open.
+     *
+     * One draft at a time, on purpose: two people editing two drafts and
+     * publishing in either order is a way to lose a step's copy without anyone
+     * noticing.
+     */
+    public function openDraft(): ProtocolVersion
+    {
+        $existing = $this->draft();
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $live = ProtocolVersionModel::query()->where('status', 'live')->latest('published_at')->first();
+        $draft = $live === null
+            // Nothing published yet: the baseline is already a draft, and it is
+            // the version with the designs' copy and nulls for the rest.
+            ? ProtocolVersion::baseline()
+            : self::toDomain($live)->nextDraft();
+
+        return $this->store($draft);
+    }
+
+    /** Writes a version, inserting or updating the row for its number. */
+    public function store(ProtocolVersion $version): ProtocolVersion
+    {
+        $steps = [];
+        foreach ($version->orderedSteps() as $step) {
+            $steps[$step->id->value] = [
+                'main' => $step->prompts->main,
+                'backups' => $step->prompts->backups,
+                'doneWhen' => $step->doneWhen,
+                'maxGuideTurns' => $step->maxGuideTurns,
+            ];
+        }
+
+        $row = ProtocolVersionModel::query()->updateOrCreate(
+            ['major' => $version->major, 'minor' => $version->minor],
+            [
+                'status' => $version->status,
+                'steps' => $steps,
+                'pause_title' => $version->pauseTitle,
+                'pause_body' => $version->pauseBody,
+                'published_at' => $version->publishedAt,
+            ],
+        );
+
+        return self::toDomain($row->refresh());
+    }
+
+    /**
+     * Publishes the open draft, archiving whatever was live.
+     *
+     * Returns null when the draft is not publishable; the caller reports
+     * `publishProblems()` rather than this guessing at a message. Both writes
+     * happen in one transaction: two live versions at once would mean two
+     * different sets of questions in flight.
+     */
+    public function publishDraft(): ?ProtocolVersion
+    {
+        $draft = $this->draft();
+        if ($draft === null) {
+            return null;
+        }
+
+        $published = $draft->publish(new \DateTimeImmutable);
+        if ($published === null) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($published): ProtocolVersion {
+            ProtocolVersionModel::query()
+                ->where('status', 'live')
+                ->update(['status' => 'archived']);
+
+            return $this->store($published);
+        });
     }
 
     public static function toDomain(ProtocolVersionModel $row): ProtocolVersion

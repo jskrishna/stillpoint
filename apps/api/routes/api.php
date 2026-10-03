@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminOverviewController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\InsightsController;
 use App\Http\Controllers\Api\JournalController;
+use App\Http\Controllers\Api\ProtocolVersionController;
 use App\Http\Controllers\Api\SafetyFlagController;
 use App\Http\Controllers\Api\SessionController;
 use App\Http\Middleware\EnsureStaff;
@@ -46,4 +47,10 @@ Route::middleware(['auth:sanctum', EnsureStaff::class])->prefix('admin')->group(
     Route::get('safety-flags', [SafetyFlagController::class, 'index']);
     Route::get('safety-flags/{flag}', [SafetyFlagController::class, 'show']);
     Route::post('safety-flags/{flag}/review', [SafetyFlagController::class, 'review']);
+
+    Route::get('protocol-versions', [ProtocolVersionController::class, 'index']);
+    Route::post('protocol-versions/draft', [ProtocolVersionController::class, 'openDraft']);
+    Route::patch('protocol-versions/draft/steps/{stepId}', [ProtocolVersionController::class, 'editStep']);
+    Route::patch('protocol-versions/draft/safety', [ProtocolVersionController::class, 'editSafety']);
+    Route::post('protocol-versions/draft/publish', [ProtocolVersionController::class, 'publish']);
 });

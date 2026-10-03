@@ -247,6 +247,17 @@ because two would drift, and then one screen's `u_8f21` would be a different
 person from the other's. It is not a security boundary; it keeps a name and an
 email off a screen that does not need them.
 
+Publishing a protocol version is gated by the **server**, not by the editor:
+`ProtocolVersion::publishProblems()` decides, the API refuses with 422 and that
+list, and the screen renders what it is told. A disabled Publish button is a
+courtesy; the refusal that matters is the one a screen cannot skip. There is one
+draft at a time, a published version is never edited in place (editing opens the
+next draft), and publishing archives the previous live row in the same
+transaction — two live versions would mean two sets of questions in flight.
+
+Which is also why a session is pinned to the version it started on: publishing
+must not change the questions under someone part-way through.
+
 `AdminOverviewService` reads only plain columns — kind, step, end reason,
 rating. It touches none of the encrypted text: the console answers "how is the
 protocol working", and the one place staff read someone's words is the queue.

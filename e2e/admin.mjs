@@ -172,6 +172,73 @@ if (!signedIn) {
     if (all.includes('burden') && /Reviewed/.test(all)) ok('it is still readable as reviewed');
     else bad('it is still readable as reviewed', all.slice(0, 300));
   }
+  // -------------------------------------------------------------------------
+  console.log('\n3. The step-prompt editor');
+
+  await admin.goto(`${WEB}/admin/protocol`, { waitUntil: 'networkidle' });
+  await admin.waitForTimeout(1800);
+  const editor = await admin.locator('body').innerText();
+
+  if (/Step prompts/.test(editor) && !editor.includes('Loading')) ok('the editor loads');
+  else bad('the editor loads', editor.slice(0, 300));
+
+  // Five of six steps have no copy, which is the honest state the PRD has not
+  // filled yet — and it must block publishing.
+  if (/problems? block/.test(editor)) ok('an incomplete protocol blocks publishing');
+  else bad('an incomplete protocol blocks publishing', editor.slice(0, 400));
+  if (/Step 1 has no main question/.test(editor)) bad('step 1’s question is reported missing');
+  else ok('the step the designs specify is not reported missing');
+
+  // An earlier run may have left a draft open, so this does not assume either
+  // way: with none open the editor is read-only and offers to open one.
+  const openDraft = admin.getByRole('button', { name: 'Edit as a new draft' });
+  if ((await openDraft.count()) > 0) {
+    const readOnly = await admin.locator('textarea').first().getAttribute('readonly');
+    if (readOnly !== null) ok('with no draft open the editor is read-only');
+    else bad('with no draft open the editor is read-only');
+    await openDraft.click();
+    await admin.waitForTimeout(1500);
+    ok('a draft opens');
+  } else {
+    ok('a draft is already open from an earlier run');
+  }
+
+  // The server refuses regardless of the button, which is the check that
+  // matters: a screen's own guard can always be skipped.
+  const refusal = await admin.evaluate(async () => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const r = await fetch('http://localhost:8000/api/admin/protocol-versions/draft/publish', {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    });
+    return { status: r.status, body: await r.json() };
+  });
+  if (refusal.status === 422 && (refusal.body.problems ?? []).length > 0)
+    ok(
+      `the server refuses an incomplete draft (422, ${String(refusal.body.problems.length)} problems)`,
+    );
+  else bad('the server refuses an incomplete draft', JSON.stringify(refusal).slice(0, 220));
+
+  // An edit is saved, and the step's problem clears once it is complete.
+  const copy = `Which of these are you feeling? (${String(Date.now())})`;
+  await admin.locator('button', { hasText: '3. Feel' }).click();
+  await admin.waitForTimeout(300);
+  await admin.locator('textarea').first().fill(copy);
+  await admin.locator('input').first().fill('At least one feeling chosen');
+  await admin.locator('input[type=number]').fill('3');
+  await admin.waitForTimeout(1800);
+  await admin.reload({ waitUntil: 'networkidle' });
+  await admin.waitForTimeout(1800);
+  await admin.locator('button', { hasText: '3. Feel' }).click();
+  await admin.waitForTimeout(400);
+
+  const saved = await admin.locator('textarea').first().inputValue();
+  if (saved === copy) ok('a step edit survives a reload');
+  else bad('a step edit survives a reload', saved);
+
+  const after = await admin.locator('body').innerText();
+  if (!/Step 3 has no main question/.test(after)) ok('the step’s problems clear once it is filled');
+  else bad('the step’s problems clear once it is filled');
 }
 await admin.close();
 

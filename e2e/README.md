@@ -35,6 +35,10 @@ words at the moment they said they were not safe, so most of this script is
 asserting that an ordinary account cannot reach it — that the text is absent
 from the response, not merely hidden.
 
+It also covers the step-prompt editor: that an incomplete protocol blocks
+publishing, that the server refuses it with a 422 and the problem list even when
+the request bypasses the button, and that an edit survives a reload.
+
 It needs an admin account, which the API deliberately cannot make: `role` is
 not fillable, so no request can set it. Make one with artisan:
 

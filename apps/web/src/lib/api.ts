@@ -207,6 +207,43 @@ export interface ApiSafetyFlag {
   readonly reviewedAt: string | null;
 }
 
+/** One step of a protocol version, as the editor holds it. */
+export interface ApiProtocolStep {
+  readonly id: string;
+  readonly ordinal: number;
+  readonly name: string;
+  readonly summary: string;
+  readonly answerKind: string;
+  /** `null` where the copy is still owed by the PRD, never invented. */
+  readonly main: string | null;
+  readonly backups: readonly string[];
+  readonly doneWhen: string | null;
+  readonly maxGuideTurns: number | null;
+  readonly complete: boolean;
+}
+
+export interface ApiProtocolVersion {
+  readonly label: string;
+  readonly major: number;
+  readonly minor: number;
+  readonly status: string;
+  readonly pauseTitle: string;
+  readonly pauseBody: string;
+  readonly publishedAt: string | null;
+  readonly steps: readonly ApiProtocolStep[];
+  /** What stands between this and going live. The server decides, not a screen. */
+  readonly problems: readonly { stepId: string | null; reason: string }[];
+  readonly publishable: boolean;
+  readonly runnable: boolean;
+}
+
+export interface ApiStepEdit {
+  readonly main?: string | null;
+  readonly backups?: readonly string[];
+  readonly doneWhen?: string | null;
+  readonly maxGuideTurns?: number | null;
+}
+
 /** The console's figures. Aggregate only: it reads no personal text. */
 export interface ApiAdminOverview {
   readonly windowDays: number;
@@ -309,4 +346,29 @@ export const api = {
 
   reviewSafetyFlag: (id: string) =>
     request<ApiSafetyFlag>(`/admin/safety-flags/${id}/review`, { method: 'POST' }),
+
+  protocolVersions: () =>
+    request<{ live: ApiProtocolVersion; draft: ApiProtocolVersion | null }>(
+      '/admin/protocol-versions',
+    ),
+
+  /** Opens a draft from the live version, or returns the one already open. */
+  openProtocolDraft: () =>
+    request<ApiProtocolVersion>('/admin/protocol-versions/draft', { method: 'POST' }),
+
+  editProtocolStep: (stepId: string, edit: ApiStepEdit) =>
+    request<ApiProtocolVersion>(`/admin/protocol-versions/draft/steps/${stepId}`, {
+      method: 'PATCH',
+      body: edit,
+    }),
+
+  editProtocolSafety: (wording: { pauseTitle?: string; pauseBody?: string }) =>
+    request<ApiProtocolVersion>('/admin/protocol-versions/draft/safety', {
+      method: 'PATCH',
+      body: wording,
+    }),
+
+  /** Refused with 409-like 422 and a `problems` list when the draft is incomplete. */
+  publishProtocolDraft: () =>
+    request<ApiProtocolVersion>('/admin/protocol-versions/draft/publish', { method: 'POST' }),
 };
