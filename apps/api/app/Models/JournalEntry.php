@@ -30,6 +30,56 @@ final class JournalEntry extends Model
         'reached_final_step', 'calmer_rating', 'shared_with_coach', 'occurred_at',
     ];
 
+    /**
+     * Deleting an entry takes the words with it, out of the session too.
+     *
+     * The journal entry is a copy. `guided_sessions.data` holds the same
+     * answers — what happened, the feeling, the memory, the belief, the
+     * forgiveness — and deleting the entry used to leave all of it there, in a
+     * row `GET /sessions/{id}` still serves to the owner's token. So the words
+     * came back after being deleted.
+     *
+     * The product promises otherwise, in those words: "It is removed for good
+     * ... This cannot be undone", and "we cannot get it back for you". A
+     * promise the server does not keep is the same problem whichever way it
+     * points.
+     *
+     * The **row** stays, and only its content goes. The weekly allowance is
+     * counted from `guided_sessions.started_at`, so deleting the row would
+     * refund a session and turn "3 full sessions a week" into a suggestion —
+     * and the console's figures are percentages of sessions started, which
+     * would quietly start flattering themselves. Neither of those needs the
+     * user's words; they need the row.
+     *
+     * Here rather than in the controller, for the reason `SafetyFlag` keeps
+     * `severity` in step here: a rule that asks every caller to remember it is
+     * a rule with a gap behind the next caller.
+     *
+     * A safety flag's excerpt is deliberately untouched. That is the queue's,
+     * not the journal's — and a session that stopped for safety never had an
+     * entry to delete.
+     */
+    protected static function booted(): void
+    {
+        self::deleted(function (self $entry): void {
+            if ($entry->guided_session_id === null) {
+                return;
+            }
+
+            // Through the model, so the stored shape is whatever the
+            // `encrypted:array` cast writes rather than a second definition of
+            // it here. `saveQuietly` because this is not an edit anybody made
+            // to the session.
+            $session = GuidedSession::query()->whereKey($entry->guided_session_id)->first();
+            if ($session === null) {
+                return;
+            }
+
+            $session->data = [];
+            $session->saveQuietly();
+        });
+    }
+
     protected function casts(): array
     {
         return [

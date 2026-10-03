@@ -610,6 +610,26 @@ The journal table is also the rule, not just a store: **a session that ended for
 safety never gets a row.** `JournalEntry::fromSession()` returns null for it,
 and the absence of the row is how that is kept.
 
+**And deleting an entry takes the words out of the session too.** The entry is a
+copy: `guided_sessions.data` holds the same answers, and `GET /sessions/{id}`
+serves that row to the owner's token — so deleting an entry used to leave every
+word of it readable through the API, while the product said "It is removed for
+good … This cannot be undone" and "we cannot get it back for you". That is the
+plan-allowance problem again: a promise the server does not keep is the same
+problem whichever way it points.
+
+The **row** stays and only its content goes, which is the other half of the
+rule. The weekly allowance counts `guided_sessions.started_at`, so deleting the
+row would refund a full session and turn "3 full sessions a week" into "3 you
+have not deleted"; the console's percentages are of sessions started and would
+quietly start flattering themselves. Neither needs the user's words.
+
+It is a `deleted` hook on `JournalEntry`, not controller code, for the reason
+`SafetyFlag` keeps `severity` in step there: a rule that asks every caller to
+remember it has a gap behind the next caller. A safety flag's excerpt is
+deliberately untouched — that is the queue's, and a safety-stopped session never
+had an entry to delete.
+
 ## A forgotten password is not a lost journal
 
 `auth/forgot-password` and `auth/reset-password` use Laravel's password broker.
