@@ -224,20 +224,24 @@ jobs:
       # Only the packages and the web app. The mobile export and the desktop
       # bundle are the `check` job's to build, and neither is under test here.
       #
-      # The mobile app's web export, which is how its screens get executed at
-      # all. `expo export` already ran in the `check` job and proved every
-      # route bundles and statically renders; this serves that output so a real
-      # browser can drive it against the real API. Port 4000 is already in the
-      # API's CORS list as "a static export's port".
-      - name: Build the mobile app's web export
-        run: pnpm --filter @stillpoint/mobile run build
-
       # `build`, not `build:standalone`: this job serves the app with
       # `next start`, which Next does not support alongside `output:
       # 'standalone'` and says so at every boot. The standalone output is the
       # desktop shell's and the Docker image's; see `apps/web/next.config.ts`.
       - name: Build the web app
         run: pnpm run build:packages && pnpm --filter @stillpoint/web run build
+
+      # The mobile app's web export, which is how its screens get executed at
+      # all. `expo export` already ran in the `check` job and proved every
+      # route bundles and statically renders; this serves that output so a real
+      # browser can drive it against the real API. Port 4000 is already in the
+      # API's CORS list as "a static export's port".
+      #
+      # After the step above, not before: Metro resolves `@stillpoint/*`
+      # through `node_modules` to their built output, so it needs
+      # `build:packages` to have run.
+      - name: Build the mobile app's web export
+        run: pnpm --filter @stillpoint/mobile run build
 
       # Playwright is a root dev dependency, and these scripts resolve it from
       # there. The development container has a browser at a fixed path instead
