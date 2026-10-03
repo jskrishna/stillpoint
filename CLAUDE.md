@@ -947,9 +947,34 @@ trail:
 A no-op (setting the role it already has) records nothing: a trail of no-ops is
 a trail nobody reads.
 
-`AdminOverviewService` reads only plain columns — kind, step, end reason,
-rating, the count of turns the safety screen could not read, and when the
-longest-waiting open flag was raised. That last one is deliberately **not**
+`AdminOverviewService` reads only plain columns — kind, the furthest step, end
+reason, rating, the count of turns the safety screen could not read, and when
+the longest-waiting open flag was raised.
+
+**"Only plain columns" was a claim before it was true.** The reach chart asked
+how far each session got, and the only column that could answer was `step_id` —
+so the service built every session's domain object to read it, which reads
+`data`, the encrypted one. Every load of that screen decrypted every session in
+the window, for a row that shows a step number and a rating. And it got the
+answer wrong anyway: ending a session sets `step_id` to null, the code read
+`step_id ?? the last step`, and so a safety stop at step 1 reported **100%
+reach at all six steps** while `reachedFinalStepPct` beside it, which comes from
+the journal, said 0%. A chart about where sessions stop cannot be built from a
+column that is cleared when they stop.
+
+So the furthest step is its own plain column, kept by the reducer as a
+high-water mark that only rises — `furthestStepId` / `$furthestStepId`, like
+`safetyLevel` and for the same kind of reason. `end()` destroys `stepId` and
+deliberately leaves it alone, which is the whole point. The chart is now one
+`GROUP BY` over that column with no row hydrated, and `recentSessions` names
+its columns. The backfill in the migration is best-effort and says so: a row
+that had already ended early cannot be recovered, because the step it stopped
+on was overwritten with null, so those read as step 1 — under-reporting rather
+than over-reporting, which shows a drop-off instead of hiding one.
+
+`OverviewReadsPlainColumnsTest` asserts both halves, the second one on the
+SQL, because there is nothing in the response to see it by: the version that
+decrypted every session printed exactly the same numbers. That last one is deliberately **not**
 limited to the window: a flag raised three weeks ago and still open is exactly
 what it is for, and a count alone cannot show it — four open flags reads as a
 manageable afternoon until you learn the oldest has been waiting six days. The

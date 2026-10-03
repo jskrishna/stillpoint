@@ -9,6 +9,11 @@
  * The machine is a pure reducer: {@link apply} takes a session and an event and
  * returns the next session. It never mutates its input, so callers can keep
  * history, replay a transcript, or drive it from a queue.
+ *
+ * Two fields only ever rise, and both are read after the fact by something
+ * that was not there at the time: {@link Session.safetyLevel} and
+ * {@link Session.furthestStepId}. Ending a session clears {@link
+ * Session.stepId}, so the second is the only record of how far it got.
  */
 
 import { isFeelingId, type FeelingId } from './feelings.js';
@@ -73,6 +78,27 @@ export interface Session {
   readonly phase: SessionPhase;
   /** The step in progress. `null` once the session has ended. */
   readonly stepId: StepId | null;
+  /**
+   * The furthest step this session ever reached, and it only ever rises.
+   *
+   * Recorded because {@link stepId} cannot answer the question: ending a
+   * session sets it to `null`, so after the fact a session stopped at step 1
+   * and one that ran all six steps look the same. The console's reach chart
+   * read `stepId ?? the last step` and therefore counted every ended session —
+   * a safety stop at step 1 included — as having reached step 6, while the
+   * number beside it, which comes from the journal, said none had. A chart
+   * about where sessions stop cannot be built from a field that is cleared
+   * when they stop.
+   *
+   * It rises like {@link safetyLevel} and for the same kind of reason: a
+   * high-water mark that something later has to read must not be writable
+   * downwards by a transition that knows less than the one before it.
+   *
+   * Being *on* a step counts as having reached it, which is what the chart
+   * means, and completing the last one leaves this at the last one rather than
+   * at `null`.
+   */
+  readonly furthestStepId: StepId;
   /** Guide turns already spent on {@link stepId}. */
   readonly guideTurnsUsed: number;
   readonly data: SessionData;
@@ -94,6 +120,7 @@ export function startSession(kind: SessionKind = 'full', version?: VersionNumber
     protocolVersion: version ?? null,
     phase: 'in_step',
     stepId: STEP_ORDER[0],
+    furthestStepId: STEP_ORDER[0],
     guideTurnsUsed: 0,
     data: { feelings: [] },
     endReason: null,
@@ -135,6 +162,8 @@ function mergeData(
 }
 
 function end(session: Session, reason: EndReason): Session {
+  // `furthestStepId` is deliberately untouched. It is the only record of how
+  // far a session got, because this is the line that destroys `stepId`.
   return { ...session, phase: 'ended', stepId: null, endReason: reason };
 }
 
@@ -165,9 +194,17 @@ export function apply(session: Session, event: SessionEvent): Session {
 
       const next = nextStep(current);
       if (next === undefined) {
+        // The last step was satisfied, so the mark stays on it. `end()` clears
+        // `stepId` and deliberately leaves `furthestStepId` alone.
         return end({ ...session, data }, 'completed');
       }
-      return { ...session, stepId: next.id, guideTurnsUsed: 0, data };
+      return {
+        ...session,
+        stepId: next.id,
+        furthestStepId: next.id,
+        guideTurnsUsed: 0,
+        data,
+      };
     }
 
     case 'safety_signal': {

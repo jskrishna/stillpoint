@@ -218,14 +218,33 @@ final class AdminOverviewApiTest extends TestCase
     }
 
     /** @param array<string, mixed> $attributes */
+    /**
+     * A session row, as the domain would have left it.
+     *
+     * `furthest_step_id` is derived rather than defaulted, because these
+     * fixtures write `step_id` straight to the column and a real session's
+     * high-water mark is the step it is on — or the last step if it completed.
+     * A fixture that left it at the column default would describe a session
+     * that cannot exist, and these are the tests about how far sessions get.
+     *
+     * A session that ended early is the case the column exists for: the step
+     * it stopped on is not recoverable from `step_id`, so a test about one
+     * passes `furthest_step_id` itself.
+     */
     private function guidedSession(User $user, array $attributes = []): GuidedSession
     {
-        return GuidedSession::create(array_merge([
+        $attributes = array_merge([
             'user_id' => $user->id,
             'kind' => 'full',
             'step_id' => 'notice',
             'started_at' => now()->subMinutes(10),
             'ended_at' => now(),
-        ], $attributes));
+        ], $attributes);
+
+        $attributes['furthest_step_id'] ??= ($attributes['end_reason'] ?? null) === 'completed'
+            ? 'forgive'
+            : ($attributes['step_id'] ?? 'notice');
+
+        return GuidedSession::create($attributes);
     }
 }

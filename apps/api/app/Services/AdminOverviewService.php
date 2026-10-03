@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\CalmerRating;
 use App\Domain\EndReason;
 use App\Domain\StepId;
 use App\Domain\UserHandle;
@@ -11,6 +12,7 @@ use App\Models\GuidedSession;
 use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The console's figures, computed rather than printed.
@@ -82,9 +84,17 @@ final readonly class AdminOverviewService
     /**
      * How many of every 100 sessions reach each step.
      *
-     * A session's furthest step is where it is now, or the last step if it
-     * finished — the reducer only ever moves forward, so the current step is
-     * also the high-water mark.
+     * Read from `furthest_step_id`, which is a plain column the reducer keeps
+     * as a high-water mark. It used to be read from `step_id`, as
+     * `step_id ?? the last step` — and ending a session sets `step_id` to
+     * null, so every ended session counted as having reached step 6. A safety
+     * stop at step 1 reported 100% reach at all six steps on a screen whose
+     * next number, taken from the journal, said 0% reached the last one.
+     *
+     * Grouped rather than hydrated. No session row is built, so nothing is
+     * decrypted: this is the console, and the one place staff read somebody's
+     * words is the queue. `DB::table` and not the model, so there is no cast
+     * in the way and no hydration to be tempted by later.
      *
      * @return list<int>
      */
@@ -94,50 +104,78 @@ final readonly class AdminOverviewService
             return array_fill(0, StepId::count(), 0);
         }
 
-        $furthest = [];
-        foreach (GuidedSession::query()->where('started_at', '>=', $since)->get() as $session) {
-            $domain = $session->toDomain();
-            $furthest[] = $domain->stepId?->ordinal() ?? StepId::count();
-        }
+        /** @var array<string, int> $counts */
+        $counts = DB::table('guided_sessions')
+            ->where('started_at', '>=', $since)
+            ->groupBy('furthest_step_id')
+            ->selectRaw('furthest_step_id, count(*) as n')
+            ->pluck('n', 'furthest_step_id')
+            ->all();
 
         $reach = [];
         foreach (StepId::ordered() as $step) {
-            $n = count(array_filter($furthest, fn (int $o) => $o >= $step->ordinal()));
+            $n = 0;
+            foreach ($counts as $id => $count) {
+                // An unrecognised value counts as nothing rather than as
+                // everything: a step name this build does not know is not
+                // evidence that a session got to the end.
+                $reached = StepId::tryFrom((string) $id);
+                if ($reached !== null && $reached->ordinal() >= $step->ordinal()) {
+                    $n += (int) $count;
+                }
+            }
             $reach[] = self::percent($n, $sessions);
         }
 
         return $reach;
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * The last few sessions, as rows the console can print.
+     *
+     * Both reads name their columns. The session's are all plain, and the one
+     * that is not — `data` — is not asked for: this used to call `toDomain()`,
+     * which reads it, so every load of this screen decrypted every recent
+     * session's text for a row that shows a step number and a rating. The
+     * journal's six encrypted columns were being fetched for the sake of
+     * `calmer_rating`; the cast is lazy so nothing was decrypted there, but
+     * reading the ciphertext of somebody's session to find out how they rated
+     * it is a habit worth not having.
+     *
+     * @return list<array<string, mixed>>
+     */
     private function recent(): array
     {
         $rows = [];
         $sessions = GuidedSession::query()
+            ->select(['id', 'user_id', 'kind', 'furthest_step_id', 'end_reason', 'started_at', 'ended_at'])
             ->orderByDesc('started_at')
+            // `started_at` is not unique, so without this the last rows of a
+            // busy second come back in whatever order the database likes.
+            ->orderByDesc('id')
             ->limit(self::RECENT)
             ->get();
 
         foreach ($sessions as $session) {
-            $domain = $session->toDomain();
-            $entry = JournalEntry::query()
+            $rating = JournalEntry::query()
                 ->where('guided_session_id', $session->id)
-                ->first();
+                ->value('calmer_rating');
 
             $rows[] = [
                 'user' => UserHandle::for($session->user_id),
-                'kind' => $domain->kind->value,
+                'kind' => $session->kind->value,
                 'minutes' => self::minutes($session),
-                // Where it got to, 1-based, or 6 once it has finished.
-                'reachedStep' => $domain->stepId?->ordinal() ?? StepId::count(),
-                'result' => self::result($session, $entry),
+                // How far it got, 1-based. Not "or 6 once it has ended": a
+                // session that stopped at step 1 ended, and did not get to 6.
+                'reachedStep' => $session->furthest_step_id->ordinal(),
+                'result' => self::result($session, $rating),
             ];
         }
 
         return $rows;
     }
 
-    private static function result(GuidedSession $session, ?JournalEntry $entry): string
+    private static function result(GuidedSession $session, mixed $rating): string
     {
         // Compared as the enum, not the string: end_reason is cast, so
         // `=== 'safety_stop'` is quietly always false.
@@ -145,7 +183,10 @@ final readonly class AdminOverviewService
             return 'safety';
         }
 
-        return $entry?->calmer_rating?->value ?? 'unrated';
+        // `value()` returns the column, so the cast does not run on it.
+        return $rating instanceof CalmerRating
+            ? $rating->value
+            : (is_string($rating) && $rating !== '' ? $rating : 'unrated');
     }
 
     private static function minutes(GuidedSession $session): int

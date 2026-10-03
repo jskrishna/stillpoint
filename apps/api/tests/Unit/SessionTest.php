@@ -180,4 +180,98 @@ final class SessionTest extends TestCase
         $this->assertSame(SessionKind::Quick, $s->kind);
         $this->assertSame('2.3', $s->protocolVersion);
     }
+
+    /**
+     * The bug this closes, stated as a test.
+     *
+     * `$stepId` is cleared when a session ends, so after the fact a session
+     * stopped at step 1 and one that ran all six look the same. The console's
+     * reach chart read `stepId ?? the last step` and counted every ended
+     * session — a safety stop at step 1 included — as having reached step 6,
+     * while the number beside it said none had.
+     */
+    public function test_the_furthest_step_survives_a_safety_stop(): void
+    {
+        $stopped = Session::start()->withSafetySignal(SafetyLevel::High);
+
+        $this->assertTrue($stopped->hasEnded());
+        $this->assertNull($stopped->stepId);
+        $this->assertSame(StepId::Notice, $stopped->furthestStepId);
+    }
+
+    public function test_the_furthest_step_survives_the_user_stopping(): void
+    {
+        $s = Session::start()->withStepSatisfied()->withStepSatisfied();
+        $this->assertSame(StepId::Feel, $s->stepId);
+
+        $s = $s->withUserStopped();
+        $this->assertNull($s->stepId);
+        $this->assertSame(StepId::Feel, $s->furthestStepId);
+    }
+
+    public function test_the_furthest_step_starts_on_the_first_one(): void
+    {
+        // Being on a step counts as having reached it, which is what the
+        // chart this feeds means by "reach".
+        $this->assertSame(StepId::Notice, Session::start()->furthestStepId);
+    }
+
+    public function test_the_furthest_step_moves_with_the_step(): void
+    {
+        $s = Session::start()->withStepSatisfied()->withStepSatisfied()->withStepSatisfied();
+        $this->assertSame(StepId::Remember, $s->stepId);
+        $this->assertSame(StepId::Remember, $s->furthestStepId);
+    }
+
+    public function test_the_furthest_step_is_the_last_one_once_every_step_is_satisfied(): void
+    {
+        $s = Session::start();
+        foreach (StepId::ordered() as $ignored) {
+            $s = $s->withStepSatisfied();
+        }
+
+        $this->assertSame(EndReason::Completed, $s->endReason);
+        $this->assertNull($s->stepId);
+        $this->assertSame(StepId::Forgive, $s->furthestStepId);
+    }
+
+    public function test_a_guide_turn_does_not_move_the_furthest_step(): void
+    {
+        // The same step asked again is not a step reached.
+        $this->assertSame(StepId::Notice, Session::start()->withGuideTurn()->furthestStepId);
+    }
+
+    public function test_the_rating_that_lands_afterwards_does_not_move_it(): void
+    {
+        $s = Session::start()->withStepSatisfied()->withUserStopped()->withRating(CalmerRating::Yes);
+        $this->assertSame(StepId::Responsibility, $s->furthestStepId);
+    }
+
+    /** It only rises, like the safety level, and nothing walks it back. */
+    public function test_the_furthest_step_only_ever_rises(): void
+    {
+        $s = Session::start();
+        $seen = $s->furthestStepId->ordinal();
+
+        $steps = [
+            fn (Session $x) => $x->withGuideTurn(),
+            fn (Session $x) => $x->withStepSatisfied(),
+            fn (Session $x) => $x->withSafetySignal(SafetyLevel::Low),
+            fn (Session $x) => $x->withStepSatisfied(),
+            fn (Session $x) => $x->withGuideTurn(),
+            fn (Session $x) => $x->withSafetySignal(SafetyLevel::Medium),
+            fn (Session $x) => $x->withStepSatisfied(),
+            fn (Session $x) => $x->withUserStopped(),
+            fn (Session $x) => $x->withRating(CalmerRating::No),
+        ];
+
+        foreach ($steps as $i => $step) {
+            $s = $step($s);
+            $now = $s->furthestStepId->ordinal();
+            $this->assertGreaterThanOrEqual($seen, $now, "step {$i} lowered it");
+            $seen = $now;
+        }
+
+        $this->assertSame(StepId::Remember, $s->furthestStepId);
+    }
 }

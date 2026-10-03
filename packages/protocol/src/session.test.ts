@@ -270,3 +270,97 @@ describe('a session nothing has been said into', () => {
     expect(isUntouched(picked)).toBe(false);
   });
 });
+
+describe('the furthest step a session reached', () => {
+  /**
+   * The bug this closes, stated as a test.
+   *
+   * `stepId` is cleared when a session ends, so after the fact a session
+   * stopped at step 1 and one that ran all six look the same. The console's
+   * reach chart read `stepId ?? the last step` and counted every ended session
+   * as having reached step 6 — a safety stop at step 1 included — while the
+   * number beside it, which comes from the journal, said none had.
+   */
+  it('survives a safety stop at the step it stopped on', () => {
+    const stopped = apply(startSession(), { type: 'safety_signal', level: 'high' });
+
+    expect(stopped.phase).toBe('ended');
+    expect(stopped.stepId).toBeNull();
+    expect(stopped.furthestStepId).toBe('notice');
+  });
+
+  it('survives the user stopping, at the step they were on', () => {
+    let session = applyAll(startSession(), [satisfy, satisfy]);
+    expect(session.stepId).toBe('feel');
+
+    session = apply(session, { type: 'user_stopped' });
+    expect(session.stepId).toBeNull();
+    expect(session.furthestStepId).toBe('feel');
+  });
+
+  it('starts on the first step, because being on one is reaching it', () => {
+    expect(startSession().furthestStepId).toBe('notice');
+  });
+
+  it('moves with the step', () => {
+    const session = applyAll(startSession(), [satisfy, satisfy, satisfy]);
+    expect(session.stepId).toBe('remember');
+    expect(session.furthestStepId).toBe('remember');
+  });
+
+  it('is the last step once every step is satisfied', () => {
+    const finished = applyAll(startSession(), [
+      satisfy,
+      satisfy,
+      satisfy,
+      satisfy,
+      satisfy,
+      satisfy,
+    ]);
+
+    expect(finished.endReason).toBe('completed');
+    expect(finished.stepId).toBeNull();
+    expect(finished.furthestStepId).toBe(STEP_ORDER[STEP_ORDER.length - 1]);
+  });
+
+  it('is not moved by a guide turn, which is the same step asked again', () => {
+    const session = apply(startSession(), { type: 'guide_turn' });
+    expect(session.furthestStepId).toBe('notice');
+  });
+
+  /**
+   * A rating lands after the session has ended, and it is the one event that
+   * does. It must not disturb the mark.
+   */
+  it('is not moved by the rating that lands afterwards', () => {
+    const stopped = apply(applyAll(startSession(), [satisfy]), { type: 'user_stopped' });
+    const rated = apply(stopped, { type: 'rated', rating: 'yes' });
+
+    expect(rated.furthestStepId).toBe('responsibility');
+  });
+
+  /** It only rises, like `safetyLevel`, and nothing walks it back. */
+  it('only ever rises across every event a session can see', () => {
+    const events: SessionEvent[] = [
+      { type: 'guide_turn' },
+      satisfy,
+      { type: 'safety_signal', level: 'low' },
+      satisfy,
+      { type: 'guide_turn' },
+      { type: 'safety_signal', level: 'medium' },
+      satisfy,
+      { type: 'user_stopped' },
+      { type: 'rated', rating: 'no' },
+    ];
+
+    let session = startSession();
+    let seen = STEP_ORDER.indexOf(session.furthestStepId);
+    for (const event of events) {
+      session = apply(session, event);
+      const now = STEP_ORDER.indexOf(session.furthestStepId);
+      expect(now, `after ${event.type}`).toBeGreaterThanOrEqual(seen);
+      seen = now;
+    }
+    expect(session.furthestStepId).toBe('remember');
+  });
+});

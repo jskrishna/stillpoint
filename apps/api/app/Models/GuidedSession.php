@@ -28,7 +28,7 @@ final class GuidedSession extends Model
     use HasFactory, HasUlids;
 
     protected $fillable = [
-        'user_id', 'kind', 'step_id', 'guide_turns_used', 'end_reason',
+        'user_id', 'kind', 'step_id', 'furthest_step_id', 'guide_turns_used', 'end_reason',
         'safety_level', 'protocol_version', 'data', 'started_at', 'ended_at',
     ];
 
@@ -39,6 +39,7 @@ final class GuidedSession extends Model
             'data' => 'encrypted:array',
             'kind' => SessionKind::class,
             'step_id' => StepId::class,
+            'furthest_step_id' => StepId::class,
             'end_reason' => EndReason::class,
             'safety_level' => SafetyLevel::class,
             'unreadable_turns' => 'integer',
@@ -70,6 +71,11 @@ final class GuidedSession extends Model
         return new DomainSession(
             kind: $this->kind,
             stepId: $this->step_id,
+            // Older rows predate the column and may have nothing in it; the
+            // step in progress is the best answer for one of those, and the
+            // first step is the only thing certainly true for a row that had
+            // already ended. See the migration for why it cannot be better.
+            furthestStepId: $this->furthest_step_id ?? $this->step_id ?? StepId::Notice,
             guideTurnsUsed: $this->guide_turns_used,
             data: (new SessionData)->merge($data),
             endReason: $this->end_reason,
@@ -83,6 +89,7 @@ final class GuidedSession extends Model
     {
         $this->kind = $session->kind;
         $this->step_id = $session->stepId;
+        $this->furthest_step_id = $session->furthestStepId;
         $this->guide_turns_used = $session->guideTurnsUsed;
         $this->end_reason = $session->endReason;
         $this->safety_level = $session->safetyLevel;

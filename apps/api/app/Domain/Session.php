@@ -13,7 +13,9 @@ namespace App\Domain;
  *  - a High safety signal ends the session (EndReason::SafetyStop);
  *  - an ended session is terminal, and only the summary rating may still land,
  *    so a late utterance cannot reopen one that stopped for safety;
- *  - the safety level only ever rises.
+ *  - the safety level only ever rises, and so does the furthest step
+ *    reached, which is the only record of how far a session got once
+ *    `stepId` has been cleared.
  *
  * Never weaken these to make a flow more convenient, and never add a resume
  * path around a safety stop.
@@ -23,6 +25,22 @@ final readonly class Session
     public function __construct(
         public SessionKind $kind,
         public ?StepId $stepId,
+        /**
+         * The furthest step this session ever reached, and it only ever rises.
+         *
+         * The port of `furthestStepId` in
+         * `packages/protocol/src/session.ts`, which has the reasoning. In
+         * short: `$stepId` cannot answer the question, because ending a
+         * session sets it to null — so after the fact a session stopped at
+         * step 1 and one that ran all six look the same. The console's reach
+         * chart read `stepId ?? the last step` and counted every ended
+         * session, a safety stop at step 1 included, as having reached step 6,
+         * while the number beside it said none had.
+         *
+         * It rises like `$safetyLevel`, and being *on* a step counts as having
+         * reached it.
+         */
+        public StepId $furthestStepId,
         public int $guideTurnsUsed,
         public SessionData $data,
         public ?EndReason $endReason,
@@ -38,6 +56,7 @@ final readonly class Session
         return new self(
             kind: $kind,
             stepId: StepId::Notice,
+            furthestStepId: StepId::Notice,
             guideTurnsUsed: 0,
             data: new SessionData,
             endReason: null,
@@ -113,10 +132,13 @@ final readonly class Session
         $next = $this->stepId->next();
 
         if ($next === null) {
+            // The last step was satisfied, so the mark stays on it: `with()`
+            // clears `stepId` when an end reason is set and deliberately
+            // leaves `furthestStepId` where it is.
             return $this->with(stepId: null, data: $data, endReason: EndReason::Completed);
         }
 
-        return $this->with(stepId: $next, guideTurnsUsed: 0, data: $data);
+        return $this->with(stepId: $next, furthestStepId: $next, guideTurnsUsed: 0, data: $data);
     }
 
     /**
@@ -178,6 +200,7 @@ final readonly class Session
     private function with(
         ?SessionKind $kind = null,
         ?StepId $stepId = null,
+        ?StepId $furthestStepId = null,
         ?int $guideTurnsUsed = null,
         ?SessionData $data = null,
         ?EndReason $endReason = null,
@@ -189,6 +212,10 @@ final readonly class Session
             // An explicit null stepId means "ended", so it is passed through
             // whenever an endReason is being set.
             stepId: $endReason !== null ? $stepId : ($stepId ?? $this->stepId),
+            // Never cleared, unlike `stepId`: this is the only record of how
+            // far a session got, and the line above is what destroys the other
+            // one. There is no caller that lowers it.
+            furthestStepId: $furthestStepId ?? $this->furthestStepId,
             guideTurnsUsed: $guideTurnsUsed ?? $this->guideTurnsUsed,
             data: $data ?? $this->data,
             endReason: $endReason ?? $this->endReason,
