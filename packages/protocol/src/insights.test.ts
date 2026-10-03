@@ -162,3 +162,36 @@ describe('the belief that comes back', () => {
     expect(insights(list, NOW).recurringBelief).toBeUndefined();
   });
 });
+
+describe('a belief written in Hindi', () => {
+  const entry = (id: string, belief: string, daysAgo: number): JournalEntry => ({
+    id,
+    title: `Session ${id}`,
+    occurredAt: new Date(Date.parse('2026-03-01T10:00:00.000Z') - daysAgo * 86_400_000),
+    durationMinutes: 12,
+    kind: 'full',
+    feelings: [],
+    belief,
+    reachedFinalStep: true,
+    sharedWithCoach: false,
+  });
+
+  /**
+   * The danda is the full stop of Devanagari. Until it was stripped alongside
+   * the Latin one, the same sentence with and without it was two beliefs — so
+   * the belief that comes back did not come back, which is the whole insight.
+   */
+  it('is the same belief with or without a danda', () => {
+    expect(
+      recurringBelief([entry('a', 'मैं काफी नहीं हूँ', 1), entry('b', 'मैं काफी नहीं हूँ।', 4)]),
+    ).toEqual({ belief: 'मैं काफी नहीं हूँ', sessions: 2 });
+  });
+
+  it('still keeps two different beliefs apart', () => {
+    // `undefined`, not `null` — nothing came back twice. The parity fixture
+    // writes it as null only because JSON has no undefined.
+    expect(
+      recurringBelief([entry('a', 'मैं काफी नहीं हूँ', 1), entry('b', 'मैं अकेला हूँ', 4)]),
+    ).toBeUndefined();
+  });
+});

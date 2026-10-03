@@ -646,6 +646,35 @@
       }
     },
     {
+      "name": "a Hindi belief repeated with and without a danda",
+      "entries": [
+        {
+          "id": "a",
+          "belief": "मैं काफी नहीं हूँ",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "shared": true
+        },
+        {
+          "id": "b",
+          "belief": "मैं काफी नहीं हूँ।",
+          "occurredAt": "2026-02-25T10:00:00.000Z",
+          "shared": true
+        },
+        {
+          "id": "c",
+          "belief": "मैं अकेला हूँ",
+          "occurredAt": "2026-02-23T10:00:00.000Z",
+          "shared": true
+        }
+      ],
+      "sharedCount": 3,
+      "lastSharedAtMs": 1772272800000,
+      "recurringBelief": {
+        "belief": "मैं काफी नहीं हूँ",
+        "sessions": 2
+      }
+    },
+    {
       "name": "a belief repeated only in private sessions",
       "entries": [
         {

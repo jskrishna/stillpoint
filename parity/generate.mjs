@@ -126,6 +126,17 @@ const JOURNALS = [
     ],
   },
   {
+    // The danda is the full stop of Devanagari, and until it was stripped
+    // alongside the Latin one these were two beliefs rather than one said
+    // twice — so the belief that comes back did not come back.
+    name: 'a Hindi belief repeated with and without a danda',
+    entries: [
+      { id: 'a', belief: 'मैं काफी नहीं हूँ', daysAgo: 1, shared: true },
+      { id: 'b', belief: 'मैं काफी नहीं हूँ।', daysAgo: 4, shared: true },
+      { id: 'c', belief: 'मैं अकेला हूँ', daysAgo: 6, shared: true },
+    ],
+  },
+  {
     name: 'a belief repeated only in private sessions',
     entries: [
       { id: 'a', belief: 'I am unlovable', daysAgo: 1, shared: false },

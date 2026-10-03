@@ -182,7 +182,11 @@ final readonly class Insights
             $text = preg_replace($pattern, $expansion, $text) ?? $text;
         }
 
-        $text = preg_replace('/[“”"\'’‘.,!?]/u', '', $text) ?? '';
+        // The danda and the double danda belong here with the full stop.
+        // Without them "मैं काफी नहीं हूँ।" and the same sentence without the
+        // danda are two keys, and a belief that did come back does not look
+        // like it did.
+        $text = preg_replace('/[“”"\'’‘.,!?\x{0964}\x{0965}]/u', '', $text) ?? '';
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
         return trim($text);

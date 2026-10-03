@@ -99,10 +99,15 @@ function normalizeBelief(belief: string): string {
   let text = belief.toLowerCase().replace(/[’‘`]/g, "'");
   for (const [pattern, expansion] of CONTRACTIONS) text = text.replace(pattern, expansion);
 
-  return text
-    .replace(/[“”"'’‘.,!?]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    text
+      // The danda and the double danda belong here with the full stop. Without
+      // them "मैं काफी नहीं हूँ।" and the same sentence without the danda are
+      // two keys, and a belief that did come back does not look like it did.
+      .replace(/[“”"'’‘.,!?\u0964\u0965]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 /** Entries that fall inside the window ending at `now`. */
