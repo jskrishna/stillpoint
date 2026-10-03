@@ -558,15 +558,20 @@ pnpm run build   # every workspace project, packages first
 them, `mobile.mjs`, is the only thing that executes `apps/mobile` at all: it
 drives the Expo web export in a browser at a phone's width. It does not touch
 anything native, and `apps/mobile/README.md` lists what that leaves.
-`flow.mjs` is the web app's: register, consent, a full session, journal,
-insights, settings, the safety stop and sign-out. It needs three servers, so it
-is not part of `check` — but it **is** in CI, as the `e2e` job, along with the
-other five. Run it by hand too after changing the session flow,
-`packages/client` or anything in `apps/api/app/Domain`; it is faster than
-waiting for a push. Its last section is the one that matters: it types crisis
-language into a real browser and asserts the **server** ended the session,
-refuses another turn on it (409), shows Tele-MANAS and 112, and wrote no
-journal row.
+`flow.mjs` is the web app's: register, consent, a full session, a reply lost on
+the way back, journal, insights, settings, the safety stop and sign-out. It
+needs three servers, so it is not part of `check` — but it **is** in CI, as the
+`e2e` job, along with the other five. Run it by hand too after changing the
+session flow, `packages/client` or anything in `apps/api/app/Domain`; it is
+faster than waiting for a push.
+
+Two of its sections are the ones that matter, and both show something only a
+real browser against a real server can. The safety stop: it types crisis
+language into the page and asserts the **server** ended the session, refuses
+another turn on it (409), shows Tele-MANAS and 112, and wrote no journal row.
+And section 3c: it lets a turn reach the server and then drops the response —
+what a train tunnel does — and asserts the retry advanced exactly one step for
+one answer, rather than being recorded as the next step's.
 
 CI runs four jobs: the PHP suite, the JavaScript gates, the end-to-end checks,
 and the Docker images. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs

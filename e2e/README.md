@@ -1,12 +1,12 @@
 # End-to-end check
 
 `flow.mjs` drives a real browser through the web app against a running Laravel
-API: register, consent, a full six-step session, the journal, insights,
-settings, the safety stop, and sign-out.
+API: register, consent, a full six-step session, a reply lost on the way back,
+the journal, insights, settings, the safety stop, and sign-out.
 
 It is not part of `pnpm run check`, because it needs three servers. It **does**
 run in CI now, in the `e2e` job, which boots the API against a MySQL service,
-seeds the demo accounts, builds and starts the web app, and runs all five
+seeds the demo accounts, builds and starts the web app, and runs all six
 scripts. Run it by hand too after changing the session flow, the API client or
 anything in `apps/api/app/Domain` — it is faster than waiting for a push.
 

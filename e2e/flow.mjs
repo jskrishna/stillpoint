@@ -4,18 +4,26 @@ import { reporter } from './report.mjs';
 /**
  * End-to-end check of the web app against the Laravel API.
  *
- * It is a script rather than a test suite because it needs two servers running,
- * which CI does not have. Run it by hand after changing anything in the session
- * flow or the API client:
+ * It is a script rather than a test suite because it needs two servers running.
+ * CI brings them up and runs it; by hand that is:
  *
  *     cd apps/api && php artisan serve --port=8000 &
  *     pnpm run build && (cd apps/web && npx next start --port 3000) &
  *     node e2e/flow.mjs
  *
- * What it is really here for is the last section: that crisis language typed
- * into the browser is stopped by the *server*, and leaves no journal row. That
- * is the promise the marketing site makes, and the one worth checking against
- * the real thing rather than a mock.
+ * Run it after changing anything in the session flow, `apps/web/src/lib/api.ts`
+ * or `apps/api/app/Domain`.
+ *
+ * Two sections are what it is really here for, and both are things only a real
+ * browser against a real server can show:
+ *
+ * - **the safety stop** (section 7): crisis language typed into the page is
+ *   stopped by the *server*, another turn on that session is refused, the
+ *   helplines appear and no journal row is written. That is the promise the
+ *   marketing site makes.
+ * - **a reply lost on the way back** (section 3c): the turn reaches the server
+ *   and the response is dropped, which is what a train tunnel does. The retry
+ *   must not be recorded as the next step's answer.
  */
 
 // Resolved through require: playwright is CommonJS, and the browser binary is
@@ -309,6 +317,100 @@ if (onlyOne.left === spentAfter - 1) ok(`and it did cost another (${String(onlyO
 else bad('and it did cost another', JSON.stringify(onlyOne));
 
 await leftOff.close();
+
+// A reply dropped on the way back used to cost the user a whole step: the
+// client re-sent the same words, nothing in the request said which question
+// they answered, and they were recorded against the *next* step — whose
+// question was then never answered by anybody. On mobile data that is not an
+// edge case, so it is worth proving in a real browser and not only in a unit
+// test.
+console.log('\n3c. A reply lost on the way back');
+
+const lossy = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const unlucky = `lossy+${String(Date.now())}@example.com`;
+await lossy.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await lossy.getByRole('button', { name: 'Create an account instead' }).click();
+await lossy.getByLabel('Name').fill('Bad Signal');
+await lossy.getByLabel('Email').fill(unlucky);
+await lossy.getByLabel('Password').fill('correct-horse-battery-staple');
+await lossy.getByRole('button', { name: 'Create my account' }).click();
+await lossy.waitForURL('**/welcome/consent', { timeout: 15000 });
+const lossyBoxes = lossy.locator('input[type=checkbox]');
+await lossyBoxes.nth(0).check();
+await lossyBoxes.nth(1).check();
+await lossy.getByRole('button', { name: /Continue|Saving/ }).click();
+await lossy.waitForURL('**/welcome/voice', { timeout: 15000 });
+await lossy.getByRole('button', { name: 'Keep it silent' }).click();
+await lossy.waitForURL('**/app', { timeout: 15000 });
+
+await lossy.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+await lossy.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
+  timeout: 15000,
+});
+
+// Let the first turn reach the server and then drop the reply, which is what a
+// train tunnel does. `route.fetch()` performs the request for real; the abort
+// that follows is the only thing the page ever learns about it.
+const SAID = 'My manager dismissed my work in front of the team';
+let swallowed = false;
+await lossy.route('**/turns', async (route) => {
+  if (swallowed) {
+    await route.continue();
+    return;
+  }
+  swallowed = true;
+  await route.fetch();
+  await route.abort('connectionaborted');
+});
+
+await lossy.locator('textarea, input[type=text]').first().fill(SAID);
+await lossy
+  .locator('button', { hasText: /^(Continue|Sending)/ })
+  .first()
+  .click();
+await lossy.waitForTimeout(1800);
+
+const lost = await lossy.locator('body').innerText();
+if (swallowed) ok('the turn reached the server and the reply was dropped');
+else bad('the turn reached the server and the reply was dropped');
+// The screen cannot know the turn landed, so it is still on step 1 — which is
+// precisely the state that used to send the same words in as step 2's answer.
+if (/Step 1 of 6/.test(lost)) ok('the screen is still on step 1, as it must be');
+else bad('the screen is still on step 1, as it must be', lost.slice(0, 300));
+
+const stillTyped = await lossy.locator('textarea, input[type=text]').first().inputValue();
+if (stillTyped === SAID) ok('and what was typed is still in the box to try again');
+else bad('and what was typed is still in the box to try again', stillTyped);
+
+// The retry. Same words, same step, and this time the reply arrives.
+await lossy
+  .locator('button', { hasText: /^(Continue|Sending)/ })
+  .first()
+  .click();
+await lossy.waitForTimeout(2000);
+
+const recovered = await lossy.locator('body').innerText();
+if (/Step 2 of 6/.test(recovered)) ok('the retry resyncs the screen to step 2');
+else bad('the retry resyncs the screen to step 2', recovered.slice(0, 400));
+
+const boxAfter = await lossy.locator('textarea, input[type=text]').first().inputValue();
+if (boxAfter === '') ok('and the box is cleared, since those words are not step 2’s answer');
+else bad('and the box is cleared, since those words are not step 2’s answer', boxAfter);
+
+const once = await lossy.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const current = await fetch('http://localhost:8000/api/sessions/current', {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  }).then((r) => r.json());
+  return { step: current?.step?.ordinal, whatHappened: current?.data?.whatHappened };
+});
+if (once.step === 2) ok('the server advanced exactly one step for one answer');
+else bad('the server advanced exactly one step for one answer', JSON.stringify(once));
+if (once.whatHappened === SAID) ok('and recorded those words once, against step 1');
+else bad('and recorded those words once, against step 1', JSON.stringify(once));
+
+await lossy.unroute('**/turns');
+await lossy.close();
 
 // ------------------------------------------------- 4. journal
 console.log('\n4. The journal holds it');
