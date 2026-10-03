@@ -99,17 +99,54 @@ final class AdminUserController extends Controller
             return response()->json(self::profile($user));
         }
 
-        if ($from === Role::Admin && self::isLastAdmin($user)) {
-            return response()->json([
-                'message' => 'This is the last admin. Make someone else an admin first.',
-            ], Response::HTTP_CONFLICT);
-        }
+        $refusal = DB::transaction(function () use ($user, $to, $actor): ?string {
+            // Every role change serialises here, on the set of admins, taken in
+            // a fixed order so two requests queue rather than deadlock. The
+            // count that guards the last admin has to be inside: two admins
+            // demoting each other at the same moment both saw two admins, both
+            // passed, and the product was left with nobody who could administer
+            // it or read the safety queue.
+            $admins = User::query()
+                ->where('role', Role::Admin->value)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id');
 
-        DB::transaction(function () use ($user, $from, $to, $actor): void {
+            // Re-read under that lock: the role this request was handed came
+            // from before it.
+            $user = User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+            $from = $user->role ?? Role::User;
+
+            if ($from === $to) {
+                return null;
+            }
+
+            // Reachable only under contention, and that is the whole point.
+            // Sequentially it cannot happen: only an admin reaches this route,
+            // and an admin cannot change their own role — so for the target to
+            // be the last admin, the actor would have to be somebody who is no
+            // longer one. Which is exactly what the two admins demoting each
+            // other at the same moment produce, between `EnsureStaff` and here.
+            //
+            // So this branch has no test. The suite is one process on sqlite,
+            // where `lockForUpdate()` does nothing, and a sequential test of it
+            // would be a test of the self-demotion rule wearing this one's
+            // name. Taking the count here rather than before the transaction is
+            // the fix; saying it is tested would not be true.
+            if ($from === Role::Admin && $admins->count() <= 1) {
+                return 'This is the last admin. Make someone else an admin first.';
+            }
+
             $user->role = $to;
             $user->save();
             RoleChange::record($user, $from, $to, $actor);
+
+            return null;
         });
+
+        if ($refusal !== null) {
+            return response()->json(['message' => $refusal], Response::HTTP_CONFLICT);
+        }
 
         return response()->json(self::profile($user->refresh()));
     }
@@ -134,14 +171,6 @@ final class AdminUserController extends Controller
             'nextCursor' => $page->nextCursor()?->encode(),
             'total' => RoleChange::query()->count(),
         ]);
-    }
-
-    private static function isLastAdmin(User $user): bool
-    {
-        return User::query()
-            ->where('role', Role::Admin->value)
-            ->whereKeyNot($user->id)
-            ->doesntExist();
     }
 
     /** @return array<string, mixed> */

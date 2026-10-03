@@ -600,7 +600,15 @@ trail:
 - **nobody changes their own role.** Not only against typos: an escalation one
   person can perform on themselves alone is one nobody else had to agree to.
 - **the last admin cannot be demoted**, because the alternative is a product
-  nobody can administer and a queue nobody can read.
+  nobody can administer and a queue nobody can read. The count is taken
+  **inside** the transaction, under a lock on the admin set in id order: two
+  admins demoting each other at the same moment each saw two admins, each
+  passed a check made before either wrote, and the product was left with none.
+  That branch is reachable only under contention — sequentially, an admin
+  cannot demote themselves, so the target can only be the last admin if the
+  actor has stopped being one — and it therefore has no test. The lock is the
+  fix; a sequential test of it would be the self-demotion rule wearing its
+  name.
 - **every change is recorded** in `role_changes`, with who did it, keeping both
   addresses as they were — an account can be renamed or deleted and the trail
   should still read. There is no route that edits or deletes a row there,
