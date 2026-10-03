@@ -6,7 +6,7 @@ settings, the safety stop, and sign-out.
 
 It is not part of `pnpm run check`, because it needs two servers. It **does**
 run in CI now, in the `e2e` job, which boots the API on sqlite, seeds the demo
-accounts, builds and starts the web app, and runs all four scripts. Run it by
+accounts, builds and starts the web app, and runs all five scripts. Run it by
 hand too after changing the session flow, the API client or anything in
 `apps/api/app/Domain` — it is faster than waiting for a push.
 
@@ -128,3 +128,15 @@ skipped, and the run says so rather than passing on a refusal. Contrast is alrea
 `packages/design-tokens/src/contrast.test.ts`; what this catches is the rest — a
 control with no accessible name, a label with nothing to label, a heading level
 skipped, a pairing that only exists once a component is rendered.
+
+## What the browser sends, and where
+
+`privacy.mjs` loads the public screens and then the signed-in ones, including a
+session, and asserts that **no request leaves this origin**. Not a style
+preference: this is a product about being upset, and a request to a third party
+carries the visitor's IP and user-agent whatever comes back. A font, an icon set
+or an analytics snippet is one line that nobody reads again.
+
+It found something the first time it ran. The webfonts were linked from Google's
+CDN, so every page load — the session screen included — reached them. They are
+served from `apps/web/public/fonts` now, and this is what keeps them there.

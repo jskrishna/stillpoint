@@ -239,6 +239,10 @@ jobs:
         if: '!cancelled()'
         run: node e2e/a11y.mjs
 
+      - name: Nothing leaves this origin
+        if: '!cancelled()'
+        run: node e2e/privacy.mjs
+
       - name: The API log, if anything failed
         if: failure()
         working-directory: apps/api

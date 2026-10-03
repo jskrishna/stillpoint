@@ -19,17 +19,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         {/*
-          Fonts are linked rather than fetched through next/font, which pulls
-          them at build time and so makes the build depend on reaching Google
-          Fonts. The stacks in the design tokens name a local fallback, so the
-          layout holds before the webfont arrives — and the designs link them
-          the same way.
+          Served from here, not from Google's CDN. Linking it meant every
+          visitor's IP and user-agent reached a third party on every page of a
+          product about being upset — including the session screen. The phone
+          app has always bundled its fonts; this makes the web match it, and it
+          is one fewer thing that has to be reachable for the app to look like
+          itself.
+
+          `apps/web/scripts/fetch-fonts.mjs` regenerates the files; they are
+          variable faces, latin and latin-ext only, and the stylesheet keeps
+          Google's own `unicode-range` rules so a browser fetches a face only
+          when a glyph on the page needs it. The stacks in the design tokens
+          name a local fallback, so the layout holds before one arrives.
         */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="/fonts/fonts.css" />
+        {/*
+          The two faces nearly every screen uses, asked for before the
+          stylesheet has been parsed. `crossOrigin` is required even same-origin:
+          fonts are fetched in CORS mode, and a preload without it is fetched
+          twice.
+        */}
         <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap"
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/hanken-grotesk-normal-latin.woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          as="font"
+          type="font/woff2"
+          href="/fonts/newsreader-normal-latin.woff2"
+          crossOrigin="anonymous"
         />
         {/*
           Tokens are emitted from @stillpoint/design-tokens rather than copied

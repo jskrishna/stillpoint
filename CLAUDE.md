@@ -181,6 +181,26 @@ voice.
 
 The same goes for pricing: the designs show `[PRICE]/mo` placeholders.
 
+## The fonts are ours, not Google's
+
+`apps/web` serves Newsreader and Hanken Grotesk from `public/fonts`, not from
+Google's CDN. Linking the CDN meant every visitor's IP and user-agent reached a
+third party on every page of a product about being upset — the session screen
+included — which is not a thing to leave in place in a product that invokes
+DPDP about its own microphone. The phone app has always bundled its fonts; this
+is the web matching it.
+
+`apps/web/scripts/fetch-fonts.mjs` regenerates them and is run by hand, not by
+the build: `next/font/google` would self-host too, but it downloads at build
+time, and a build that needs fonts.googleapis.com can fail for a reason nothing
+here controls. The files are variable faces, latin and latin-ext only — neither
+family carries Devanagari — and the stylesheet keeps Google's own
+`unicode-range` rules, so a browser fetches a face only when a glyph on the page
+needs one. Both are OFL and the licences sit beside them.
+
+There is a check worth keeping: load a few routes with a real browser and assert
+that **no external origin is requested at all**. That was how this was found.
+
 ## Contrast is tested, not assumed
 
 `packages/design-tokens/src/contrast.test.ts` asserts WCAG AA for every text
