@@ -146,6 +146,35 @@ jobs:
     # red unit test fails these too, several minutes later and less legibly.
     needs: [api, check]
 
+    # MySQL, not sqlite, and this job is the one place it matters for behaviour
+    # rather than for the schema.
+    #
+    # `php artisan serve` is PHP's built-in server, which answers one connection
+    # at a time, and a browser holds several open on keep-alive: the API stopped
+    # answering mid-run and every script inside that window failed with
+    # `Failed to fetch`. The fix is `PHP_CLI_SERVER_WORKERS`, which means
+    # several processes against one database — and on sqlite that is an
+    # immediate `database is locked`, because two deferred transactions cannot
+    # both upgrade to a write and `transaction_mode` needs PHP 8.4.
+    #
+    # It also makes the job prove more than it did. `lockForUpdate()` is a no-op
+    # on sqlite, so the lock that stops a second turn landing on a session that
+    # has already stopped for safety was not actually being exercised by the one
+    # check that drives a real browser. Here it is.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: stillpoint_e2e
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,7 +183,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, sqlite3, intl
+          extensions: mbstring, pdo_mysql, sqlite3, intl
           coverage: none
 
       - name: Install pnpm
@@ -175,26 +204,30 @@ jobs:
         working-directory: apps/api
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      # sqlite on disk, not in memory: the suite's :memory: database belongs to
-      # one process, and here the server and the browser are different ones.
-      # The schema is MySQL's to satisfy and the `api` job is what proves that;
-      # this job is about behaviour, not about the database.
       - name: Prepare the API
         working-directory: apps/api
         run: |
           cp .env.example .env
           php artisan key:generate
           # Written into .env rather than exported, so every later step and the
-          # server itself read the same database without anyone remembering to
-          # pass it along.
-          sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=sqlite|' .env
-          sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env
-          touch database/database.sqlite
+          # server's worker processes read the same database without anyone
+          # remembering to pass it along.
+          sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=mysql|' .env
+          sed -i 's|^DB_HOST=.*|DB_HOST=127.0.0.1|' .env
+          sed -i 's|^DB_PORT=.*|DB_PORT=3306|' .env
+          sed -i 's|^DB_DATABASE=.*|DB_DATABASE=stillpoint_e2e|' .env
+          sed -i 's|^DB_USERNAME=.*|DB_USERNAME=root|' .env
+          sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=root|' .env
           php artisan migrate --force
           php artisan db:seed --force
 
       # Only the packages and the web app. The mobile export and the desktop
       # bundle are the `check` job's to build, and neither is under test here.
+      #
+      # `build`, not `build:standalone`: this job serves the app with
+      # `next start`, which Next does not support alongside `output:
+      # 'standalone'` and says so at every boot. The standalone output is the
+      # desktop shell's and the Docker image's; see `apps/web/next.config.ts`.
       - name: Build the web app
         run: pnpm run build:packages && pnpm --filter @stillpoint/web run build
 
@@ -204,9 +237,18 @@ jobs:
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # `--no-reload` with workers, and both halves matter. `php artisan serve`
+      # is PHP's built-in server, which handles **one connection at a time**;
+      # a browser holds several open on keep-alive, so the API stopped
+      # answering mid-run and the three scripts inside that window all failed
+      # with `Failed to fetch`. Laravel only passes `PHP_CLI_SERVER_WORKERS`
+      # through when reloading is off — without the flag it warns and serves
+      # single-threaded anyway.
       - name: Start the servers
+        env:
+          PHP_CLI_SERVER_WORKERS: '8'
         run: |
-          php artisan serve --port=8000 &
+          php artisan serve --port=8000 --no-reload &
           echo $! > /tmp/api.pid
           pnpm --filter @stillpoint/web exec next start --port 3000 &
           echo $! > /tmp/web.pid
@@ -221,7 +263,7 @@ jobs:
           exit 1
         working-directory: apps/api
 
-      # Four scripts, run whatever any one of them does: a failure in the
+      # Five scripts, run whatever any one of them does: a failure in the
       # safety stop and a failure in the coach's sharing rule are different
       # news, and stopping at the first would hide the second.
       - name: The user journey, including the safety stop

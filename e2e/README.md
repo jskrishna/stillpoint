@@ -5,10 +5,24 @@ API: register, consent, a full six-step session, the journal, insights,
 settings, the safety stop, and sign-out.
 
 It is not part of `pnpm run check`, because it needs two servers. It **does**
-run in CI now, in the `e2e` job, which boots the API on sqlite, seeds the demo
-accounts, builds and starts the web app, and runs all five scripts. Run it by
-hand too after changing the session flow, the API client or anything in
-`apps/api/app/Domain` — it is faster than waiting for a push.
+run in CI now, in the `e2e` job, which boots the API against a MySQL service,
+seeds the demo accounts, builds and starts the web app, and runs all five
+scripts. Run it by hand too after changing the session flow, the API client or
+anything in `apps/api/app/Domain` — it is faster than waiting for a push.
+
+**CI's API is not configured the way yours is**, and deliberately. There it runs
+`--no-reload` with `PHP_CLI_SERVER_WORKERS`, because `php artisan serve` is
+PHP's built-in server: one connection at a time, and a browser holds several
+open on keep-alive, so the API went unresponsive mid-run and every script inside
+that window failed with `Failed to fetch`. Several worker processes against one
+database then rules sqlite out — two deferred transactions cannot both take the
+write lock and `transaction_mode => 'IMMEDIATE'` needs PHP 8.4 — so CI uses
+MySQL, which is what ships anyway. A side benefit: `lockForUpdate()` is a no-op
+on sqlite, so the lock guarding a session that has already stopped for safety is
+now exercised by the one check that drives a real browser.
+
+Locally the single-worker server below is right, and sqlite is fine: nothing is
+competing for the file.
 
 ```bash
 # 0. the accounts these scripts need. `role` is not fillable and pairing has no

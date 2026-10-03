@@ -137,6 +137,10 @@ protects — it holds a model from before an end, which is exactly what a second
 request would be holding, and insists that acting on it is refused. Removing
 either the lock or the guard turns it red; both were checked.
 
+The `e2e` job runs against a MySQL service for this reason among others, so the
+lock itself is exercised somewhere by a real browser against a real server; see
+`e2e/README.md`.
+
 ## One session at a time, and it survives the tab closing
 
 `GET /sessions/current` is the first thing a client asks. Closing a tab used to
@@ -428,7 +432,7 @@ pnpm run build   # every workspace project, packages first
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
 
-`e2e/` holds four by-hand checks against a running API — see `e2e/README.md`.
+`e2e/` holds five by-hand checks against a running API — see `e2e/README.md`.
 `flow.mjs` is a by-hand check of the web app against a running API —
 register, consent, a full session, journal, insights, settings, the safety stop
 and sign-out. It needs two servers, so it is not in `check` and not in CI; see

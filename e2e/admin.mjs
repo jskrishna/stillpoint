@@ -199,9 +199,25 @@ if (!signedIn) {
 
   if (/\d+ accounts? ·/.test(accounts)) ok('the accounts screen loads');
   else bad('the accounts screen loads', accounts.slice(0, 300));
-  if (/ask another admin to change yours/.test(accounts))
+
+  // Searched for, not assumed to be on screen. This used to read the whole
+  // page, which worked until the database had more accounts than one page
+  // holds — every run of this script adds one — and the admin's own row, which
+  // sorts by name, fell off the first page. The assertion then failed for a
+  // reason that had nothing to do with the rule it is about.
+  await admin.getByLabel('Search accounts').fill(ACCOUNTS.admin);
+  await admin.waitForTimeout(1500);
+  const ownRow = admin.locator('tbody tr', { hasText: ACCOUNTS.admin }).first();
+  if (
+    (await ownRow.count()) === 1 &&
+    /ask another admin to change yours/.test(await ownRow.innerText())
+  )
     ok('an admin is not offered a change to their own role');
-  else bad('an admin is not offered a change to their own role', accounts.slice(0, 400));
+  else
+    bad(
+      'an admin is not offered a change to their own role',
+      (await admin.locator('body').innerText()).slice(0, 400),
+    );
 
   // Make a fresh account, find it, and make it a coach.
   const promoted = `promote+${String(Date.now())}@example.com`;

@@ -38,8 +38,36 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
+
+            /*
+             * Write-ahead logging and a wait, so an ordinary artisan command
+             * does not collide with the development server.
+             *
+             * sqlite here is for running the app by hand and for the test
+             * suite; MySQL is what ships, and the `api` job is what proves the
+             * schema against it. On the default journal, `php artisan tinker`
+             * or a re-seed while `php artisan serve` is up is a
+             * `database is locked` for whichever asked second. WAL lets a
+             * reader and a writer coexist and the busy timeout makes a second
+             * writer wait its turn. Both are no-ops for the suite's
+             * `:memory:` database, which belongs to one process anyway.
+             *
+             * What this does **not** buy is a server with more than one worker.
+             * Two deferred transactions that each read and then write cannot
+             * both upgrade to the write lock, and sqlite answers SQLITE_BUSY
+             * at once rather than waiting — the busy handler is never reached.
+             * `transaction_mode => 'IMMEDIATE'` is the fix for that and Laravel
+             * only applies it on PHP 8.4; this is 8.3. It is why the end-to-end
+             * job, whose server runs with `PHP_CLI_SERVER_WORKERS`, runs
+             * against MySQL instead.
+             *
+             * `synchronous` is deliberately left at sqlite's default. Pairing
+             * WAL with `NORMAL` is the usual advice and it is faster, and it
+             * also means a power cut can lose the last commits — not a trade to
+             * make by default in a file holding somebody's journal.
+             */
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
+            'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
             'synchronous' => null,
             'transaction_mode' => 'DEFERRED',
         ],
