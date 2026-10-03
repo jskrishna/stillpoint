@@ -94,6 +94,15 @@ const STEP_CASES = [
   ['inquire', '“I’m not good enough.”'],
   ['inquire', 'I’m worthless'],
   ['forgive', 'I let that belief go'],
+
+  // Hindi, where the two languages could most easily disagree without anyone
+  // noticing: a title is cut to 60, and JavaScript counts UTF-16 units while
+  // PHP's `mb_substr` counts code points. They agree for Devanagari, which is
+  // entirely in the BMP — but that is a fact about the script rather than a
+  // guarantee either implementation makes, so it is pinned here.
+  ['notice', 'मेरे मैनेजर ने पूरी टीम के सामने मेरे काम को खारिज कर दिया और मुझे बहुत बुरा लगा'],
+  ['notice', 'मुझे गुस्सा आ रहा है'],
+  ['inquire', 'मैं काफी नहीं हूँ।'],
 ];
 
 /**

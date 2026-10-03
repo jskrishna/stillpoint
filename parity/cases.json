@@ -330,6 +330,33 @@
       "utterance": "I let that belief go",
       "substantive": true,
       "capture": null
+    },
+    {
+      "stepId": "notice",
+      "utterance": "मेरे मैनेजर ने पूरी टीम के सामने मेरे काम को खारिज कर दिया और मुझे बहुत बुरा लगा",
+      "substantive": true,
+      "capture": {
+        "whatHappened": "मेरे मैनेजर ने पूरी टीम के सामने मेरे काम को खारिज कर दिया और मुझे बहुत बुरा लगा",
+        "title": "मेरे मैनेजर ने पूरी टीम के सामने मेरे काम को खारिज कर दिया औ"
+      }
+    },
+    {
+      "stepId": "notice",
+      "utterance": "मुझे गुस्सा आ रहा है",
+      "substantive": true,
+      "capture": {
+        "whatHappened": "मुझे गुस्सा आ रहा है",
+        "title": "मुझे गुस्सा आ रहा है"
+      }
+    },
+    {
+      "stepId": "inquire",
+      "utterance": "मैं काफी नहीं हूँ।",
+      "substantive": true,
+      "capture": {
+        "belief": "मैं काफी नहीं हूँ।",
+        "forgiveness": "Forgive me for believing that मैं काफी नहीं हूँ।."
+      }
     }
   ],
   "plans": [
