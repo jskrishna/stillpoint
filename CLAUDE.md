@@ -559,10 +559,30 @@ make a query easier.
 
 A user can erase their own account, and it has to actually take everything:
 `AccountDeletionService`. Most of the removal is the schema's — sessions,
-journal, flags, pairings and invitations all cascade from `users` — and what is
-in the service is the rest, which cascades get wrong: Sanctum tokens, which have
-no foreign key so nothing would remove them, and the role-change trail, which
-must outlive the account but must not keep its address. It is guarded by the
+journal, flags and pairings cascade from `users` — and what is in the service is
+everything a foreign key does not reach, which is the pattern to check for
+whenever a table is added:
+
+- **Sanctum tokens**, which have no foreign key, so nothing would remove them.
+- **The role-change trail**, which must outlive the account but must not keep
+  its address.
+- **Invitations sent _to_ the address.** `coach_invites.email` is a string and
+  not a key, deliberately — a coach can invite an address with no account — so
+  only the ones a coach _sent_ cascade. This used to be written down as
+  "invitations cascade", and the row carrying the erased person's email stayed,
+  on their coach's screen. Compared lowercased, because `CoachInvite::open()`
+  stores it that way and sqlite's `=` is case-sensitive where MySQL's collation
+  is not.
+- **A pending password reset**, whose table is keyed by the address and has no
+  foreign key either — a live reset token for an account that no longer exists.
+  Removed through the broker, so the row is found by whatever key the broker
+  writes.
+- **Web session rows**, which carry `user_id`, an IP and a user-agent, and whose
+  `user_id` is a plain indexed column with no `constrained()`. Nothing writes
+  one today, because auth is bearer tokens; the sweep is there for the day
+  cookie mode lands, which is the documented right answer for the web client.
+
+Two tests cover the three, and both were checked by taking the fix out. It is guarded by the
 account's own password and a typed confirmation, because it is not reversible
 and should not be something a stray tap on an unlocked phone can do.
 

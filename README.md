@@ -181,7 +181,11 @@ from anyone's password. Rotating it is a migration, and
 [`deploy/README.md`](deploy/README.md) has the two-step procedure and why the
 order of the steps is the safety of it.
 
-A user can erase their own account, and it takes everything.
+A user can erase their own account, and it takes everything — including the
+things no foreign key reaches, which are the ones that get missed: a pending
+password reset, a coach's invitation addressed to them, and their row in the
+web session table. `AccountDeletionService` lists all of them and why each one
+needs saying.
 
 ## Who reads what
 

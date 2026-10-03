@@ -15,6 +15,9 @@ use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -30,6 +33,90 @@ final class AccountDeletionApiTest extends TestCase
     use RefreshDatabase;
 
     private const PASSWORD = 'correct-horse-battery-staple';
+
+    /**
+     * The address itself, in the three tables that hold it without a key.
+     *
+     * Everything that cascades is covered elsewhere in this file. These three
+     * are the ones a foreign key does not reach, so nothing about the schema
+     * makes them true — only the service does, and only while somebody
+     * remembers. An erasure that leaves the person's email address in the
+     * database has not erased them.
+     */
+    public function test_erasing_takes_the_address_out_of_the_tables_that_have_no_key_to_it(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'Aarav@Example.com',
+            'password' => Hash::make(self::PASSWORD),
+        ]);
+        $coach = User::factory()->coach()->create();
+
+        // An invitation sent *to* them, which is keyed by the address because
+        // the invitee may not have had an account when it was sent. Only the
+        // ones a coach sends cascade.
+        $invite = CoachInvite::open($coach, 'aarav@example.com');
+
+        // A pending reset, which lives in a table whose primary key is the
+        // address.
+        Password::broker()->sendResetLink(['email' => $user->email]);
+        $this->assertDatabaseCount('password_reset_tokens', 1);
+
+        // A web session row. Nothing writes one today — auth is bearer tokens
+        // — so this stands in for the day cookie mode lands, when `user_id` is
+        // a plain indexed column with no cascade behind it.
+        DB::table('sessions')->insert([
+            'id' => 'a-web-session',
+            'user_id' => $user->id,
+            'ip_address' => '203.0.113.7',
+            'user_agent' => 'a browser',
+            'payload' => 'x',
+            'last_activity' => time(),
+        ]);
+
+        Sanctum::actingAs($user);
+        $this->deleteJson('/api/me', [
+            'password' => self::PASSWORD,
+            'confirm' => AuthController::DELETE_CONFIRMATION,
+        ])->assertOk()->assertJsonPath('removed.invites', 1);
+
+        $this->assertDatabaseMissing('coach_invites', ['id' => $invite->id]);
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+        $this->assertDatabaseMissing('sessions', ['id' => 'a-web-session']);
+
+        // And not by coincidence: the address is nowhere in any of them. The
+        // stored invite was lowercased and the account's was not, which is the
+        // mismatch a case-sensitive comparison would have passed over.
+        foreach (['coach_invites' => 'email', 'password_reset_tokens' => 'email'] as $table => $column) {
+            $this->assertSame(
+                0,
+                DB::table($table)->whereRaw("LOWER({$column}) = ?", ['aarav@example.com'])->count(),
+                "{$table} still holds the erased address",
+            );
+        }
+    }
+
+    public function test_an_invitation_to_somebody_else_is_left_alone(): void
+    {
+        // The sweep is by address, so it has to be the right address. A coach
+        // losing every pending invitation because one invitee left would be a
+        // worse bug than the one being fixed.
+        $user = User::factory()->create([
+            'email' => 'aarav@example.com',
+            'password' => Hash::make(self::PASSWORD),
+        ]);
+        $coach = User::factory()->coach()->create();
+        $theirs = CoachInvite::open($coach, 'aarav@example.com');
+        $someone = CoachInvite::open($coach, 'diya@example.com');
+
+        Sanctum::actingAs($user);
+        $this->deleteJson('/api/me', [
+            'password' => self::PASSWORD,
+            'confirm' => AuthController::DELETE_CONFIRMATION,
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('coach_invites', ['id' => $theirs->id]);
+        $this->assertDatabaseHas('coach_invites', ['id' => $someone->id]);
+    }
 
     public function test_erasing_needs_a_token(): void
     {

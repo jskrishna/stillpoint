@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\CoachInvite;
 use App\Models\RoleChange;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 
 /**
  * Erasing an account.
@@ -16,13 +19,24 @@ use Illuminate\Support\Facades\DB;
  * able to take it back has to be reachable by them, not a support request —
  * and it has to actually take everything, not hide it.
  *
- * Most of the removal is the schema's: sessions, journal entries, safety flags,
- * coaching pairings and invitations all cascade from `users`. What is here is
- * the rest, which cascades would get wrong:
+ * Most of the removal is the schema's: sessions, journal entries, safety flags
+ * and coaching pairings cascade from `users`. What is here is the rest, and
+ * every item on it is something a foreign key does not cover — which is the
+ * pattern to look for when a table is added:
  *
  *  - **tokens**, which have no foreign key, so nothing would remove them;
  *  - **the role-change trail**, which must survive the account but must not
- *    keep its address.
+ *    keep its address;
+ *  - **invitations sent _to_ this address**, which are keyed by the address
+ *    rather than by a user — the invitee may have had no account when the
+ *    coach sent it. Only the ones a coach _sent_ cascade. This file used to
+ *    claim invitations cascaded, and the row with the erased person's email on
+ *    it stayed, on their coach's screen;
+ *  - **a pending password reset**, whose table is keyed by the address and has
+ *    no foreign key either — a live reset token for an account that no longer
+ *    exists;
+ *  - **web session rows**, which carry `user_id`, an IP and a user-agent, and
+ *    whose `user_id` is a plain indexed column with no `constrained()`.
  *
  * It returns what it removed, so the caller can tell the user rather than
  * asserting that something happened.
@@ -59,6 +73,30 @@ final readonly class AccountDeletionService
             // for a deleted account is the worst kind of leftover.
             $removed['tokens'] = $user->tokens()->count();
             $user->tokens()->delete();
+
+            // Invitations addressed to them. `coach_invites.email` is a string
+            // and not a key, deliberately — a coach can invite an address that
+            // has no account — so nothing here cascades. Compared lowercased
+            // because `CoachInvite::open()` stores it that way and sqlite's `=`
+            // is case-sensitive where MySQL's collation is not.
+            $address = Str::lower(trim((string) $user->email));
+            $invites = CoachInvite::query()
+                ->whereRaw('LOWER(email) = ?', [$address])
+                ->orWhere('accepted_by', $user->id);
+            $removed['invites'] = $invites->count();
+            $invites->delete();
+
+            // A pending reset, through the broker rather than by hand, so the
+            // row is found by whatever key the broker writes.
+            Password::broker()->deleteToken($user);
+
+            // Nothing signs in through the web guard today — auth is bearer
+            // tokens — so this is empty, and it is here for when it is not.
+            // Sanctum's cookie mode is the documented right answer for the web
+            // client, and the day it lands these rows carry a user id, an IP
+            // and a user-agent. `user_id` is an indexed column with no
+            // `constrained()`, so no cascade would take them.
+            $removed['webSessions'] = DB::table('sessions')->where('user_id', $user->id)->delete();
 
             $user->delete();
 
