@@ -54,16 +54,33 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 /**
  * Every CSP violation the browser reports, from any screen this script visits.
  *
- * A policy nobody checks is a policy that silently stops a stylesheet loading.
- * Chromium logs each refusal to the console, so this is where a too-strict
- * header shows up.
+ * Through the `securitypolicyviolation` DOM event rather than by reading
+ * console messages, and that is not a stylistic choice: the console wording is
+ * the browser's own and it differs between builds. This check first read
+ * "Refused to load the script …", passed locally, and failed in CI, where the
+ * same Chromium family says "Loading the script … violates …" instead. The
+ * event is specified, and it carries the blocked URI and the directive as
+ * fields rather than as prose to be matched.
+ *
+ * `exposeFunction` plus `addInitScript` so the listener survives every
+ * navigation — a `window` array would be cleared by the next page load, and
+ * the screens this visits are the point.
  */
 const violations = [];
-page.on('console', (message) => {
-  const text = message.text();
-  if (/Content Security Policy|Refused to (load|execute|connect|apply)/i.test(text)) {
-    violations.push(text);
-  }
+await page.exposeFunction('stillpointCspViolation', (v) => {
+  violations.push(v);
+});
+await page.addInitScript(() => {
+  document.addEventListener('securitypolicyviolation', (event) => {
+    // Both names. Browsers disagree about which of the two a `<script src>`
+    // is reported under when only `script-src` is set — CI's said `script-src`
+    // was "used as a fallback" for `script-src-elem` — so neither is relied on.
+    void window.stillpointCspViolation({
+      blockedURI: event.blockedURI,
+      directive: event.effectiveDirective,
+      violated: event.violatedDirective,
+    });
+  });
 });
 
 const elsewhere = new Map();
@@ -169,7 +186,8 @@ if (/microphone=\(\)/.test(headers['permissions-policy'] ?? '')) {
 if (violations.length === 0) {
   ok('no screen tripped the policy');
 } else {
-  for (const v of violations.slice(0, 5)) bad('a screen tripped the policy', v);
+  for (const v of violations.slice(0, 5))
+    bad('a screen tripped the policy', `${v.directive ?? v.violated} blocked ${v.blockedURI}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -199,18 +217,32 @@ const exfiltrated = await page.evaluate(async () => {
   }
 });
 await page.waitForTimeout(1200);
-const refusals = violations.slice(before).join(' | ');
 
-if (!exfiltrated && /Refused to connect/i.test(refusals)) {
+const refused = violations.slice(before);
+const blocked = (...names) =>
+  refused.some(
+    (v) =>
+      v.blockedURI.startsWith('https://example.com') &&
+      (names.includes(v.directive) || names.includes(v.violated)),
+  );
+const seen = refused.map((v) => `${v.directive ?? v.violated}:${v.blockedURI}`).join(' | ');
+
+if (!exfiltrated && blocked('connect-src')) {
   ok('the token cannot be sent to another origin');
 } else {
-  bad('the token cannot be sent to another origin', refusals || 'the fetch succeeded');
+  bad(
+    'the token cannot be sent to another origin',
+    exfiltrated ? 'the fetch succeeded' : seen || 'no connect-src violation reported',
+  );
 }
 
-if (/Refused to load the script/i.test(refusals)) {
+// `script-src-elem` is what a `<script src>` actually falls under; the policy
+// sets only `script-src`, which browsers use as its fallback, and they differ
+// on which name they then report. Either is the same refusal.
+if (blocked('script-src-elem', 'script-src')) {
   ok('a script from another origin does not load');
 } else {
-  bad('a script from another origin does not load', refusals);
+  bad('a script from another origin does not load', seen || 'no violation reported');
 }
 
 const faces = await page.evaluate(() =>
