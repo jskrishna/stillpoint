@@ -9,6 +9,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Routes
+    |--------------------------------------------------------------------------
+    |
+    | False, so Sanctum registers no `sanctum/csrf-cookie` route.
+    |
+    | That route exists for cookie mode, which this API does not use: every
+    | surface authenticates with a bearer token. What it does use is the `web`
+    | middleware group, which starts a session — and with
+    | `SESSION_DRIVER=database` a session is a row holding the caller's IP
+    | address and user-agent. So anybody could call it, repeatedly, and have
+    | the product store those, for an endpoint nothing here calls.
+    |
+    | It was the last web route after the skeleton's `GET /` went; see
+    | `routes/web.php`. Cookie mode is still the right answer for the browser
+    | client and `apps/web/src/lib/api.ts` says so — **turn this back on in the
+    | same change that adopts it**, because without this route the browser
+    | cannot get a CSRF cookie and the whole flow fails at the first request.
+    |
+    */
+
+    'routes' => false,
+
+    /*
+    |--------------------------------------------------------------------------
     | Stateful Domains
     |--------------------------------------------------------------------------
     |

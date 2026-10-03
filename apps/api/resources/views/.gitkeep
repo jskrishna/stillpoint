@@ -1,0 +1,4 @@
+This API renders no views, and `routes/web.php` says why it has no web routes
+at all. The directory itself stays because `php artisan view:cache` — which
+`php artisan optimize` runs — fails outright when the configured view path does
+not exist, and `optimize` is an ordinary thing to put in a deploy script.

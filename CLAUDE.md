@@ -814,6 +814,18 @@ Laravel skips its wrapper when the payload has its own `data` key, and
 back wrapped, and renaming that key would have silently reshaped every session
 response.
 
+**This API has no web routes, and so starts no sessions.** That is a privacy
+property, not tidiness: a web route runs the `web` middleware group, that group
+starts a session, and `SESSION_DRIVER=database` makes a session a row holding
+the caller's **IP address and user-agent**. The skeleton's `GET /` returned
+Laravel's `welcome` view, so every request to the API's root stored those — for
+a page it does not serve and a session nothing reads, `user_id` being always
+null with authentication by bearer token. Sanctum's `sanctum/csrf-cookie` was
+the same thing and is off (`'routes' => false`); **turn it back on in the same
+change that adopts cookie mode**, which cannot work without it.
+`tests/Feature/NoWebSessionsTest.php` asserts there are no `web`-group routes at
+all, because adding one is easy and the session it starts is invisible.
+
 An unauthenticated request answers **401**, with or without an `Accept` header.
 Laravel's default sends a guest to `route('login')`, which this API does not
 have, and the auth middleware resolves that before the exception handler decides
