@@ -12,10 +12,10 @@ import {
   helplinesFor,
   relativeDay,
 } from '@stillpoint/protocol';
-import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../api';
 import { describe } from '../../describe';
+import { exportFile } from '../../exports';
 import { NO_EAR_REASON } from '../../voice';
 import { Button, Card, Field, Tag, Waiting } from '../../ui';
 import { useTheme } from '../../use-theme';
@@ -87,15 +87,21 @@ export default function Settings() {
    * and to no service of ours — the whole journal is fetched here and nowhere
    * else, because this is the one place that genuinely needs all of it.
    *
-   * The file is left in the cache afterwards rather than deleted: the share
-   * sheet may still be reading it when this returns, and the cache is a
-   * directory the system empties by itself.
+   * The file is not deleted here: the share sheet may still be reading it when
+   * this returns. It is deleted at the next launch instead — see
+   * `src/exports.ts`, which has why "the system empties the cache eventually"
+   * was not good enough for a plaintext copy of somebody's whole journal.
    */
   const exportData = async () => {
     setExporting(true);
     try {
       const journal = await api.wholeJournal();
-      const file = new File(Paths.cache, 'stillpoint-data.json');
+      const file = exportFile();
+      if (file === null) {
+        setProblem('Saving a copy needs a filesystem this build does not have.');
+
+        return;
+      }
       file.create({ overwrite: true });
       file.write(JSON.stringify({ account: profile, journal }, null, 2));
 

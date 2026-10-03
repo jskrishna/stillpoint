@@ -62,7 +62,22 @@ src/ui.tsx            Button, Field, Card, Tag — the controls the screens use
 src/voice.ts          the guide's voice, behind the same seam as the web's
 src/mark.tsx          the Stillpoint mark
 src/describe.ts       an API refusal in words, word for word the web app's
+src/exports.ts        the journal export's cache file, and discarding it
 ```
+
+## The journal export leaves a file behind, briefly
+
+Settings writes the whole journal — every entry, plaintext — to the app's cache
+and hands it to the system share sheet, which is what a phone has instead of a
+download. It cannot delete the file straight afterwards: the share sheet may
+still be reading it when `shareAsync` returns.
+
+So it is deleted at the **next launch** (`src/exports.ts`), which bounds the
+exposure to one app session rather than to an unspecified decision by the
+operating system about when to empty a cache. That is not encryption and not a
+guarantee — a device backup taken between the share and the next launch has it
+— but "until you next open the app" is a sentence that can be said, and
+"eventually" was not.
 
 ## Things that will bite
 

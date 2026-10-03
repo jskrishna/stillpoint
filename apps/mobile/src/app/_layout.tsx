@@ -10,6 +10,7 @@ import { HankenGrotesk_500Medium } from '@expo-google-fonts/hanken-grotesk/500Me
 import { HankenGrotesk_600SemiBold } from '@expo-google-fonts/hanken-grotesk/600SemiBold';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { restoreToken } from '../api';
+import { discardPreviousExport } from '../exports';
 import { FAMILY } from '../theme';
 import { useTheme } from '../use-theme';
 
@@ -35,6 +36,12 @@ export default function RootLayout() {
     void restoreToken().then(() => {
       setTokenRestored(true);
     });
+
+    // A journal export cannot be deleted when it is shared — the share sheet
+    // may still be reading it — so the previous one goes now, when any share
+    // has certainly finished. See `src/exports.ts` for what that does and does
+    // not buy.
+    discardPreviousExport();
   }, []);
 
   // A font that will not load is not a reason to refuse to start: the stacks
