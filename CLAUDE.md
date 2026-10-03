@@ -229,6 +229,21 @@ Keep it behind an interface so the choice stays reversible. PHP is a poor fit
 for long-lived audio streaming, so expect a separate small gateway for the voice
 loop with Laravel owning everything around it.
 
-**Safety screening must end up server-side.** It currently also runs in the
-browser, which can be bypassed; `RiskScreen` is an interface in both languages
-so the real classifier binds behind it.
+## Safety screening is server-side now
+
+`POST /api/sessions/{id}/turns` is the **only** way to advance a session, and it
+screens before the guide is consulted. A client cannot skip it by not calling
+it, because there is no other path. `RiskScreen` is bound in
+`DomainServiceProvider`, which is where a real classifier replaces the phrase
+screen.
+
+The browser copy in `packages/protocol` is now a convenience for instant
+feedback, never the enforcement. Do not let it become the only check again.
+
+**The client is told as little as possible.** `SessionResource` never returns
+the risk level, the category or the matched phrase: a user mid-crisis has no use
+for "you tripped the self-harm rule", and a client that knows the rule can be
+built to dodge it. There is a test asserting the response contains neither.
+
+API resources are **not** wrapped in a `data` envelope in this Laravel version —
+assert on `step.ordinal`, not `data.step.ordinal`.
