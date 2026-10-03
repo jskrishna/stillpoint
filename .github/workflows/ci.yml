@@ -22,6 +22,24 @@ jobs:
       run:
         working-directory: apps/api
 
+    # The suite runs on sqlite for speed, but the schema is MySQL's to satisfy:
+    # column types, index lengths and foreign keys differ. This service is what
+    # actually verifies the migrations against the database we ship on — no
+    # MySQL server is available in the development container.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: stillpoint_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,6 +66,26 @@ jobs:
 
       - name: Test
         run: ./vendor/bin/phpunit
+
+      - name: Migrate against MySQL
+        run: php artisan migrate --force
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: stillpoint_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Roll the migrations back, so down() is exercised too
+        run: php artisan migrate:rollback --force --step=10
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: stillpoint_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
 
   check:
     name: Web — lint, typecheck, test, build

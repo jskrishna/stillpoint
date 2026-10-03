@@ -144,6 +144,12 @@ pnpm run build   # every workspace project, packages first
 CI runs both as separate jobs. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest
 5 needs 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
 
+**There is no MySQL server in the development container**, and apt cannot
+install one. The suite runs on in-memory sqlite, so locally the schema is only
+verified against sqlite's grammar. CI closes that gap with a MySQL 8.4 service
+that runs the migrations up and back down. If you change a migration, assume
+sqlite passing proves nothing about MySQL until CI says so.
+
 `check` builds the packages first on purpose: `apps/web` resolves
 `@stillpoint/*` through `node_modules` to their built output, exactly as an
 outside consumer would, so lint and typecheck need that output to exist. CI runs
@@ -153,6 +159,22 @@ the same steps in the same order.
 `packages/*/dist` and `apps/web/.next`, reinstall with `--frozen-lockfile`, then
 run the gates in CI's order. A leftover `dist/` has twice made a broken commit
 look green locally.
+
+## Personal content is encrypted at rest
+
+The session data, the journal's title, what happened, belief, forgiveness,
+memory and note, and a safety flag's excerpt all use Laravel's `encrypted`
+casts. This is the most personal text the product holds, and a flag's excerpt
+is the single most sensitive column in the schema.
+
+Encrypted columns cannot be queried or indexed, which is deliberate and has a
+cost: aggregates over beliefs (the "belief that comes back") are computed in PHP
+over a user's own window, not with `GROUP BY`. Do not drop the encryption to
+make a query easier.
+
+The journal table is also the rule, not just a store: **a session that ended for
+safety never gets a row.** `JournalEntry::fromSession()` returns null for it,
+and the absence of the row is how that is kept.
 
 ## Conventions
 

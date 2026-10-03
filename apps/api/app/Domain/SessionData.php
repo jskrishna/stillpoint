@@ -38,6 +38,13 @@ final readonly class SessionData
             }
         }
 
+        // A capture can arrive from the guide, which passes enums, or from
+        // storage, which passes the stored string. Coerce rather than trust.
+        $rating = $capture['calmerRating'] ?? $this->calmerRating;
+        if (is_string($rating)) {
+            $rating = CalmerRating::tryFrom($rating);
+        }
+
         return new self(
             whatHappened: $capture['whatHappened'] ?? $this->whatHappened,
             feelings: $feelings,
@@ -45,7 +52,7 @@ final readonly class SessionData
             belief: $capture['belief'] ?? $this->belief,
             forgiveness: $capture['forgiveness'] ?? $this->forgiveness,
             title: $capture['title'] ?? $this->title,
-            calmerRating: $capture['calmerRating'] ?? $this->calmerRating,
+            calmerRating: $rating,
         );
     }
 
