@@ -107,6 +107,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          # CI builds the desktop app's main process and bundles the web app
+          # into it; it never launches Electron, and there is no display to
+          # launch it on. Downloading the 280 MB platform binary on every run
+          # would be the slowest step here and buy nothing.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       # The web app consumes the workspace packages through node_modules, so
       # their built output must exist before lint and typecheck run.
