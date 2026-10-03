@@ -10,6 +10,7 @@ use App\Domain\EndReason;
 use App\Domain\SafetyCategory;
 use App\Domain\SafetyLevel;
 use App\Domain\SessionKind;
+use App\Domain\StepId;
 use App\Models\GuidedSession;
 use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
@@ -180,6 +181,59 @@ final class CoachApiTest extends TestCase
 
         // And not a word of it.
         $this->assertStringNotContainsString('the words a reviewer reads', $response->content());
+    }
+
+    /**
+     * The coach's request never asks for the session's text.
+     *
+     * The response not containing it is already asserted above, which is the
+     * rule. This is the stronger property underneath: `guided_sessions.data` is
+     * the most personal column the product has, and a coach's request does not
+     * select it at all — it reads two timestamps, because "it happened, and
+     * when" is the whole of what a coach is told.
+     *
+     * Asserted on the SQL because there is nothing in the response to see it
+     * by, which is exactly why it would otherwise widen again quietly: adding
+     * a field to `CoachAttention` and reaching for `$session->data` would break
+     * no other test in this file.
+     */
+    public function test_a_coachs_request_does_not_even_select_the_session_text(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $client = User::factory()->create();
+        $this->pair($coach, $client);
+        GuidedSession::create([
+            'user_id' => $client->id,
+            'kind' => SessionKind::Full,
+            'step_id' => StepId::Notice,
+            'end_reason' => EndReason::SafetyStop,
+            'safety_level' => SafetyLevel::High,
+            'protocol_version' => '1.0',
+            'data' => ['whatHappened' => 'what they said before it stopped'],
+            'started_at' => now()->subHour(),
+            'ended_at' => now()->subHour(),
+        ]);
+
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = $query->sql;
+        });
+
+        Sanctum::actingAs($coach);
+        $this->getJson("/api/coach/clients/{$client->id}")->assertOk();
+
+        $sessionReads = array_values(array_filter(
+            $queries,
+            static fn (string $sql) => str_contains($sql, 'from "guided_sessions"')
+                || str_contains($sql, 'from `guided_sessions`'),
+        ));
+
+        $this->assertNotEmpty($sessionReads, 'the coach screen should read guided_sessions at all');
+        foreach ($sessionReads as $sql) {
+            $this->assertStringNotContainsString('"data"', $sql, "selected data: {$sql}");
+            $this->assertStringNotContainsString('`data`', $sql, "selected data: {$sql}");
+            $this->assertStringNotContainsString('select *', $sql, "selected everything: {$sql}");
+        }
     }
 
     public function test_a_coach_cannot_reach_the_safety_queue(): void

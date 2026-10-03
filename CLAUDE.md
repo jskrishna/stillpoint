@@ -717,6 +717,14 @@ that it happened, and when. Never what was said: a safety-stopped session is
 never journalled, so it cannot be shared, and the words are the safety queue's.
 A coach is not a reviewer.
 
+That read **selects two timestamp columns**, not the row. `guided_sessions.data`
+is the most personal column in the schema, and a coach's request does not ask
+for it at all rather than asking and not using it. The encrypted cast is lazy,
+so nothing was being decrypted either way — this is the difference between a
+rule and a habit. It is asserted on the SQL, because there is nothing in the
+response to see it by: adding a field to `CoachAttention` and reaching for
+`$session->data` would otherwise break no test.
+
 Publishing a protocol version is gated by the **server**, not by the editor:
 `ProtocolVersion::publishProblems()` decides, the API refuses with 422 and that
 list, and the screen renders what it is told. A disabled Publish button is a

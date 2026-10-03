@@ -125,10 +125,22 @@ final readonly class CoachService
     {
         $out = [];
 
+        // Two timestamp columns and nothing else. What this answers is "it
+        // happened, and when", and `guided_sessions.data` is the most personal
+        // text the product holds — so a coach's request does not read it into
+        // memory at all, rather than reading it and not using it. The
+        // encrypted cast is lazy, so nothing would have been decrypted either
+        // way; this is the difference between a rule and a habit, and
+        // `AdminOverviewService` narrows its one read for the same reason.
+        //
+        // `id` after `started_at` because two sessions can share a second and
+        // a tie with no tiebreaker makes which five appear arbitrary.
         $stopped = GuidedSession::query()
+            ->select(['id', 'started_at', 'ended_at'])
             ->where('user_id', $client->id)
             ->where('end_reason', EndReason::SafetyStop)
             ->orderByDesc('started_at')
+            ->orderByDesc('id')
             ->limit(5)
             ->get();
 
