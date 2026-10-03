@@ -147,7 +147,13 @@ describe('listening', () => {
     // Not an omission. Every option today uploads the user's audio, and the
     // setup screen says their voice is never saved.
     expect(noEar.availability()).toEqual({ available: false, reason: NO_EAR_REASON });
-    expect(NO_EAR_REASON).toContain('type instead');
+    // What matters is that the reason offers the way through rather than only
+    // naming the fault — the assertion is on typing being mentioned, not on a
+    // particular phrasing of it.
+    expect(NO_EAR_REASON).toMatch(/\btype\b/i);
+    // And that it is one self-contained sentence: both surfaces show it as it
+    // is, and `apps/mobile/src/voice.ts` must hold the same string.
+    expect(NO_EAR_REASON.trim()).toMatch(/\.$/);
   });
 
   it('hands back a no-op stopper rather than throwing', () => {

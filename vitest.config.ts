@@ -9,6 +9,7 @@ const alias = {
   '@stillpoint/design-tokens': fileURLToPath(
     new URL('./packages/design-tokens/src/index.ts', import.meta.url),
   ),
+  '@stillpoint/client': fileURLToPath(new URL('./packages/client/src/index.ts', import.meta.url)),
 };
 
 export default defineConfig({

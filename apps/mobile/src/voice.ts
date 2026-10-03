@@ -81,9 +81,19 @@ export function systemGuideVoice(): GuideVoice {
   };
 }
 
-/** Why the guide cannot listen yet. Shown to the user, so it is plain. */
+/**
+ * Why the guide cannot listen, in words for the person reading them.
+ *
+ * Word for word the web app's (`apps/web/src/lib/voice/user-ear.ts`). It is
+ * one sentence about one unbuilt feature, and two surfaces describing it
+ * differently is how someone ends up believing it works on their laptop.
+ *
+ * It stands alone wherever it is shown — no screen splices it into a longer
+ * sentence, because the em-dash in it reads as a stammer when something else
+ * is wrapped around it.
+ */
 export const NO_EAR_REASON =
-  'Talking back is not ready yet — type what you want to say and the guide will follow.';
+  'Speaking is not ready yet — type what you want to say and the guide will follow.';
 
 export const noEar: UserEar = {
   availability: { available: false, reason: NO_EAR_REASON },

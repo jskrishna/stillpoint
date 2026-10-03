@@ -15,7 +15,7 @@ import {
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../api';
 import { describe } from '../../describe';
 import { NO_EAR_REASON } from '../../voice';
-import { Button, Card, Tag, Waiting } from '../../ui';
+import { Button, Card, Field, Tag, Waiting } from '../../ui';
 import { useTheme } from '../../use-theme';
 
 /**
@@ -34,6 +34,15 @@ export default function Settings() {
   const [coaches, setCoaches] = useState<readonly ApiMyCoach[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [now] = useState(() => new Date());
+
+  // Erasing the account. Behind a disclosure rather than a row that acts on a
+  // tap: this is the one control on the phone that cannot be undone, and an
+  // unlocked phone in someone else's hand should not be one tap from it.
+  const [erasing, setErasing] = useState(false);
+  const [erasePassword, setErasePassword] = useState('');
+  const [eraseConfirm, setEraseConfirm] = useState('');
+  const [eraseProblem, setEraseProblem] = useState<string | null>(null);
+  const [erasingBusy, setErasingBusy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -64,6 +73,25 @@ export default function Settings() {
       setProblem(null);
     } catch (e: unknown) {
       setProblem(describe(e));
+    }
+  };
+
+  /**
+   * Erases the account.
+   *
+   * Not reversible, and it takes everything: sessions, journal, who could read
+   * it. The password and the typed confirmation are both the server's
+   * requirement, not this screen's — so a client cannot skip either.
+   */
+  const eraseAccount = async () => {
+    setErasingBusy(true);
+    setEraseProblem(null);
+    try {
+      await api.deleteAccount(erasePassword, eraseConfirm);
+      router.replace('/welcome');
+    } catch (e: unknown) {
+      setEraseProblem(describe(e));
+      setErasingBusy(false);
     }
   };
 
@@ -227,9 +255,64 @@ export default function Settings() {
         }}
       />
 
+      <Text style={s.label}>Delete my account</Text>
+      {erasing ? (
+        <Card style={{ gap: SPACE.lg }}>
+          <Text style={s.body}>
+            This removes your account and everything in it — every session, every journal entry, and
+            anyone’s ability to read them. It cannot be undone, and we cannot get it back for you.
+          </Text>
+
+          <Field
+            label="Your password"
+            value={erasePassword}
+            onChange={setErasePassword}
+            secure
+            autoComplete="password"
+          />
+          <Field
+            label={`Type ${api.DELETE_CONFIRMATION} to confirm`}
+            value={eraseConfirm}
+            onChange={setEraseConfirm}
+          />
+
+          {eraseProblem === null ? null : (
+            <Text style={s.error} accessibilityRole="alert">
+              {eraseProblem}
+            </Text>
+          )}
+
+          <Button
+            label="Keep my account"
+            onPress={() => {
+              setErasing(false);
+              setErasePassword('');
+              setEraseConfirm('');
+              setEraseProblem(null);
+            }}
+          />
+          <Button
+            label={erasingBusy ? 'Deleting…' : 'Delete everything'}
+            tone="danger"
+            busy={erasingBusy}
+            disabled={erasePassword === '' || eraseConfirm.trim() !== api.DELETE_CONFIRMATION}
+            onPress={() => {
+              void eraseAccount();
+            }}
+          />
+        </Card>
+      ) : (
+        <Button
+          label="Delete my account"
+          tone="quiet"
+          onPress={() => {
+            setErasing(true);
+          }}
+        />
+      )}
+
       <Text style={[s.micro, { color: c.muted }]}>
-        Deleting your account takes your journal with it and cannot be undone. It is on the web for
-        now, under Settings.
+        Stillpoint is not therapy or medical advice. You can stop a session at any time.
       </Text>
     </ScrollView>
   );

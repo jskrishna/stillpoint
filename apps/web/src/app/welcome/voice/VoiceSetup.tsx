@@ -74,7 +74,7 @@ export default function VoiceSetup() {
 
       <p className={styles.blocked} style={{ textAlign: 'left', marginTop: 16 }}>
         The guide can read its questions aloud. Hearing <em>you</em> is not built yet, so you type
-        your answers either way — {NO_EAR_REASON.toLowerCase().replace(/\.$/, '')}.
+        your answers either way. {NO_EAR_REASON}
       </p>
 
       <div className={styles.actions}>

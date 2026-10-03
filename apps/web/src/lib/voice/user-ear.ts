@@ -21,8 +21,19 @@ import type { UserEar } from './types';
 /**
  * Why no listener is bound. Shown to the user, so it says what they can do.
  */
+/**
+ * Why the guide cannot listen, in words for the person reading them.
+ *
+ * Word for word the mobile app's (`apps/mobile/src/voice.ts`). It is one
+ * sentence about one unbuilt feature, and two surfaces describing it
+ * differently is how someone ends up believing it works on their phone.
+ *
+ * It stands alone wherever it is shown — no screen splices it into a longer
+ * sentence, because the em-dash in it reads as a stammer when something else
+ * is wrapped around it.
+ */
 export const NO_EAR_REASON =
-  'Speaking is not available yet — the voice stack is still being chosen. You can type instead.';
+  'Speaking is not ready yet — type what you want to say and the guide will follow.';
 
 export const noEar: UserEar = {
   id: 'none',

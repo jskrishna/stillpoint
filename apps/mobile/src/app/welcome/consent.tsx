@@ -73,7 +73,7 @@ export default function Consent() {
     setError(null);
     try {
       await api.consent(accepted);
-      router.replace('/(tabs)');
+      router.replace('/welcome/voice');
     } catch {
       setError('Could not save that. Check your connection and try again.');
       setBusy(false);
