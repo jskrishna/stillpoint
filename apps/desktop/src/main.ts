@@ -211,6 +211,24 @@ function buildTray(): void {
   }
 }
 
+/**
+ * Startup went wrong in a way nothing anticipated.
+ *
+ * Logged as well as shown: the dialog is what a person sees, and stderr is
+ * what survives into a terminal, a log file or somebody's bug report. The
+ * known failures — a taken port, a shell with no bundle — say something
+ * specific further down; this is the catch-all behind them.
+ */
+function cannotStart(e: unknown): void {
+  console.error('[stillpoint] could not start:', e);
+  try {
+    dialog.showErrorBox('Stillpoint could not start', String(e));
+  } catch {
+    // No display to show it on. The line above is then the whole report.
+  }
+  app.quit();
+}
+
 async function boot(): Promise<void> {
   const root = join(import.meta.dirname, '..');
 
@@ -260,15 +278,41 @@ async function boot(): Promise<void> {
 
 // One window, and a second launch raises it rather than starting again — two
 // copies would mean two servers and two ports for one person's journal.
+//
+// The quiet failure here cost an hour to find, so it says something now. When
+// the lock is **stale** — left behind by an instance that crashed rather than
+// quit — there is no first copy to raise: `second-instance` never fires
+// because nothing is listening for it, and this process exits with a zero
+// status and no output. The app simply does not open, for as long as the file
+// is there, and the file is `SingletonLock` in the user-data directory, which
+// nobody would think to look for.
+//
+// Not recovered from automatically, because "assume the other instance is
+// dead and take the lock" is how two copies end up serving one person's
+// journal on two ports. A line in the log is the proportionate answer: it
+// turns an app that does nothing into an app that does nothing *and says
+// why*.
 if (!app.requestSingleInstanceLock()) {
+  console.error(
+    '[stillpoint] another copy holds the single-instance lock, so this one is ' +
+      'exiting. If no other copy is running, the lock is stale: remove ' +
+      "`SingletonLock` from this app's user-data directory " +
+      `(${app.getPath('userData')}).`,
+  );
   app.quit();
 } else {
   app.on('second-instance', show);
 
-  app.whenReady().then(
-    () => boot(),
-    () => undefined,
-  );
+  // `.catch`, and it matters more than it looks. This used to be
+  // `.then(() => boot(), () => undefined)`, where the second argument handles
+  // `whenReady()` rejecting and **not** `boot()` rejecting — so anything that
+  // went wrong starting up was an unhandled rejection: the app exited with a
+  // zero status, no dialog, and nothing in the log. The one thing worse than
+  // failing to start is failing to start silently.
+  app
+    .whenReady()
+    .then(() => boot())
+    .catch(cannotStart);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void boot();

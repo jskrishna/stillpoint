@@ -77,7 +77,9 @@ allocates. It is for this machine.
 
 `pnpm run build` and `pnpm run typecheck` run in CI. The app has been launched
 under Xvfb in the development container, which proves the server starts, the
-window opens and the app renders.
+window opens and the app renders — re-verified after the standalone build moved
+to its own `distDir`, which is exactly the sort of change that breaks this and
+nothing else.
 
 **The app surface has no desktop layout.** `apps/web`'s `/app` caps its content
 column at 430px and puts the navigation along the bottom — it is the phone
@@ -96,6 +98,16 @@ global shortcut and the window-position file have only ever run on Linux.
 
 ## Things that will bite
 
+- **A stale `SingletonLock` stops the app opening, and used to do it in
+  silence.** One window is deliberate — two copies would mean two servers and
+  two ports for one person's journal — but when the lock is left behind by an
+  instance that crashed rather than quit, there is no first copy to raise:
+  `second-instance` never fires, and the process exits with a zero status and
+  no output. It logs a line naming the file and the directory now. It is not
+  recovered from automatically, because "assume the other copy is dead and take
+  the lock" is how two copies end up serving one journal on two ports. The file
+  is `SingletonLock` in the user-data directory; an hour went into finding that
+  the first time.
 - **The standalone build needs its `static/` copied in.** Without it the
   window renders unstyled HTML and every chunk 404s. `scripts/bundle-web.mjs`
   does it; if you change how the web app is built, check this still holds.
