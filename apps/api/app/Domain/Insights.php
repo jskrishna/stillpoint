@@ -125,9 +125,63 @@ final readonly class Insights
      * Compares beliefs ignoring case, quotes, punctuation and spacing, so
      * "I'm not good enough." and "I'm not good enough" count as one.
      */
+    /**
+     * Contractions expanded before punctuation is stripped.
+     *
+     * Without this, "I'm not good enough" normalised to "im not good enough"
+     * and "I am not good enough" to "i am not good enough" — two different
+     * beliefs, so the belief that comes back did not come back. It is the most
+     * common way an English speaker says the thing this insight exists to find.
+     *
+     * Kept to contractions people use about themselves. Expanding them is safe
+     * in the direction that matters: merging two spellings of one belief, never
+     * two different beliefs.
+     *
+     * @var array<string, string>
+     */
+    private const CONTRACTIONS = [
+        "/\bi'm\b/u" => 'i am',
+        "/\bi've\b/u" => 'i have',
+        "/\bi'll\b/u" => 'i will',
+        "/\bi'd\b/u" => 'i would',
+        "/\bcan't\b/u" => 'cannot',
+        "/\bwon't\b/u" => 'will not',
+        "/\bdon't\b/u" => 'do not',
+        "/\bdoesn't\b/u" => 'does not',
+        "/\bdidn't\b/u" => 'did not',
+        "/\bisn't\b/u" => 'is not',
+        "/\baren't\b/u" => 'are not',
+        "/\bwasn't\b/u" => 'was not',
+        "/\bweren't\b/u" => 'were not',
+        "/\bcouldn't\b/u" => 'could not',
+        "/\bshouldn't\b/u" => 'should not',
+        "/\bwouldn't\b/u" => 'would not',
+        "/\bit's\b/u" => 'it is',
+        "/\bthat's\b/u" => 'that is',
+        "/\bthere's\b/u" => 'there is',
+        "/\bthey're\b/u" => 'they are',
+        "/\byou're\b/u" => 'you are',
+    ];
+
+    /**
+     * Compares beliefs ignoring case, surrounding quotes, punctuation, spacing
+     * and contractions.
+     *
+     * The port of `normalizeBelief` in `packages/protocol/src/insights.ts`; the
+     * parity fixture covers it.
+     */
     private static function normalise(string $belief): string
     {
+        // Apostrophes are straightened first, so a curly one hits the same
+        // rule, and the contractions expand before punctuation is stripped —
+        // afterwards "i'm" is already "im" and there is nothing to recognise.
         $text = mb_strtolower($belief);
+        $text = str_replace(['’', '‘', '`'], "'", $text);
+
+        foreach (self::CONTRACTIONS as $pattern => $expansion) {
+            $text = preg_replace($pattern, $expansion, $text) ?? $text;
+        }
+
         $text = preg_replace('/[“”"\'’‘.,!?]/u', '', $text) ?? '';
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 

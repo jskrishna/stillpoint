@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Domain\CoachView;
 use App\Domain\LiteralExtraction;
 use App\Domain\PhraseRiskScreen;
 use App\Domain\StepId;
@@ -45,6 +46,17 @@ final class ParityTest extends TestCase
         $out = [];
         foreach (self::cases()['extraction'] as $i => $case) {
             $out["extraction {$i}: {$case['stepId']} / {$case['utterance']}"] = [$case];
+        }
+
+        return $out;
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function coachCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['coach'] as $i => $case) {
+            $out["coach {$i}: {$case['name']}"] = [$case];
         }
 
         return $out;
@@ -97,7 +109,27 @@ final class ParityTest extends TestCase
         );
     }
 
-    /** @return array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>} */
+    /** @param array<string, mixed> $case */
+    #[DataProvider('coachCases')]
+    public function test_a_coachs_view_agrees(array $case): void
+    {
+        $entries = [];
+        foreach ($case['entries'] as $entry) {
+            $entries[] = [
+                'sharedWithCoach' => $entry['shared'],
+                'occurredAt' => new \DateTimeImmutable($entry['occurredAt']),
+                'belief' => $entry['belief'],
+            ];
+        }
+
+        $this->assertEquals([
+            'sharedCount' => $case['sharedCount'],
+            'lastSharedAtMs' => $case['lastSharedAtMs'],
+            'recurringBelief' => $case['recurringBelief'],
+        ], CoachView::summarise($entries), "Coach parity broke on: {$case['name']}");
+    }
+
+    /** @return array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, coach: list<array<string, mixed>>} */
     private static function cases(): array
     {
         $path = dirname(__DIR__, 4).'/parity/cases.json';
@@ -107,7 +139,7 @@ final class ParityTest extends TestCase
             throw new \RuntimeException("Parity fixture missing at {$path}. It is checked in; do not delete it.");
         }
 
-        /** @var array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>} $decoded */
+        /** @var array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, coach: list<array<string, mixed>>} $decoded */
         $decoded = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
 
         return $decoded;

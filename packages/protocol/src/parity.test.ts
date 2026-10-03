@@ -18,7 +18,9 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { summarise } from './coach.js';
 import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
+import type { JournalEntry } from './journal.js';
 import { baselineRiskScreen } from './risk.js';
 import type { StepId } from './steps.js';
 
@@ -36,9 +38,23 @@ interface ExtractionCase {
   readonly capture: Record<string, unknown> | null;
 }
 
+interface CoachCase {
+  readonly name: string;
+  readonly entries: readonly {
+    id: string;
+    belief: string | null;
+    occurredAt: string;
+    shared: boolean;
+  }[];
+  readonly sharedCount: number;
+  readonly lastSharedAtMs: number | null;
+  readonly recurringBelief: { belief: string; sessions: number } | null;
+}
+
 interface Cases {
   readonly risk: readonly RiskCase[];
   readonly extraction: readonly ExtractionCase[];
+  readonly coach: readonly CoachCase[];
 }
 
 const cases = JSON.parse(
@@ -67,6 +83,35 @@ describe('extraction matches the shared cases', () => {
     it(`reads ${c.stepId}: ${JSON.stringify(c.utterance)}`, () => {
       expect(isSubstantiveAnswer(c.stepId, c.utterance)).toBe(c.substantive);
       expect(literalExtraction(c.stepId, c.utterance) ?? null).toEqual(c.capture);
+    });
+  }
+});
+
+describe('a coach’s view matches the shared cases', () => {
+  for (const c of cases.coach) {
+    it(`summarises ${c.name}`, () => {
+      const entries: JournalEntry[] = c.entries.map((e) => ({
+        id: e.id,
+        title: `Session ${e.id}`,
+        occurredAt: new Date(e.occurredAt),
+        durationMinutes: 12,
+        kind: 'full',
+        feelings: [],
+        reachedFinalStep: true,
+        sharedWithCoach: e.shared,
+        ...(e.belief === null ? {} : { belief: e.belief }),
+      }));
+
+      const summary = summarise(entries);
+      expect({
+        sharedCount: summary.sharedCount,
+        lastSharedAtMs: summary.lastSharedAt?.getTime() ?? null,
+        recurringBelief: summary.recurringBelief ?? null,
+      }).toEqual({
+        sharedCount: c.sharedCount,
+        lastSharedAtMs: c.lastSharedAtMs,
+        recurringBelief: c.recurringBelief,
+      });
     });
   }
 });

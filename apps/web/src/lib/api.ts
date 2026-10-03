@@ -207,6 +207,51 @@ export interface ApiSafetyFlag {
   readonly reviewedAt: string | null;
 }
 
+/** A session a client chose to share. */
+export interface ApiSharedSession {
+  readonly id: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly occurredAt: string;
+  readonly durationMinutes: number;
+  readonly kind: string;
+  readonly feelings: readonly string[];
+  readonly belief: string | null;
+  readonly reachedFinalStep: boolean;
+  readonly calmerRating: string | null;
+  /** The client's own note. It travels with a session they chose to share. */
+  readonly note: string | null;
+}
+
+/**
+ * A client, as their coach sees them.
+ *
+ * Everything here is built through the sharing rule on the server. An unshared
+ * session is not hidden from this type — it is absent from the response.
+ */
+export interface ApiClient {
+  readonly id: string;
+  readonly name: string;
+  readonly status: string;
+  readonly since: string | null;
+  readonly nextCallAt: string | null;
+  /** The coach's own notes. Never shown to the client. */
+  readonly coachNotes: string | null;
+  readonly sharedCount: number;
+  readonly lastSharedAt: string | null;
+  readonly recurringBelief: { belief: string; sessions: number } | null;
+}
+
+export interface ApiClientDetail extends ApiClient {
+  readonly sharedSessions: readonly ApiSharedSession[];
+  /**
+   * Why the client might need their coach — that a session stopped for
+   * safety, and when. Never what was said: those words are the safety
+   * queue's, and a coach is not a reviewer.
+   */
+  readonly attention: readonly { reason: string; at: string }[];
+}
+
 /** One step of a protocol version, as the editor holds it. */
 export interface ApiProtocolStep {
   readonly id: string;
@@ -371,4 +416,15 @@ export const api = {
   /** Refused with 409-like 422 and a `problems` list when the draft is incomplete. */
   publishProtocolDraft: () =>
     request<ApiProtocolVersion>('/admin/protocol-versions/draft/publish', { method: 'POST' }),
+
+  /* --------------------------------------------------------- coach portal */
+
+  coachClients: () => requestList<ApiClient>('/coach/clients'),
+
+  coachClient: (id: string) => request<ApiClientDetail>(`/coach/clients/${id}`),
+
+  updateCoachClient: (
+    id: string,
+    changes: { coachNotes?: string | null; nextCallAt?: string | null },
+  ) => request<ApiClientDetail>(`/coach/clients/${id}`, { method: 'PATCH', body: changes }),
 };

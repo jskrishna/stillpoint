@@ -181,7 +181,7 @@ pnpm run build   # every workspace project, packages first
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
 
-`e2e/` holds three by-hand checks against a running API — see `e2e/README.md`.
+`e2e/` holds four by-hand checks against a running API — see `e2e/README.md`.
 `flow.mjs` is a by-hand check of the web app against a running API —
 register, consent, a full session, journal, insights, settings, the safety stop
 and sign-out. It needs two servers, so it is not in `check` and not in CI; see
@@ -246,6 +246,28 @@ rows read as one person without saying who. It is one function in the domain
 because two would drift, and then one screen's `u_8f21` would be a different
 person from the other's. It is not a security boundary; it keeps a name and an
 email off a screen that does not need them.
+
+### A coach sees only what a client shared
+
+`App\Domain\CoachView` is the rule, and every read in `CoachService` goes
+through it. `sharedWith()` and `summarise()` both take a **whole** journal and
+share it down themselves, so a caller cannot summarise private entries by
+passing the wrong list. The tempting alternative is a `where('shared_with_coach')`
+in each query; the reason not to is that a forgotten `where` is silent, and what
+it leaks is somebody's private session. The recurring belief is computed over
+the shared set only — a belief said twice in private is not a pattern a coach
+gets to see. `packages/protocol/src/coach.ts` is the TypeScript half, and the
+parity fixture covers both.
+
+Two gates, both needed: `EnsureCoach` says this person is a coach at all, and
+`CoachController::authorizePairing()` says they are _this client's_ coach.
+Neither implies the other, and a route with only the first would let any coach
+read any client.
+
+A coach learns that a session stopped for safety through `CoachAttention` —
+that it happened, and when. Never what was said: a safety-stopped session is
+never journalled, so it cannot be shared, and the words are the safety queue's.
+A coach is not a reviewer.
 
 Publishing a protocol version is gated by the **server**, not by the editor:
 `ProtocolVersion::publishProblems()` decides, the API refuses with 422 and that

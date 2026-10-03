@@ -56,6 +56,43 @@ node e2e/admin.mjs
 
 `ADMIN_EMAIL` and `ADMIN_PASSWORD` override the defaults.
 
+## The coach portal
+
+`coach.mjs` checks one sentence from the outside: "You only see sessions your
+clients choose to share." It has a client run two sessions, share one and keep
+the other, then asserts that the private one's title, belief and note are
+**absent** — from the coach's page and from the API's response, not merely
+hidden by the markup. It also checks that a coach is refused the safety queue.
+
+It needs a coach, a client and a pairing between them, none of which the API
+can make: `role` is not fillable and pairing is not a public route.
+
+```bash
+cd apps/api && php artisan tinker --execute="
+  \$coach = App\Models\User::firstOrCreate(
+    ['email' => 'coach@stillpoint.test'],
+    ['name' => 'Coach Devi', 'password' => 'correct-horse-battery-staple'],
+  );
+  \$coach->role = App\Domain\Role::Coach;
+  \$coach->save();
+
+  \$client = App\Models\User::firstOrCreate(
+    ['email' => 'client@stillpoint.test'],
+    ['name' => 'Priya S.', 'password' => 'correct-horse-battery-staple'],
+  );
+  \$client->accepted_consent = ['understands', 'adult'];
+  \$client->consented_at = now();
+  \$client->save();
+
+  if (! \$coach->clients()->where('users.id', \$client->id)->exists()) {
+    \$coach->clients()->attach(\$client->id, ['status' => 'active', 'since' => now()->subMonths(4)]);
+  }
+"
+node e2e/coach.mjs
+```
+
+`COACH_EMAIL`, `COACH_PASSWORD` and `CLIENT_EMAIL` override the defaults.
+
 ## The accessibility audit
 
 `a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 60
@@ -67,9 +104,10 @@ node e2e/a11y.mjs
 ```
 
 It registers its own account so the routes behind a token render something
-rather than redirecting, and signs in as the admin above for the console —
-signed out those render a one-line "the console is for staff", which is not the
-screen worth auditing. Without an admin account the console's routes are
+rather than redirecting, and signs in as the admin and coach above for their own
+screens — signed out those render a one-line "this is for staff", which is not
+the screen worth auditing. The client route is resolved from the coach's real
+pairing rather than hard-coded. Without an account for a role those routes are
 skipped, and the run says so rather than passing on a refusal. Contrast is already covered at the token level by
 `packages/design-tokens/src/contrast.test.ts`; what this catches is the rest — a
 control with no accessible name, a label with nothing to label, a heading level

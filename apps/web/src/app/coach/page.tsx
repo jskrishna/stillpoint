@@ -1,17 +1,45 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { summarise } from '@stillpoint/protocol';
-import { ATTENTION, CLIENTS, CLIENT_JOURNALS } from '../../lib/coach-data';
+import { ApiError, api, type ApiClient } from '../../lib/api';
 import { relativeDay } from '../../lib/format';
 import styles from './coach.module.css';
 
 /**
  * The coach's client list.
  *
- * Every row is built through summarise(), which shares the journal down itself,
- * so a private session cannot reach this table even by mistake.
+ * Every figure here is computed by the server through `CoachView`, which shares
+ * a journal down itself. So a private session cannot reach this table even by
+ * mistake — it is not in what the server sent.
  */
 export default function Clients() {
-  const now = new Date();
+  const [clients, setClients] = useState<readonly ApiClient[] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    api
+      .coachClients()
+      .then(setClients)
+      .catch((e: unknown) => {
+        setProblem(
+          e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
+            ? 'The coach portal is for coaches. Sign in with a coach account.'
+            : 'Could not load your clients. Check your connection.',
+        );
+      });
+  }, []);
+
+  if (clients === null) {
+    return (
+      <>
+        <h1 className={styles.title}>Your clients</h1>
+        <p className={styles.sub}>{problem ?? 'Loading…'}</p>
+      </>
+    );
+  }
 
   return (
     <>
@@ -20,75 +48,63 @@ export default function Clients() {
         <span className={styles.button}>Invite client</span>
       </div>
 
-      {ATTENTION.map((a) => {
-        const client = CLIENTS.find((c) => c.id === a.clientId);
-        if (client === undefined) return null;
-        return (
-          <p key={a.clientId} className={styles.attention}>
-            <strong>Needs attention:</strong> {client.name} {a.reason} on {relativeDay(a.at, now)}.{' '}
-            <Link href={`/coach/${client.id}`} className={styles.attentionLink}>
-              Check in
-            </Link>
-          </p>
-        );
-      })}
-
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.th}>Client</th>
-            <th className={styles.th}>Belief that comes back</th>
-            <th className={styles.th}>Last session</th>
-            <th className={styles.th}>Shared</th>
-            <th className={styles.th}>Next call</th>
-            <th className={styles.th} />
-          </tr>
-        </thead>
-        <tbody>
-          {CLIENTS.map((client) => {
-            const summary = summarise(CLIENT_JOURNALS[client.id] ?? []);
-            const invited = client.status === 'invited';
-            return (
-              <tr key={client.id}>
-                <td className={styles.td}>{client.name}</td>
-                <td className={styles.td}>
-                  {summary.recurringBelief === undefined
-                    ? '—'
-                    : `“${summary.recurringBelief.belief}”`}
-                </td>
-                <td className={styles.td}>
-                  {summary.lastSharedAt === undefined
-                    ? '—'
-                    : relativeDay(summary.lastSharedAt, now)}
-                </td>
-                <td className={styles.td}>
-                  {summary.sharedCount === 0 ? '—' : summary.sharedCount}
-                </td>
-                <td className={styles.td}>
-                  {invited
-                    ? 'Invite sent'
-                    : client.nextCallAt === undefined
+      {clients.length === 0 ? (
+        <p className={styles.empty}>No clients yet.</p>
+      ) : (
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Client</th>
+              <th className={styles.th}>Belief that comes back</th>
+              <th className={styles.th}>Last session</th>
+              <th className={styles.th}>Shared</th>
+              <th className={styles.th}>Next call</th>
+              <th className={styles.th} />
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((client) => {
+              const invited = client.status === 'invited';
+              return (
+                <tr key={client.id}>
+                  <td className={styles.td}>{client.name}</td>
+                  <td className={styles.td}>
+                    {client.recurringBelief === null ? '—' : `“${client.recurringBelief.belief}”`}
+                  </td>
+                  <td className={styles.td}>
+                    {client.lastSharedAt === null || now === null
                       ? '—'
-                      : client.nextCallAt.toLocaleString('en-IN', {
-                          weekday: 'short',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
-                </td>
-                <td className={styles.td}>
-                  {invited ? (
-                    <span className={styles.open}>Resend</span>
-                  ) : (
-                    <Link href={`/coach/${client.id}`} className={styles.open}>
-                      Open
-                    </Link>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                      : relativeDay(new Date(client.lastSharedAt), now)}
+                  </td>
+                  <td className={styles.td}>
+                    {client.sharedCount === 0 ? '—' : client.sharedCount}
+                  </td>
+                  <td className={styles.td}>
+                    {invited
+                      ? 'Invite sent'
+                      : client.nextCallAt === null
+                        ? '—'
+                        : new Date(client.nextCallAt).toLocaleString('en-IN', {
+                            weekday: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                  </td>
+                  <td className={styles.td}>
+                    {invited ? (
+                      <span className={styles.open}>Resend</span>
+                    ) : (
+                      <Link href={`/coach/${client.id}`} className={styles.open}>
+                        Open
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
 
       <p className={styles.privacy}>You only see sessions your clients choose to share.</p>
     </>

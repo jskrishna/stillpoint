@@ -50,12 +50,56 @@ const LABEL: ReadonlyMap<FeelingId, string> = new Map(FEELINGS.map((f) => [f.id,
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Compares beliefs ignoring case, surrounding quotes, punctuation and spacing,
- * so "I'm not good enough." and "I'm not good enough" count as one.
+ * Contractions expanded before punctuation is stripped.
+ *
+ * Without this, "I'm not good enough" normalised to "im not good enough" and
+ * "I am not good enough" to "i am not good enough" — two different beliefs,
+ * so the belief that comes back did not come back. It is the most common way
+ * an English speaker says the thing this insight exists to find.
+ *
+ * Kept to contractions people use about themselves. Expanding them is safe in
+ * the direction that matters: merging two spellings of one belief, never two
+ * different beliefs.
+ */
+const CONTRACTIONS: readonly (readonly [RegExp, string])[] = [
+  [/\bi'm\b/g, 'i am'],
+  [/\bi've\b/g, 'i have'],
+  [/\bi'll\b/g, 'i will'],
+  [/\bi'd\b/g, 'i would'],
+  [/\bcan't\b/g, 'cannot'],
+  [/\bwon't\b/g, 'will not'],
+  [/\bdon't\b/g, 'do not'],
+  [/\bdoesn't\b/g, 'does not'],
+  [/\bdidn't\b/g, 'did not'],
+  [/\bisn't\b/g, 'is not'],
+  [/\baren't\b/g, 'are not'],
+  [/\bwasn't\b/g, 'was not'],
+  [/\bweren't\b/g, 'were not'],
+  [/\bcouldn't\b/g, 'could not'],
+  [/\bshouldn't\b/g, 'should not'],
+  [/\bwouldn't\b/g, 'would not'],
+  [/\bit's\b/g, 'it is'],
+  [/\bthat's\b/g, 'that is'],
+  [/\bthere's\b/g, 'there is'],
+  [/\bthey're\b/g, 'they are'],
+  [/\byou're\b/g, 'you are'],
+];
+
+/**
+ * Compares beliefs ignoring case, surrounding quotes, punctuation, spacing and
+ * contractions, so "I'm not good enough." and "I am not good enough" count as
+ * one.
+ *
+ * Ported in `App\Domain\Insights::normalise()`; the parity fixture covers it.
  */
 function normalizeBelief(belief: string): string {
-  return belief
-    .toLowerCase()
+  // Apostrophes are straightened first, so a curly one hits the same rule, and
+  // the contractions expand before punctuation is stripped — afterwards "i'm"
+  // is already "im" and there is nothing left to recognise.
+  let text = belief.toLowerCase().replace(/[’‘`]/g, "'");
+  for (const [pattern, expansion] of CONTRACTIONS) text = text.replace(pattern, expansion);
+
+  return text
     .replace(/[“”"'’‘.,!?]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

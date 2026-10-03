@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\AdminOverviewController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CoachController;
 use App\Http\Controllers\Api\InsightsController;
 use App\Http\Controllers\Api\JournalController;
 use App\Http\Controllers\Api\ProtocolVersionController;
 use App\Http\Controllers\Api\SafetyFlagController;
 use App\Http\Controllers\Api\SessionController;
+use App\Http\Middleware\EnsureCoach;
 use App\Http\Middleware\EnsureStaff;
 use Illuminate\Support\Facades\Route;
 
@@ -53,4 +55,12 @@ Route::middleware(['auth:sanctum', EnsureStaff::class])->prefix('admin')->group(
     Route::patch('protocol-versions/draft/steps/{stepId}', [ProtocolVersionController::class, 'editStep']);
     Route::patch('protocol-versions/draft/safety', [ProtocolVersionController::class, 'editSafety']);
     Route::post('protocol-versions/draft/publish', [ProtocolVersionController::class, 'publish']);
+});
+
+// The coach portal. "You only see sessions your clients choose to share" — the
+// rule lives in App\Domain\CoachView, and every read here goes through it.
+Route::middleware(['auth:sanctum', EnsureCoach::class])->prefix('coach')->group(function () {
+    Route::get('clients', [CoachController::class, 'clients']);
+    Route::get('clients/{client}', [CoachController::class, 'client']);
+    Route::patch('clients/{client}', [CoachController::class, 'update']);
 });

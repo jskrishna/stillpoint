@@ -90,6 +90,7 @@ class User extends Authenticatable
     public function clients(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'coach_client', 'coach_id', 'client_id')
+            ->using(CoachClient::class)
             ->withPivot(['status', 'since', 'next_call_at', 'coach_notes'])
             ->withTimestamps();
     }
@@ -102,6 +103,7 @@ class User extends Authenticatable
     public function coaches(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'coach_client', 'client_id', 'coach_id')
+            ->using(CoachClient::class)
             ->withPivot(['status', 'since', 'next_call_at'])
             ->withTimestamps();
     }

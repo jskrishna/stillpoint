@@ -268,5 +268,103 @@
       "substantive": true,
       "capture": null
     }
+  ],
+  "coach": [
+    {
+      "name": "nothing at all",
+      "entries": [],
+      "sharedCount": 0,
+      "lastSharedAtMs": null,
+      "recurringBelief": null
+    },
+    {
+      "name": "nothing shared",
+      "entries": [
+        {
+          "id": "a",
+          "belief": "I am unlovable",
+          "occurredAt": "2026-02-27T10:00:00.000Z",
+          "shared": false
+        },
+        {
+          "id": "b",
+          "belief": "I am unlovable",
+          "occurredAt": "2026-02-24T10:00:00.000Z",
+          "shared": false
+        }
+      ],
+      "sharedCount": 0,
+      "lastSharedAtMs": null,
+      "recurringBelief": null
+    },
+    {
+      "name": "one shared, no belief",
+      "entries": [
+        {
+          "id": "a",
+          "belief": null,
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "shared": true
+        }
+      ],
+      "sharedCount": 1,
+      "lastSharedAtMs": 1772272800000,
+      "recurringBelief": null
+    },
+    {
+      "name": "a belief repeated in shared sessions",
+      "entries": [
+        {
+          "id": "a",
+          "belief": "I am not good enough",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "shared": true
+        },
+        {
+          "id": "b",
+          "belief": "I’m not good enough.",
+          "occurredAt": "2026-02-25T10:00:00.000Z",
+          "shared": true
+        },
+        {
+          "id": "c",
+          "belief": "I am too much",
+          "occurredAt": "2026-02-23T10:00:00.000Z",
+          "shared": true
+        }
+      ],
+      "sharedCount": 3,
+      "lastSharedAtMs": 1772272800000,
+      "recurringBelief": {
+        "belief": "I am not good enough",
+        "sessions": 2
+      }
+    },
+    {
+      "name": "a belief repeated only in private sessions",
+      "entries": [
+        {
+          "id": "a",
+          "belief": "I am unlovable",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "shared": false
+        },
+        {
+          "id": "b",
+          "belief": "I am unlovable",
+          "occurredAt": "2026-02-26T10:00:00.000Z",
+          "shared": false
+        },
+        {
+          "id": "c",
+          "belief": "I am not good enough",
+          "occurredAt": "2026-02-24T10:00:00.000Z",
+          "shared": true
+        }
+      ],
+      "sharedCount": 1,
+      "lastSharedAtMs": 1771927200000,
+      "recurringBelief": null
+    }
   ]
 }
