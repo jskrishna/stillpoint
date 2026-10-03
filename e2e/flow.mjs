@@ -325,6 +325,76 @@ if (paging.error !== undefined) {
   else bad('a nonsense page size falls back to the default', String(paging.defaultedPage));
 }
 
+// The pricing page promises "3 full sessions a week" on Free, and that quick
+// sessions are unlimited. A promise the server does not keep is the same
+// problem in either direction.
+console.log('\n4c. The plan allowance');
+
+const allowance = await page.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+
+  const start = (kind) =>
+    fetch('http://localhost:8000/api/sessions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ kind }),
+    });
+
+  // Earlier sections have already started several full sessions this week, so
+  // the fourth onwards must be refused.
+  let refused = null;
+  for (let i = 0; i < 6 && refused === null; i += 1) {
+    const r = await start('full');
+    if (r.status === 402) refused = await r.json();
+  }
+
+  // And a quick one, with the full allowance spent.
+  const quick = await start('quick');
+  const me = await fetch('http://localhost:8000/api/me', { headers }).then((r) => r.json());
+
+  return {
+    refused,
+    quickStatus: quick.status,
+    quickKind: quick.ok ? (await quick.json()).kind : null,
+    left: me.fullSessionsLeft,
+    perWeek: me.fullSessionsPerWeek,
+  };
+});
+
+if (allowance.refused !== null)
+  ok(`a fourth full session is refused (402, limit ${String(allowance.refused.limit)})`);
+else bad('a fourth full session is refused', JSON.stringify(allowance));
+if (allowance.refused?.quickStillAllowed === true)
+  ok('the refusal says a quick session is still available');
+else bad('the refusal says a quick session is still available');
+if (allowance.quickStatus === 201 && allowance.quickKind === 'quick')
+  ok('a quick session starts with the full allowance spent');
+else bad('a quick session starts with the full allowance spent', JSON.stringify(allowance));
+if (allowance.left === 0 && allowance.perWeek === 3) ok('the profile says none are left of three');
+else bad('the profile says none are left of three', JSON.stringify(allowance));
+
+// And the screen offers the quick session rather than a dead end.
+await page.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2000);
+const dead = await page.locator('body').innerText();
+if (/this week’s full sessions/i.test(dead)) ok('the session screen explains, rather than failing');
+else bad('the session screen explains', dead.slice(0, 300));
+if ((await page.getByRole('link', { name: 'Start a quick session' }).count()) > 0)
+  ok('and offers a quick session');
+else bad('and offers a quick session');
+
+await page.goto(`${WEB}/session?kind=quick`, { waitUntil: 'networkidle' });
+await page.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
+  timeout: 15000,
+});
+if (/Step 1 of 6/.test(await page.locator('body').innerText())) ok('and that quick session runs');
+else bad('and that quick session runs', (await page.locator('body').innerText()).slice(0, 300));
+
 // ------------------------------------------------- 5. insights
 console.log('\n5. Insights come from the server');
 await page.goto(`${WEB}/app/insights`, { waitUntil: 'networkidle' });
@@ -416,12 +486,16 @@ if (spent.error !== undefined) {
 // ------------------------------------------------- 7. the safety stop
 console.log('\n7. The safety stop is the server’s, not the browser’s');
 
+// A quick session, because the earlier sections have spent this account's full
+// allowance for the week. The kind makes no difference to what is being checked
+// here: the screen runs before the guide whatever kind of session it is.
+
 // Counted before, not assumed: earlier sections of this script leave journal
 // rows of their own, and what is being checked is that the stop adds none.
 await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 const rowsBeforeStop = await page.locator('a[href^="/app/journal/"]').count();
-await page.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+await page.goto(`${WEB}/session?kind=quick`, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
   timeout: 15000,
 });

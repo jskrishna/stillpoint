@@ -97,6 +97,22 @@ final readonly class SessionService
         });
     }
 
+    /**
+     * How many full sessions this user has started in the window.
+     *
+     * Counted from `started_at` rather than from journal rows, so a session
+     * that stopped for safety — which never gets a row — still counts. It was a
+     * full session; the allowance is about starting one, not finishing it.
+     */
+    public function fullSessionsInWindow(User $user, int $windowDays): int
+    {
+        return GuidedSession::query()
+            ->where('user_id', $user->id)
+            ->where('kind', SessionKind::Full->value)
+            ->where('started_at', '>=', now()->subDays($windowDays))
+            ->count();
+    }
+
     /** Ends a session because the user chose to stop. */
     public function stop(GuidedSession $row): GuidedSession
     {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { STEP_COUNT } from '@stillpoint/protocol';
-import { ApiError, api, hasToken, type ApiJournalEntry } from '../../lib/api';
+import { ApiError, api, hasToken, type ApiJournalEntry, type Profile } from '../../lib/api';
 import { greeting } from '../../lib/greeting';
 import { relativeDay } from '../../lib/format';
 import styles from './app.module.css';
@@ -14,6 +14,7 @@ export default function Home() {
   const [entries, setEntries] = useState<readonly ApiJournalEntry[] | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const [failed, setFailed] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const router = useRouter();
 
   // Fetched after mount with the user's token, which the server has no access
@@ -25,6 +26,15 @@ export default function Home() {
       router.push('/welcome');
       return;
     }
+
+    // The allowance, so the screen can say what is left before anyone starts a
+    // session and is refused.
+    api
+      .me()
+      .then(setProfile)
+      .catch(() => {
+        setProfile(null);
+      });
 
     api
       // Only the three most recent are shown, so only three are asked for.
@@ -55,6 +65,22 @@ export default function Home() {
         <MicIcon />
         Start talking
       </Link>
+
+      <Link href="/session?kind=quick" className={styles.quietCta}>
+        Or a quick session
+      </Link>
+
+      {profile === null || profile.fullSessionsLeft === null ? null : (
+        <p className={styles.allowance}>
+          {profile.fullSessionsLeft === 0
+            ? 'No full sessions left this week. Quick sessions are always available.'
+            : `${String(profile.fullSessionsLeft)} of ${String(
+                profile.fullSessionsPerWeek ?? 0,
+              )} full ${
+                profile.fullSessionsLeft === 1 ? 'session' : 'sessions'
+              } left this week. Quick sessions are unlimited.`}
+        </p>
+      )}
 
       <span className={styles.label}>RECENT</span>
       {failed ? (

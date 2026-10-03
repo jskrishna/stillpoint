@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Plan;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\SessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -136,12 +138,19 @@ final class AuthController extends Controller
     /** @return array<string, mixed> */
     private static function profile(User $user): array
     {
+        $plan = Plan::fromStored($user->plan);
+        // Counted here so the app can say "one full session left this week"
+        // before someone starts one and is refused.
+        $used = app(SessionService::class)->fullSessionsInWindow($user, Plan::ALLOWANCE_WINDOW_DAYS);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'plan' => $user->plan,
             'role' => $user->role->value,
+            'fullSessionsPerWeek' => $plan->fullSessionsPerWeek(),
+            'fullSessionsLeft' => $plan->fullSessionsLeft($used),
             'country' => $user->country,
             'guideVoice' => $user->guide_voice,
             'talkMode' => $user->talk_mode,

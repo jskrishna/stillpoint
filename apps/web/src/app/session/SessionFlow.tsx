@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   FEELINGS,
   MAX_FEELINGS,
@@ -37,6 +37,7 @@ const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
 export default function SessionFlow() {
   const [session, setSession] = useState<ApiSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exhausted, setExhausted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState('');
   const [lastSaid, setLastSaid] = useState('');
@@ -46,6 +47,10 @@ export default function SessionFlow() {
   const started = useRef(false);
   const spoken = useRef<string | null>(null);
   const router = useRouter();
+  const search = useSearchParams();
+  // `?kind=quick` — the home screen offers both, and a quick session is the one
+  // that is always available whatever the plan allows.
+  const kind = search.get('kind') === 'quick' ? 'quick' : 'full';
 
   useEffect(() => {
     if (started.current) return;
@@ -70,7 +75,7 @@ export default function SessionFlow() {
       });
 
     api
-      .startSession()
+      .startSession(kind)
       .then(setSession)
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
@@ -81,9 +86,15 @@ export default function SessionFlow() {
           router.push('/welcome/consent');
           return;
         }
+        if (e instanceof ApiError && e.status === 402) {
+          // The plan's full-session allowance is spent. A quick session is
+          // always available, so offer that rather than a dead end.
+          setExhausted(e.message);
+          return;
+        }
         setError(describe(e));
       });
-  }, [router]);
+  }, [router, kind]);
 
   /**
    * Says the step's question aloud, once per question.
@@ -165,6 +176,26 @@ export default function SessionFlow() {
     },
     [session],
   );
+
+  if (exhausted !== null) {
+    return (
+      <div className={styles.screen}>
+        <h1 className={styles.question}>That is this week’s full sessions</h1>
+        <p className={styles.missing}>{exhausted}</p>
+        <div className={styles.actions}>
+          <Link href="/session?kind=quick" className={`${styles.button} ${styles.primary}`}>
+            Start a quick session
+          </Link>
+          <Link href="/pricing" className={`${styles.button} ${styles.secondary}`}>
+            See the plans
+          </Link>
+          <Link href="/app" className={`${styles.button} ${styles.secondary}`}>
+            Back
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (error !== null && session === null) {
     return (

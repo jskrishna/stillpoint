@@ -159,6 +159,17 @@ export { baselineRiskScreen, noRiskScreen, type RiskAssessment, type RiskScreen 
 export { feelingsIn, isSubstantiveAnswer, literalExtraction } from './extraction.js';
 
 export {
+  PLAN_IDS,
+  ALLOWANCE_WINDOW_DAYS,
+  FULL_SESSIONS_PER_WEEK,
+  isPlanId,
+  mayStartSession,
+  fullSessionsLeft,
+  type PlanId,
+  type StartDecision,
+} from './plans.js';
+
+export {
   scriptedGuide,
   toCapture,
   type Guide,

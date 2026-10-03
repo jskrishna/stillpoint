@@ -177,6 +177,118 @@ final class SessionApiTest extends TestCase
         );
     }
 
+    /**
+     * The pricing page promises "3 full sessions a week" on Free.
+     *
+     * A promise the server does not keep is the same problem in either
+     * direction. And the quick session staying available is not an exception to
+     * the limit — it is the point of it: someone who is upset should never be
+     * told to come back next week.
+     */
+    public function test_a_free_user_gets_three_full_sessions_a_week(): void
+    {
+        $this->consentedUser();
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->postJson('/api/sessions')->assertCreated();
+        }
+
+        $refused = $this->postJson('/api/sessions')->assertStatus(Response::HTTP_PAYMENT_REQUIRED);
+        $refused->assertJsonPath('limit', 3)
+            ->assertJsonPath('usedThisWeek', 3)
+            ->assertJsonPath('quickStillAllowed', true);
+        $this->assertStringContainsString('quick session is always available', $refused->json('message'));
+    }
+
+    public function test_a_quick_session_is_always_allowed(): void
+    {
+        $this->consentedUser();
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->postJson('/api/sessions')->assertCreated();
+        }
+
+        // However many full ones have been used.
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/sessions', ['kind' => 'quick'])
+                ->assertCreated()
+                ->assertJsonPath('kind', 'quick');
+        }
+    }
+
+    public function test_a_quick_session_does_not_spend_the_full_allowance(): void
+    {
+        $this->consentedUser();
+
+        $this->postJson('/api/sessions', ['kind' => 'quick'])->assertCreated();
+        $this->postJson('/api/sessions', ['kind' => 'quick'])->assertCreated();
+
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 3);
+        $this->postJson('/api/sessions')->assertCreated();
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 2);
+    }
+
+    public function test_a_session_outside_the_window_no_longer_counts(): void
+    {
+        $user = $this->consentedUser();
+
+        for ($i = 0; $i < 3; $i++) {
+            GuidedSession::create([
+                'user_id' => $user->id,
+                'kind' => 'full',
+                'step_id' => 'notice',
+                'started_at' => now()->subDays(8),
+            ]);
+        }
+
+        // Eight days ago is outside the seven-day window.
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 3);
+        $this->postJson('/api/sessions')->assertCreated();
+    }
+
+    public function test_a_safety_stopped_session_still_counts_against_the_allowance(): void
+    {
+        $this->consentedUser();
+
+        $id = $this->newSession();
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'I want to kill myself'])->assertOk();
+
+        // It was a full session. The allowance is about starting one, not
+        // finishing it — and such a session has no journal row to count from,
+        // which is why the count comes from `started_at`.
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 2);
+    }
+
+    public function test_a_paid_plan_is_not_limited(): void
+    {
+        $user = $this->consentedUser();
+        $user->plan = 'plus';
+        $user->save();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/sessions')->assertCreated();
+        }
+
+        $this->getJson('/api/me')
+            ->assertJsonPath('fullSessionsPerWeek', null)
+            ->assertJsonPath('fullSessionsLeft', null);
+    }
+
+    public function test_the_profile_says_how_many_full_sessions_are_left(): void
+    {
+        $this->consentedUser();
+
+        $this->getJson('/api/me')
+            ->assertOk()
+            ->assertJsonPath('fullSessionsPerWeek', 3)
+            ->assertJsonPath('fullSessionsLeft', 3);
+
+        $this->postJson('/api/sessions')->assertCreated();
+
+        // Said before anyone is refused, not only after.
+        $this->getJson('/api/me')->assertJsonPath('fullSessionsLeft', 2);
+    }
+
     public function test_a_thin_answer_does_not_advance(): void
     {
         $this->consentedUser();

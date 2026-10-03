@@ -316,3 +316,23 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* The second way to start: offered, not hidden, and not competing with the
+   primary call to action. A quick session is the one that is always available. */
+.quietCta {
+  display: block;
+  margin-top: var(--sp-space-sm);
+  padding: var(--sp-space-sm);
+  text-align: center;
+  font-size: var(--sp-text-control);
+  color: var(--sp-color-accent-text);
+  text-decoration: underline;
+}
+
+.allowance {
+  margin: var(--sp-space-sm) 0 0;
+  font-size: var(--sp-text-small);
+  line-height: var(--sp-leading-normal);
+  color: var(--sp-color-muted);
+  text-align: center;
+}

@@ -269,6 +269,248 @@
       "capture": null
     }
   ],
+  "plans": [
+    {
+      "plan": "free",
+      "kind": "full",
+      "used": 0,
+      "allowed": true,
+      "limit": null,
+      "left": 3
+    },
+    {
+      "plan": "free",
+      "kind": "quick",
+      "used": 0,
+      "allowed": true,
+      "limit": null,
+      "left": 3
+    },
+    {
+      "plan": "free",
+      "kind": "full",
+      "used": 2,
+      "allowed": true,
+      "limit": null,
+      "left": 1
+    },
+    {
+      "plan": "free",
+      "kind": "quick",
+      "used": 2,
+      "allowed": true,
+      "limit": null,
+      "left": 1
+    },
+    {
+      "plan": "free",
+      "kind": "full",
+      "used": 3,
+      "allowed": false,
+      "limit": 3,
+      "left": 0
+    },
+    {
+      "plan": "free",
+      "kind": "quick",
+      "used": 3,
+      "allowed": true,
+      "limit": null,
+      "left": 0
+    },
+    {
+      "plan": "free",
+      "kind": "full",
+      "used": 4,
+      "allowed": false,
+      "limit": 3,
+      "left": 0
+    },
+    {
+      "plan": "free",
+      "kind": "quick",
+      "used": 4,
+      "allowed": true,
+      "limit": null,
+      "left": 0
+    },
+    {
+      "plan": "free",
+      "kind": "full",
+      "used": 99,
+      "allowed": false,
+      "limit": 3,
+      "left": 0
+    },
+    {
+      "plan": "free",
+      "kind": "quick",
+      "used": 99,
+      "allowed": true,
+      "limit": null,
+      "left": 0
+    },
+    {
+      "plan": "plus",
+      "kind": "full",
+      "used": 0,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "quick",
+      "used": 0,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "full",
+      "used": 2,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "quick",
+      "used": 2,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "full",
+      "used": 3,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "quick",
+      "used": 3,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "full",
+      "used": 4,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "quick",
+      "used": 4,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "full",
+      "used": 99,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "plus",
+      "kind": "quick",
+      "used": 99,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "full",
+      "used": 0,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "quick",
+      "used": 0,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "full",
+      "used": 2,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "quick",
+      "used": 2,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "full",
+      "used": 3,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "quick",
+      "used": 3,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "full",
+      "used": 4,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "quick",
+      "used": 4,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "full",
+      "used": 99,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    },
+    {
+      "plan": "coach",
+      "kind": "quick",
+      "used": 99,
+      "allowed": true,
+      "limit": null,
+      "left": null
+    }
+  ],
   "coach": [
     {
       "name": "nothing at all",

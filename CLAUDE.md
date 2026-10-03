@@ -88,6 +88,33 @@ anyone who did not happen to pick exactly three feelings. Answer kind belongs to
 the step _id_, not to a protocol version — staff editing prompts in the admin
 console must not be able to turn a selection into a sentence.
 
+## A plan's allowance is a promise too
+
+The pricing page says Free gets "3 full sessions a week" and "Unlimited quick
+sessions". A promise the server does not keep is the same problem whichever way
+it points, so it is enforced: `packages/protocol/src/plans.ts` and
+`App\Domain\Plan`, with parity cases over every plan and count.
+
+**A quick session is always allowed.** That is the point of the rule rather than
+an exception to it — the limit exists to price the long session, and someone who
+is upset should never be told to come back next week. A refused start answers
+402 and says so, and the screen offers the quick session rather than being a
+dead end.
+
+The count comes from `guided_sessions.started_at`, not from journal rows, so a
+session that stopped for safety — which never gets a row — still counts. It was
+a full session; the allowance is about starting one, not finishing it.
+
+Two things the designs state and this deliberately does **not** enforce:
+
+- **"Up to 25 clients"** on the Coach plan. What a coach on some _other_ plan is
+  allowed is not stated anywhere, so capping them would be a product decision
+  made by a guess.
+- **What a quick session actually is.** It runs the same six steps, because
+  nothing says otherwise. The designs show quick sessions as shorter and label
+  them in the journal, but not which steps are skipped — that is the PRD's to
+  say, like the step copy.
+
 ## Do not invent product copy
 
 Only step 4 "Remember" is fully specified in the designs. Unspecified prompt
@@ -426,7 +453,8 @@ it is missing from `tsconfig.test.json`'s `include`.
 - **Client stack: Expo for mobile, Next.js for web and desktop**, both consuming
   `packages/*`. Not yet scaffolded.
 - **Step prompt copy stays `null`** until the PRD supplies it. Do not invent it.
-- **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders.
+- **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders. What a
+  plan _allows_ is settled, though: see below.
 
 - **Backend: Laravel 13 + MySQL**, owning the session, the protocol and safety.
   Chosen over a TypeScript backend so the safety rules exist exactly once;

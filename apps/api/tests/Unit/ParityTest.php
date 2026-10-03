@@ -7,6 +7,8 @@ namespace Tests\Unit;
 use App\Domain\CoachView;
 use App\Domain\LiteralExtraction;
 use App\Domain\PhraseRiskScreen;
+use App\Domain\Plan;
+use App\Domain\SessionKind;
 use App\Domain\StepId;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -62,6 +64,17 @@ final class ParityTest extends TestCase
         return $out;
     }
 
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function planCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['plans'] as $i => $case) {
+            $out["plan {$i}: {$case['plan']} / {$case['kind']} after {$case['used']}"] = [$case];
+        }
+
+        return $out;
+    }
+
     public function test_there_are_cases_to_check(): void
     {
         // A missing or emptied fixture must fail loudly rather than pass by
@@ -110,6 +123,24 @@ final class ParityTest extends TestCase
     }
 
     /** @param array<string, mixed> $case */
+    #[DataProvider('planCases')]
+    public function test_a_plan_allowance_agrees(array $case): void
+    {
+        $plan = Plan::from($case['plan']);
+        $decision = $plan->mayStart(SessionKind::from($case['kind']), $case['used']);
+
+        $this->assertSame([
+            'allowed' => $case['allowed'],
+            'limit' => $case['limit'],
+            'left' => $case['left'],
+        ], [
+            'allowed' => $decision['allowed'],
+            'limit' => $decision['allowed'] ? null : ($decision['limit'] ?? null),
+            'left' => $plan->fullSessionsLeft($case['used']),
+        ], "Plan parity broke on: {$case['plan']} / {$case['kind']} after {$case['used']}");
+    }
+
+    /** @param array<string, mixed> $case */
     #[DataProvider('coachCases')]
     public function test_a_coachs_view_agrees(array $case): void
     {
@@ -129,7 +160,7 @@ final class ParityTest extends TestCase
         ], CoachView::summarise($entries), "Coach parity broke on: {$case['name']}");
     }
 
-    /** @return array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, coach: list<array<string, mixed>>} */
+    /** @return array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, plans: list<array<string, mixed>>, coach: list<array<string, mixed>>} */
     private static function cases(): array
     {
         $path = dirname(__DIR__, 4).'/parity/cases.json';
@@ -139,7 +170,7 @@ final class ParityTest extends TestCase
             throw new \RuntimeException("Parity fixture missing at {$path}. It is checked in; do not delete it.");
         }
 
-        /** @var array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, coach: list<array<string, mixed>>} $decoded */
+        /** @var array{risk: list<array<string, mixed>>, extraction: list<array<string, mixed>>, plans: list<array<string, mixed>>, coach: list<array<string, mixed>>} $decoded */
         $decoded = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
 
         return $decoded;

@@ -19,8 +19,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { summarise } from './coach.js';
+import { fullSessionsLeft, mayStartSession, type PlanId } from './plans.js';
 import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
 import type { JournalEntry } from './journal.js';
+import type { SessionKind } from './session.js';
 import { baselineRiskScreen } from './risk.js';
 import type { StepId } from './steps.js';
 
@@ -51,9 +53,19 @@ interface CoachCase {
   readonly recurringBelief: { belief: string; sessions: number } | null;
 }
 
+interface PlanCase {
+  readonly plan: PlanId;
+  readonly kind: SessionKind;
+  readonly used: number;
+  readonly allowed: boolean;
+  readonly limit: number | null;
+  readonly left: number | null;
+}
+
 interface Cases {
   readonly risk: readonly RiskCase[];
   readonly extraction: readonly ExtractionCase[];
+  readonly plans: readonly PlanCase[];
   readonly coach: readonly CoachCase[];
 }
 
@@ -112,6 +124,20 @@ describe('a coach’s view matches the shared cases', () => {
         lastSharedAtMs: c.lastSharedAtMs,
         recurringBelief: c.recurringBelief,
       });
+    });
+  }
+});
+
+describe('plan allowances match the shared cases', () => {
+  for (const c of cases.plans) {
+    it(`${c.plan}: a ${c.kind} session after ${String(c.used)} full ones`, () => {
+      const decision = mayStartSession(c.kind, c.plan, c.used);
+
+      expect({
+        allowed: decision.allowed,
+        limit: decision.allowed ? null : decision.limit,
+        left: fullSessionsLeft(c.plan, c.used),
+      }).toEqual({ allowed: c.allowed, limit: c.limit, left: c.left });
     });
   }
 });

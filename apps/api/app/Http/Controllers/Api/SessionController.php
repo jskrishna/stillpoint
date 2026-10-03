@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\CalmerRating;
 use App\Domain\ConsentItem;
+use App\Domain\Plan;
 use App\Domain\SessionKind;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SessionResource;
@@ -56,7 +57,27 @@ final class SessionController extends Controller
             'kind' => ['sometimes', Rule::enum(SessionKind::class)],
         ]);
 
-        $row = $this->sessions->start($user, SessionKind::tryFrom($validated['kind'] ?? 'full') ?? SessionKind::Full);
+        $kind = SessionKind::tryFrom($validated['kind'] ?? 'full') ?? SessionKind::Full;
+
+        // The pricing page promises "3 full sessions a week" on Free. A promise
+        // the server does not keep is the same problem in either direction, so
+        // the plan decides here and the domain decides what the plan means.
+        $plan = Plan::fromStored($user->plan);
+        $used = $this->sessions->fullSessionsInWindow($user, Plan::ALLOWANCE_WINDOW_DAYS);
+        $decision = $plan->mayStart($kind, $used);
+
+        if ($decision['allowed'] !== true) {
+            return response()->json([
+                'message' => $decision['reason'] ?? 'Your plan does not allow another full session this week.',
+                'limit' => $decision['limit'] ?? null,
+                'usedThisWeek' => $used,
+                // Always true, and said explicitly: someone who is upset should
+                // never be told to come back next week.
+                'quickStillAllowed' => true,
+            ], Response::HTTP_PAYMENT_REQUIRED);
+        }
+
+        $row = $this->sessions->start($user, $kind);
 
         return (new SessionResource(
             $row,

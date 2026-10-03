@@ -164,6 +164,10 @@ export interface Profile {
   readonly plan: string;
   /** 'user', 'coach' or 'admin'. Nobody is staff by registering. */
   readonly role: string;
+  /** Full sessions the plan allows per week; `null` is unlimited. */
+  readonly fullSessionsPerWeek: number | null;
+  /** How many are left in the window; `null` when the plan does not limit. */
+  readonly fullSessionsLeft: number | null;
   readonly country: string;
   readonly guideVoice: string;
   readonly talkMode: string;
