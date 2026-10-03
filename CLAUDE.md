@@ -552,6 +552,18 @@ memory and note, and a safety flag's excerpt all use Laravel's `encrypted`
 casts. This is the most personal text the product holds, and a flag's excerpt
 is the single most sensitive column in the schema.
 
+**And the log is not a second copy of it.** Encrypting a column and then
+logging its value is not encryption at rest, and the leak that would do it is
+one line: a `Log::error('turn failed', ['utterance' => $utterance])` added
+while chasing something and never taken out. `NoPersonalTextInLogsTest` makes a
+turn throw and asserts the utterance is nowhere in what got logged; it was
+checked by adding exactly that line. It is **not** a check on stack traces —
+PHP renders a string argument as `'...'` in `getTraceAsString()` however
+`zend.exception_ignore_args` is set, and that is what Laravel's formatter uses.
+`deploy/php.ini` pins that setting anyway, for anything that reads the
+structured trace instead, which is how an error reporter would start carrying
+those values.
+
 Encrypted columns cannot be queried or indexed, which is deliberate and has a
 cost: aggregates over beliefs (the "belief that comes back") are computed in PHP
 over a user's own window, not with `GROUP BY`. Do not drop the encryption to
