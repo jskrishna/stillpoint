@@ -4,11 +4,17 @@
 API: register, consent, a full six-step session, the journal, insights,
 settings, the safety stop, and sign-out.
 
-It is a script and not part of `pnpm run check`, because it needs two servers
-and CI has neither. Run it by hand after changing the session flow, the API
-client or anything in `apps/api/app/Domain`.
+It is not part of `pnpm run check`, because it needs two servers. It **does**
+run in CI now, in the `e2e` job, which boots the API on sqlite, seeds the demo
+accounts, builds and starts the web app, and runs all four scripts. Run it by
+hand too after changing the session flow, the API client or anything in
+`apps/api/app/Domain` — it is faster than waiting for a push.
 
 ```bash
+# 0. the accounts these scripts need. `role` is not fillable and pairing has no
+#    public route, so they cannot be made through the API.
+cd apps/api && php artisan db:seed --class=DemoSeeder
+
 # 1. the API, on :8000
 cd apps/api && php artisan serve --port=8000 &
 
@@ -20,7 +26,12 @@ cd apps/web && npx next start --port 3000 &
 node e2e/flow.mjs
 ```
 
-`WEB_URL` and `CHROMIUM_PATH` override the defaults.
+`e2e/browser.mjs` holds what all four agree on: the two URLs, the seeded
+accounts and the password, and how to find a browser. `WEB_URL`, `API_URL`,
+`SEED_PASSWORD` and `CHROMIUM_PATH` override the defaults. Chromium is looked
+for in three places in order — `CHROMIUM_PATH`, the development container's
+fixed path, then Playwright's own — because the container blocks Playwright's
+download and CI does not have the container's path.
 
 The section that matters most is the last one. It types crisis language into the
 browser and asserts that the **server** ends the session, that the Tele-MANAS

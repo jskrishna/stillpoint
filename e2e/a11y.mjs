@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
+
+const require = createRequire(import.meta.url);
 
 /**
  * WCAG 2.1 AA audit with axe-core over every route, in both palettes, at phone
@@ -17,12 +20,7 @@ import { createRequire } from 'node:module';
  * rendered.
  */
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
 const AXE = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
-
-const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
-const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
 
 /**
  * Routes that need no account.
@@ -78,13 +76,6 @@ const WIDTHS = [
 ];
 const THEMES = ['light', 'dark'];
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@stillpoint.test';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'correct-horse-battery-staple';
-const COACH_EMAIL = process.env.COACH_EMAIL ?? 'coach@stillpoint.test';
-const COACH_PASSWORD = process.env.COACH_PASSWORD ?? 'correct-horse-battery-staple';
-const API = process.env.API_URL ?? 'http://localhost:8000/api';
-const PASSWORD = 'correct-horse-battery-staple';
-
 /** Signs a fresh page in with an existing account, or reports that it cannot. */
 async function signIn(email, password) {
   const page = await browser.newPage();
@@ -100,7 +91,7 @@ async function signIn(email, password) {
   return { page, signedIn };
 }
 
-const browser = await chromium.launch({ executablePath: EXECUTABLE, args: ['--no-sandbox'] });
+const browser = await launch();
 const userPage = await browser.newPage();
 
 // An account, so the private routes render something rather than redirecting.
@@ -120,11 +111,13 @@ await userPage.waitForURL('**/welcome/voice', { timeout: 15000 });
 console.log(`signed in as ${email}`);
 
 // Two more pages, signed in as the staff accounts, for their own routes.
-const { page: adminPage, signedIn: asAdmin } = await signIn(ADMIN_EMAIL, ADMIN_PASSWORD);
-console.log(asAdmin ? `signed in as ${ADMIN_EMAIL}` : 'no admin account — skipping the console');
+const { page: adminPage, signedIn: asAdmin } = await signIn(ACCOUNTS.admin, PASSWORD);
+console.log(asAdmin ? `signed in as ${ACCOUNTS.admin}` : 'no admin account — skipping the console');
 
-const { page: coachPage, signedIn: asCoach } = await signIn(COACH_EMAIL, COACH_PASSWORD);
-console.log(asCoach ? `signed in as ${COACH_EMAIL}\n` : 'no coach account — skipping the portal\n');
+const { page: coachPage, signedIn: asCoach } = await signIn(ACCOUNTS.coach, PASSWORD);
+console.log(
+  asCoach ? `signed in as ${ACCOUNTS.coach}\n` : 'no coach account — skipping the portal\n',
+);
 
 // A client's id belongs to a real pairing and an invitation's token to a real
 // invitation, so both routes are resolved rather than guessed. With no coach

@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import { WEB, launch } from './browser.mjs';
 
 /**
  * End-to-end check of the web app against the Laravel API.
@@ -19,10 +19,7 @@ import { createRequire } from 'node:module';
 
 // Resolved through require: playwright is CommonJS, and the browser binary is
 // the one the container already has rather than one this script downloads.
-const { chromium } = createRequire(import.meta.url)('playwright');
-const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
 
-const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
 const email = `e2e+${Date.now()}@example.com`;
 const fails = [];
 const ok = (label) => console.log(`  ok   ${label}`);
@@ -31,7 +28,7 @@ const bad = (label, detail) => {
   console.log(`  FAIL ${label}${detail ? ` — ${detail}` : ''}`);
 };
 
-const browser = await chromium.launch({ executablePath: EXECUTABLE, args: ['--no-sandbox'] });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 page.on('console', (m) => {
   if (m.type() === 'error') console.log('    [console error]', m.text());

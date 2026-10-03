@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
 
 /**
  * The coach portal, against a running API.
@@ -9,20 +9,11 @@ import { createRequire } from 'node:module';
  * receives.
  *
  * It needs a coach account paired with a client, which the API cannot make
- * (`role` is not fillable and pairing is not a public route). The script
- * registers the client itself and prints the artisan command for the rest; see
- * `e2e/README.md`.
+ * (`role` is not fillable and pairing is not a public route). `DemoSeeder`
+ * makes both: `php artisan db:seed --class=DemoSeeder` in `apps/api`. The
+ * script registers its own extra client on top, so a run is not reading an
+ * earlier run's rows.
  */
-
-const { chromium } = createRequire(import.meta.url)('playwright');
-
-const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
-const API = process.env.API_URL ?? 'http://localhost:8000/api';
-const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
-const COACH_EMAIL = process.env.COACH_EMAIL ?? 'coach@stillpoint.test';
-const COACH_PASSWORD = process.env.COACH_PASSWORD ?? 'correct-horse-battery-staple';
-const CLIENT_EMAIL = process.env.CLIENT_EMAIL ?? 'client@stillpoint.test';
-const PASSWORD = 'correct-horse-battery-staple';
 
 // Unique per run: a fixed title finds an earlier run's row, which is already
 // shared, and then nothing under test is actually being exercised.
@@ -37,14 +28,14 @@ const bad = (l, d) => {
   console.log(`  FAIL ${l}${d ? ` — ${d}` : ''}`);
 };
 
-const browser = await chromium.launch({ executablePath: EXECUTABLE, args: ['--no-sandbox'] });
+const browser = await launch();
 
 // ---------------------------------------------------------------------------
 console.log('\n1. The client runs two sessions and shares one');
 
 const client = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await client.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
-await client.getByLabel('Email').fill(CLIENT_EMAIL);
+await client.getByLabel('Email').fill(ACCOUNTS.client);
 await client.getByLabel('Password').fill(PASSWORD);
 await client.getByRole('button', { name: 'Sign in' }).click();
 await client.waitForTimeout(2000);
@@ -53,7 +44,7 @@ const clientSignedIn = await client.evaluate(
   () => window.localStorage.getItem('stillpoint.token.v1') !== null,
 );
 if (!clientSignedIn) {
-  bad('the client signs in', `is ${CLIENT_EMAIL} made and paired? see e2e/README.md`);
+  bad('the client signs in', `is ${ACCOUNTS.client} made and paired? see e2e/README.md`);
 } else {
   ok('the client signs in');
 
@@ -148,8 +139,8 @@ console.log('\n2. What the coach receives');
 
 const coach = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await coach.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
-await coach.getByLabel('Email').fill(COACH_EMAIL);
-await coach.getByLabel('Password').fill(COACH_PASSWORD);
+await coach.getByLabel('Email').fill(ACCOUNTS.coach);
+await coach.getByLabel('Password').fill(PASSWORD);
 await coach.getByRole('button', { name: 'Sign in' }).click();
 await coach.waitForTimeout(2000);
 
@@ -157,7 +148,7 @@ const coachSignedIn = await coach.evaluate(
   () => window.localStorage.getItem('stillpoint.token.v1') !== null,
 );
 if (!coachSignedIn) {
-  bad('the coach signs in', `is ${COACH_EMAIL} made? see e2e/README.md`);
+  bad('the coach signs in', `is ${ACCOUNTS.coach} made? see e2e/README.md`);
 } else {
   ok('the coach signs in');
 
@@ -328,8 +319,19 @@ if (!coachSignedIn) {
   const settings = await client.locator('body').innerText();
   if (/WHO CAN SEE YOUR SESSIONS/.test(settings)) ok('settings says who can see their sessions');
   else bad('settings says who can see their sessions', settings.slice(0, 300));
-  if (settings.includes('Coach Devi')) ok('the coach is named there');
-  else bad('the coach is named there');
+  // The coach's own name, asked of the API rather than written down here. A
+  // literal name made this check pass only against the database it was written
+  // against, and fail the first time the seed named the account differently.
+  const coachName = await coach.evaluate(async (api) => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const me = await fetch(`${api}/me`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    return me.name;
+  }, API);
+
+  if (settings.includes(coachName)) ok(`the coach is named there (${coachName})`);
+  else bad('the coach is named there', `looked for ${coachName} in: ${settings.slice(0, 200)}`);
 
   await client.getByRole('button', { name: 'End coaching' }).first().click();
   await client.waitForTimeout(400);

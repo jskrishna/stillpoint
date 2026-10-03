@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
 
 /**
  * The admin console, against a running API.
@@ -9,28 +9,13 @@ import { createRequire } from 'node:module';
  * not that it is merely hidden, but that the text is absent from the response.
  *
  * It needs an admin account, which cannot be made through the API on purpose
- * (`role` is not fillable, so no request can set it). Make one first:
+ * (`role` is not fillable, so no request can set it). `DemoSeeder` makes one:
  *
- *     cd apps/api && php artisan tinker --execute="
- *       \$u = App\Models\User::firstOrCreate(
- *         ['email' => 'admin@stillpoint.test'],
- *         ['name' => 'Admin', 'password' => 'correct-horse-battery-staple'],
- *       );
- *       \$u->role = App\Domain\Role::Admin;
- *       \$u->save();
- *     "
+ *     cd apps/api && php artisan db:seed --class=DemoSeeder
  *
- * Then `node e2e/admin.mjs`. ADMIN_EMAIL and ADMIN_PASSWORD override.
+ * Then `node e2e/admin.mjs`. `ADMIN_EMAIL` and `SEED_PASSWORD` override; see
+ * `e2e/browser.mjs`.
  */
-
-const { chromium } = createRequire(import.meta.url)('playwright');
-
-const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
-const API = process.env.API_URL ?? 'http://localhost:8000/api';
-const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@stillpoint.test';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'correct-horse-battery-staple';
-const PASSWORD = 'correct-horse-battery-staple';
 
 /** Distinctive enough that finding it in a response is unambiguous. */
 const FLAGGED = 'I feel like a burden to everyone and I cannot go on';
@@ -42,7 +27,7 @@ const bad = (l, d) => {
   console.log(`  FAIL ${l}${d ? ` — ${d}` : ''}`);
 };
 
-const browser = await chromium.launch({ executablePath: EXECUTABLE, args: ['--no-sandbox'] });
+const browser = await launch();
 
 // ---------------------------------------------------------------------------
 console.log('\n1. An ordinary account, and what the console tells it');
@@ -95,8 +80,8 @@ console.log('\n2. The admin');
 
 const admin = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await admin.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
-await admin.getByLabel('Email').fill(ADMIN_EMAIL);
-await admin.getByLabel('Password').fill(ADMIN_PASSWORD);
+await admin.getByLabel('Email').fill(ACCOUNTS.admin);
+await admin.getByLabel('Password').fill(PASSWORD);
 await admin.getByRole('button', { name: 'Sign in' }).click();
 await admin.waitForTimeout(2500);
 

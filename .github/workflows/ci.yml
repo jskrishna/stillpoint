@@ -137,3 +137,109 @@ jobs:
       # mobile app gets, since no simulator or device is attached to CI.
       - name: Build
         run: pnpm run build
+
+  e2e:
+    name: End to end — the real stack in a real browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Only worth the eight minutes once the cheap gates agree. A type error or a
+    # red unit test fails these too, several minutes later and less legibly.
+    needs: [api, check]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, intl
+          coverage: none
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Install PHP dependencies
+        working-directory: apps/api
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # sqlite on disk, not in memory: the suite's :memory: database belongs to
+      # one process, and here the server and the browser are different ones.
+      # The schema is MySQL's to satisfy and the `api` job is what proves that;
+      # this job is about behaviour, not about the database.
+      - name: Prepare the API
+        working-directory: apps/api
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          # Written into .env rather than exported, so every later step and the
+          # server itself read the same database without anyone remembering to
+          # pass it along.
+          sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=sqlite|' .env
+          sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env
+          touch database/database.sqlite
+          php artisan migrate --force
+          php artisan db:seed --force
+
+      # Only the packages and the web app. The mobile export and the desktop
+      # bundle are the `check` job's to build, and neither is under test here.
+      - name: Build the web app
+        run: pnpm run build:packages && pnpm --filter @stillpoint/web run build
+
+      # Playwright is a root dev dependency, and these scripts resolve it from
+      # there. The development container has a browser at a fixed path instead
+      # and blocks this download; `e2e/browser.mjs` tries both.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start the servers
+        run: |
+          php artisan serve --port=8000 &
+          echo $! > /tmp/api.pid
+          pnpm --filter @stillpoint/web exec next start --port 3000 &
+          echo $! > /tmp/web.pid
+          for i in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8000/api/me || true)
+            web=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:3000/welcome || true)
+            # 401 from /api/me is the API answering, which is all this waits for.
+            if [ "$api" = "401" ] && [ "$web" = "200" ]; then echo "up"; exit 0; fi
+            sleep 2
+          done
+          echo "servers did not come up (api=$api web=$web)"
+          exit 1
+        working-directory: apps/api
+
+      # Four scripts, run whatever any one of them does: a failure in the
+      # safety stop and a failure in the coach's sharing rule are different
+      # news, and stopping at the first would hide the second.
+      - name: The user journey, including the safety stop
+        run: node e2e/flow.mjs
+
+      - name: The console, and who may read a safety flag
+        if: '!cancelled()'
+        run: node e2e/admin.mjs
+
+      - name: The coach portal, and what a coach cannot see
+        if: '!cancelled()'
+        run: node e2e/coach.mjs
+
+      - name: WCAG 2.1 AA, every route, both palettes, two widths
+        if: '!cancelled()'
+        run: node e2e/a11y.mjs
+
+      - name: The API log, if anything failed
+        if: failure()
+        working-directory: apps/api
+        run: tail -n 200 storage/logs/laravel.log || true
