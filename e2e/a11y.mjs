@@ -25,16 +25,7 @@ const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
 const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
 
 /** Routes that need no account. */
-const PUBLIC_ROUTES = [
-  '/',
-  '/pricing',
-  '/welcome',
-  '/admin',
-  '/admin/protocol',
-  '/admin/safety',
-  '/coach',
-  '/coach/priya',
-];
+const PUBLIC_ROUTES = ['/', '/pricing', '/welcome', '/coach', '/coach/priya'];
 
 /** Routes behind a token, reached after the script registers and consents. */
 const PRIVATE_ROUTES = [
@@ -47,37 +38,78 @@ const PRIVATE_ROUTES = [
   '/session',
 ];
 
+/**
+ * The console, audited as an admin sees it.
+ *
+ * Signed out these render a one-line "the console is for staff", which is not
+ * the screen worth auditing: the real one is a data table with a detail pane.
+ * Needs the admin account `e2e/admin.mjs` documents; without it these routes
+ * are skipped and said to be skipped rather than passing on the refusal.
+ */
+const ADMIN_ROUTES = ['/admin', '/admin/protocol', '/admin/safety'];
+
 const WIDTHS = [
   { name: '390', width: 390, height: 844 },
   { name: '1440', width: 1440, height: 900 },
 ];
 const THEMES = ['light', 'dark'];
 
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@stillpoint.test';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'correct-horse-battery-staple';
+const PASSWORD = 'correct-horse-battery-staple';
+
 const browser = await chromium.launch({ executablePath: EXECUTABLE, args: ['--no-sandbox'] });
-const context = await browser.newContext();
-const page = await context.newPage();
+const userPage = await browser.newPage();
 
 // An account, so the private routes render something rather than redirecting.
-const email = `a11y+${Date.now()}@example.com`;
-await page.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
-await page.getByRole('button', { name: 'Create an account instead' }).click();
-await page.getByLabel('Name').fill('Audit');
-await page.getByLabel('Email').fill(email);
-await page.getByLabel('Password').fill('correct-horse-battery-staple');
-await page.getByRole('button', { name: 'Create my account' }).click();
-await page.waitForURL('**/welcome/consent', { timeout: 15000 });
-const boxes = page.locator('input[type=checkbox]');
+const email = `a11y+${String(Date.now())}@example.com`;
+await userPage.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await userPage.getByRole('button', { name: 'Create an account instead' }).click();
+await userPage.getByLabel('Name').fill('Audit');
+await userPage.getByLabel('Email').fill(email);
+await userPage.getByLabel('Password').fill(PASSWORD);
+await userPage.getByRole('button', { name: 'Create my account' }).click();
+await userPage.waitForURL('**/welcome/consent', { timeout: 15000 });
+const boxes = userPage.locator('input[type=checkbox]');
 await boxes.nth(0).check();
 await boxes.nth(1).check();
-await page.getByRole('button', { name: /Continue|Saving/ }).click();
-await page.waitForURL('**/welcome/voice', { timeout: 15000 });
-console.log(`signed in as ${email}\n`);
+await userPage.getByRole('button', { name: /Continue|Saving/ }).click();
+await userPage.waitForURL('**/welcome/voice', { timeout: 15000 });
+console.log(`signed in as ${email}`);
 
-const ROUTES = [...PUBLIC_ROUTES, ...PRIVATE_ROUTES];
+// A second page, signed in as the admin, for the console's routes.
+const adminPage = await browser.newPage();
+await adminPage.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await adminPage.getByLabel('Email').fill(ADMIN_EMAIL);
+await adminPage.getByLabel('Password').fill(ADMIN_PASSWORD);
+await adminPage.getByRole('button', { name: 'Sign in' }).click();
+await adminPage.waitForTimeout(2500);
+const asAdmin = await adminPage.evaluate(
+  () => window.localStorage.getItem('stillpoint.token.v1') !== null,
+);
+console.log(
+  asAdmin ? `signed in as ${ADMIN_EMAIL}\n` : `no admin account — skipping the console\n`,
+);
+
+const ROUTES = [
+  ...PUBLIC_ROUTES.map((route) => ({ route, admin: false })),
+  ...PRIVATE_ROUTES.map((route) => ({ route, admin: false })),
+  ...ADMIN_ROUTES.map((route) => ({ route, admin: true })),
+];
+
 let combinations = 0;
+let skipped = 0;
 const violations = [];
 
-for (const route of ROUTES) {
+for (const { route, admin } of ROUTES) {
+  if (admin && !asAdmin) {
+    console.log(`  skip ${route} — needs an admin account (see e2e/admin.mjs)`);
+    skipped += 1;
+    continue;
+  }
+
+  const page = admin ? adminPage : userPage;
+
   for (const size of WIDTHS) {
     for (const theme of THEMES) {
       await page.setViewportSize({ width: size.width, height: size.height });
@@ -115,7 +147,8 @@ for (const route of ROUTES) {
 await browser.close();
 
 console.log(
-  `\n${String(combinations)} combinations across ${String(ROUTES.length)} routes, both palettes, 390 and 1440.`,
+  `\n${String(combinations)} combinations across ${String(ROUTES.length - skipped)} routes, both palettes, 390 and 1440.` +
+    (skipped === 0 ? '' : ` ${String(skipped)} route(s) skipped.`),
 );
 console.log(
   violations.length === 0 ? 'CLEAN' : `${String(violations.length)} failing combinations`,

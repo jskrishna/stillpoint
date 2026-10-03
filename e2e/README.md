@@ -28,6 +28,30 @@ and 112 numbers are shown, and that no journal row was written. Those are the
 rules in `CLAUDE.md` that must never be weakened, checked against the real
 stack rather than a mock.
 
+## The admin console
+
+`admin.mjs` checks who may read what. A safety flag's excerpt is the user's own
+words at the moment they said they were not safe, so most of this script is
+asserting that an ordinary account cannot reach it — that the text is absent
+from the response, not merely hidden.
+
+It needs an admin account, which the API deliberately cannot make: `role` is
+not fillable, so no request can set it. Make one with artisan:
+
+```bash
+cd apps/api && php artisan tinker --execute="
+  \$u = App\Models\User::firstOrCreate(
+    ['email' => 'admin@stillpoint.test'],
+    ['name' => 'Admin', 'password' => 'correct-horse-battery-staple'],
+  );
+  \$u->role = App\Domain\Role::Admin;
+  \$u->save();
+"
+node e2e/admin.mjs
+```
+
+`ADMIN_EMAIL` and `ADMIN_PASSWORD` override the defaults.
+
 ## The accessibility audit
 
 `a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 60
@@ -39,7 +63,10 @@ node e2e/a11y.mjs
 ```
 
 It registers its own account so the routes behind a token render something
-rather than redirecting. Contrast is already covered at the token level by
+rather than redirecting, and signs in as the admin above for the console —
+signed out those render a one-line "the console is for staff", which is not the
+screen worth auditing. Without an admin account the console's routes are
+skipped, and the run says so rather than passing on a refusal. Contrast is already covered at the token level by
 `packages/design-tokens/src/contrast.test.ts`; what this catches is the rest — a
 control with no accessible name, a label with nothing to label, a heading level
 skipped, a pairing that only exists once a component is rendered.

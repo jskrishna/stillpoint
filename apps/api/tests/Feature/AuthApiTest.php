@@ -107,6 +107,12 @@ final class AuthApiTest extends TestCase
      * guest to route('login'), which this API does not have, and the auth
      * middleware resolves that before the handler decides on JSON.
      */
+    public function test_the_profile_says_which_role_the_account_has(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $this->getJson('/api/me')->assertOk()->assertJsonPath('role', 'user');
+    }
+
     public function test_an_unauthenticated_request_is_401_even_without_an_accept_header(): void
     {
         $this->get('/api/me')->assertUnauthorized();

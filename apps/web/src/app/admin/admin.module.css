@@ -379,3 +379,24 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/*
+ * The queue's rows are selected with a real button rather than an onClick on
+ * the <tr>: a row that only responds to a mouse is unreachable by keyboard,
+ * and the level tag is the obvious thing to press.
+ */
+.rowButton {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.linkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--sp-color-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}

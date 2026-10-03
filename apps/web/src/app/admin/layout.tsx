@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
-import { openFlags } from '@stillpoint/protocol';
 import AdminNav from './AdminNav';
-import { SAFETY_FLAGS } from '../../lib/admin-data';
 import styles from './admin.module.css';
 
 export const metadata: Metadata = {
@@ -11,7 +9,7 @@ export const metadata: Metadata = {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.shell}>
-      <AdminNav openFlagCount={openFlags(SAFETY_FLAGS).length} />
+      <AdminNav />
       <main className={styles.main}>{children}</main>
     </div>
   );

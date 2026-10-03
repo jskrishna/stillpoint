@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { api } from '../../lib/api';
 import styles from './admin.module.css';
 
 const LINKS = [
@@ -10,8 +12,28 @@ const LINKS = [
   { href: '/admin/protocol', label: 'Step prompts' },
 ] as const;
 
-export default function AdminNav({ openFlagCount }: { openFlagCount: number }) {
+/**
+ * The console's sidebar.
+ *
+ * The badge is the real count of open flags, fetched here rather than passed
+ * down: the layout that renders this is a server component and has no token.
+ * A failed fetch shows no badge, which is the safe way to be wrong — it
+ * understates the queue rather than inventing work.
+ */
+export default function AdminNav() {
+  const [openFlagCount, setOpenFlagCount] = useState(0);
   const pathname = usePathname();
+
+  useEffect(() => {
+    api
+      .adminOverview()
+      .then((o) => {
+        setOpenFlagCount(o.openFlags);
+      })
+      .catch(() => {
+        setOpenFlagCount(0);
+      });
+  }, [pathname]);
 
   return (
     <aside className={styles.sidebar}>

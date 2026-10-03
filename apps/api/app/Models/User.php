@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\ConsentItem;
+use App\Domain\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -14,6 +15,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
+    // `role` is deliberately absent: it is not something a request may set.
     'name', 'email', 'password', 'plan', 'country',
     'guide_voice', 'talk_mode', 'coach_sharing',
     'accepted_consent', 'consented_at',
@@ -23,6 +25,18 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * The role a user has before the database supplies its default.
+     *
+     * The column has a default too, but a default only lands on insert — an
+     * in-memory model built but not reloaded carried a null role, and the gate
+     * reading it crashed with a 500 rather than denying. Both layers now say
+     * the same thing.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = ['role' => 'user'];
 
     /**
      * Get the attributes that should be cast.
@@ -36,7 +50,24 @@ class User extends Authenticatable
             'password' => 'hashed',
             'accepted_consent' => 'array',
             'consented_at' => 'datetime',
+            'role' => Role::class,
         ];
+    }
+
+    /**
+     * A missing role reads as the least privileged one.
+     *
+     * Not a fallback for convenience: if the role cannot be determined, the
+     * answer to "may this person read the safety queue" is no.
+     */
+    public function isStaff(): bool
+    {
+        return ($this->role ?? Role::User)->isStaff();
+    }
+
+    public function isCoach(): bool
+    {
+        return ($this->role ?? Role::User)->isCoach();
     }
 
     /** @return HasMany<GuidedSession, $this> */

@@ -119,6 +119,8 @@ export interface Profile {
   readonly name: string;
   readonly email: string;
   readonly plan: string;
+  /** 'user', 'coach' or 'admin'. Nobody is staff by registering. */
+  readonly role: string;
   readonly country: string;
   readonly guideVoice: string;
   readonly talkMode: string;
@@ -181,6 +183,46 @@ export interface ApiJournalEntry {
   readonly calmerRating: string | null;
   readonly reachedFinalStep: boolean;
   readonly sharedWithCoach: boolean;
+}
+
+/**
+ * A safety flag, as a reviewer sees it.
+ *
+ * `excerpt` is the user's own words at the moment they said they were not safe.
+ * It only reaches this type for an admin, and the server answers 404 to anyone
+ * else — including a coach.
+ */
+export interface ApiSafetyFlag {
+  readonly id: string;
+  readonly sessionId: string | null;
+  /** A short opaque handle, not a name: the queue is for judging a flag. */
+  readonly user: string;
+  readonly level: string;
+  readonly category: string;
+  readonly categoryLabel: string;
+  readonly excerpt: string;
+  readonly outcome: string;
+  readonly status: string;
+  readonly raisedAt: string | null;
+  readonly reviewedAt: string | null;
+}
+
+/** The console's figures. Aggregate only: it reads no personal text. */
+export interface ApiAdminOverview {
+  readonly windowDays: number;
+  readonly sessions: number;
+  readonly reachedFinalStepPct: number;
+  readonly feltCalmerPct: number;
+  readonly openFlags: number;
+  /** How many of every 100 sessions reach each step, in protocol order. */
+  readonly stepReach: readonly number[];
+  readonly recentSessions: readonly {
+    readonly user: string;
+    readonly kind: string;
+    readonly minutes: number;
+    readonly reachedStep: number;
+    readonly result: string;
+  }[];
 }
 
 export interface ApiInsights {
@@ -256,4 +298,15 @@ export const api = {
   deleteJournalEntry: (id: string) => request<void>(`/journal/${id}`, { method: 'DELETE' }),
 
   insights: () => request<ApiInsights>('/insights'),
+
+  /* ------------------------------------------------------- admin console */
+
+  adminOverview: () => request<ApiAdminOverview>('/admin/overview'),
+
+  /** Open flags by default; 'all' to include the reviewed ones. */
+  safetyFlags: (status: 'open' | 'reviewed' | 'all' = 'open') =>
+    requestList<ApiSafetyFlag>(`/admin/safety-flags?status=${status}`),
+
+  reviewSafetyFlag: (id: string) =>
+    request<ApiSafetyFlag>(`/admin/safety-flags/${id}/review`, { method: 'POST' }),
 };

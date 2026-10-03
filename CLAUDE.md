@@ -181,7 +181,8 @@ pnpm run build   # every workspace project, packages first
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
 
-`e2e/flow.mjs` is a by-hand check of the web app against a running API —
+`e2e/` holds three by-hand checks against a running API — see `e2e/README.md`.
+`flow.mjs` is a by-hand check of the web app against a running API —
 register, consent, a full session, journal, insights, settings, the safety stop
 and sign-out. It needs two servers, so it is not in `check` and not in CI; see
 `e2e/README.md`. Run it after changing the session flow, `apps/web/src/lib/api.ts`
@@ -224,6 +225,34 @@ make a query easier.
 The journal table is also the rule, not just a store: **a session that ended for
 safety never gets a row.** `JournalEntry::fromSession()` returns null for it,
 and the absence of the row is how that is kept.
+
+## Roles, and who reads what
+
+A user has one of three roles, and nobody is staff by registering: `role` is not
+in `User`'s `#[Fillable]`, so no request can set it. The model and the column
+both default to `user`, and `isStaff()` reads a missing role as `user` — if the
+role cannot be determined, the answer to "may this person read the safety queue"
+is no.
+
+**A coach is not an admin.** A coach reads the sessions a client chose to share.
+An admin reads the safety queue, which holds the user's own words at the moment
+they said they were not safe. Those are not the same trust, and `EnsureStaff`
+admits only `admin`. It answers **404, not 403**, so the console's routes do not
+confirm their own existence to someone who may not use them.
+
+The console never names anyone. Both the queue and the overview's recent-session
+list print `UserHandle::for()` — "u_8f21", a short hash, stable per user so two
+rows read as one person without saying who. It is one function in the domain
+because two would drift, and then one screen's `u_8f21` would be a different
+person from the other's. It is not a security boundary; it keeps a name and an
+email off a screen that does not need them.
+
+`AdminOverviewService` reads only plain columns — kind, step, end reason,
+rating. It touches none of the encrypted text: the console answers "how is the
+protocol working", and the one place staff read someone's words is the queue.
+Its percentages are of **sessions started**, so a session that stopped for
+safety (and therefore has no journal row) stays in the denominator rather than
+flattering the numbers.
 
 ## The API's shape
 

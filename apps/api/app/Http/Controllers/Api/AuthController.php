@@ -141,6 +141,7 @@ final class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'plan' => $user->plan,
+            'role' => $user->role->value,
             'country' => $user->country,
             'guideVoice' => $user->guide_voice,
             'talkMode' => $user->talk_mode,
