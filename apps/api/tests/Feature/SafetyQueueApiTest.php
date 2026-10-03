@@ -227,7 +227,7 @@ final class SafetyQueueApiTest extends TestCase
 
         $this->assertStringNotContainsString('Asha Rao', $response->content());
         $this->assertStringNotContainsString('asha@example.com', $response->content());
-        $this->assertMatchesRegularExpression('/^u_[0-9a-f]{4}$/', $response->json('items.0.user'));
+        $this->assertMatchesRegularExpression('/^u_[0-9a-f]{12}$/', $response->json('items.0.user'));
     }
 
     public function test_the_same_user_always_gets_the_same_handle(): void

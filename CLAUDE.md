@@ -673,11 +673,24 @@ admits only `admin`. It answers **404, not 403**, so the console's routes do not
 confirm their own existence to someone who may not use them.
 
 The console never names anyone. Both the queue and the overview's recent-session
-list print `UserHandle::for()` — "u_8f21", a short hash, stable per user so two
-rows read as one person without saying who. It is one function in the domain
-because two would drift, and then one screen's `u_8f21` would be a different
-person from the other's. It is not a security boundary; it keeps a name and an
-email off a screen that does not need them.
+list print `UserHandle::for()` — a short salted hash of the id, stable per user
+so two rows read as one person without saying who. It is one function in the
+domain because two would drift, and then one screen's handle would be a
+different person from the other's. It is not a security boundary; it keeps a
+name and an email off a screen that does not need them.
+
+**Twelve hex characters, where the designs' example shows four** — a deliberate
+departure, like the colour tokens over AA contrast, because the shown value is
+wrong for what the thing has to do. Four is 65,536 handles: measured, a
+thousand sequential ids already produce five collisions and twenty thousand
+produce 2,761. A collision leaks nothing; it **merges two people** on the one
+screen where that matters most, so two people each in crisis read as one person
+in crisis twice and a reviewer's judgement about escalation rests on an identity
+that is not real. Eight characters is not enough either (about a 69% chance of
+a collision somewhere at 100,000 users); twelve is about one chance in 55,000.
+If a short handle is ever needed again, the answer is a stored column with a
+unique index — impossible rather than improbable — which is a migration, where
+this is a constant and nothing stores a handle.
 
 ### A coach sees only what a client shared
 

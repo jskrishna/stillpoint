@@ -114,7 +114,7 @@ if (!signedIn) {
   if (/WHAT THE SCREEN COULD NOT READ/.test(overview))
     ok('the overview admits what the screen cannot read');
   else bad('the overview admits what the screen cannot read', overview.slice(0, 500));
-  if (/u_[0-9a-f]{4}/.test(overview)) ok('recent sessions carry an opaque handle');
+  if (/u_[0-9a-f]{12}\b/.test(overview)) ok('recent sessions carry an opaque handle');
   else bad('recent sessions carry an opaque handle', overview.slice(-300));
   if (!/@example\.com/.test(overview)) ok('the overview names nobody');
   else bad('the overview names nobody');

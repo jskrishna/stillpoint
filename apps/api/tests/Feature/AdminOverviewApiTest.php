@@ -211,7 +211,7 @@ final class AdminOverviewApiTest extends TestCase
         Sanctum::actingAs(User::factory()->admin()->create());
         $row = $this->getJson('/api/admin/overview')->json('recentSessions.0');
 
-        $this->assertMatchesRegularExpression('/^u_[0-9a-f]{4}$/', $row['user']);
+        $this->assertMatchesRegularExpression('/^u_[0-9a-f]{12}$/', $row['user']);
         $this->assertSame('safety', $row['result']);
         $this->assertSame(3, $row['reachedStep']);
         $this->assertGreaterThanOrEqual(1, $row['minutes']);
