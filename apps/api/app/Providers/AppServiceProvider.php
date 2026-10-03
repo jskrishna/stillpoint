@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -46,5 +49,44 @@ class AppServiceProvider extends ServiceProvider
          * deliberately; not worth acquiring by default.
          */
         Password::defaults(fn () => Password::min(12));
+
+        $this->rateLimiters();
+    }
+
+    /**
+     * The limit on the routes worth guessing at — sign-in, registration,
+     * password recovery, and opening an invitation by its token.
+     *
+     * Keyed by **what is being guessed** first, and only then by address.
+     * `throttle:10,1` was per IP alone, and this product is India-first: a
+     * mobile carrier puts tens of thousands of subscribers behind one public
+     * address, so ten sign-ins a minute is a budget a whole network shares.
+     * The people it locks out are strangers to each other, and one of them is
+     * someone who cannot reach their journal. Keying by the address being
+     * signed into is the limit that actually describes the attack — guessing a
+     * password is guessing *an account's* password.
+     *
+     * The per-IP ceiling stays as a second line, for one machine spraying one
+     * password across many accounts, and is set where only a script reaches
+     * it. It is the blunt one of the two, and NAT is why: raise it and the
+     * spray gets cheaper, lower it and a carrier's subscribers lock each other
+     * out. The account-keyed limit is the one doing the work.
+     */
+    private function rateLimiters(): void
+    {
+        RateLimiter::for('guessable', function (Request $request): array {
+            $email = $request->input('email');
+            // An invitation is looked up by its token, so the token is what is
+            // being guessed. Falling back to the address keeps a request with
+            // neither from sharing one bucket with every other such request.
+            $target = is_string($email) && $email !== ''
+                ? 'email:'.hash('sha256', mb_strtolower(trim($email)))
+                : 'token:'.hash('sha256', (string) $request->route('token')).'|'.$request->ip();
+
+            return [
+                Limit::perMinute(6)->by($target),
+                Limit::perMinute(60)->by('ip:'.$request->ip()),
+            ];
+        });
     }
 }

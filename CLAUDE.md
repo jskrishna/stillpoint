@@ -731,6 +731,16 @@ CORS is a list, never `*`: `CORS_ALLOWED_ORIGINS`, defaulting to the two local
 spellings of the dev server. This API carries personal health content behind
 bearer tokens.
 
+The limit on the guessable routes — sign-in, registration, password recovery,
+opening an invitation — is keyed by **the account being guessed**, not by the
+address asking. `AppServiceProvider`'s `guessable` limiter does it, and
+India-first is the reason: a mobile carrier puts tens of thousands of
+subscribers behind one public IP, so a per-IP budget is one a whole network
+shares, and the people it locks out are strangers to each other — one of whom
+cannot reach their journal. A per-IP ceiling stays as a second line against one
+machine spraying many accounts, set where only a script reaches it. Do not
+replace this with `throttle:N,1`, which is per IP and was what it replaced.
+
 The web client keeps its token in `localStorage`, which an XSS can read. The
 right answer is Sanctum's cookie mode; the shortcut is documented at the top of
 `apps/web/src/lib/api.ts` and is not an opinion that it is fine.

@@ -17,8 +17,10 @@ use App\Http\Middleware\EnsureCoach;
 use App\Http\Middleware\EnsureStaff;
 use Illuminate\Support\Facades\Route;
 
-// Throttled: these are the two routes worth guessing at.
-Route::middleware('throttle:10,1')->group(function () {
+// Throttled: these are the routes worth guessing at. The limiter is keyed by
+// what is being guessed rather than by address — see `AppServiceProvider` for
+// why a per-IP limit is the wrong shape for an India-first product.
+Route::middleware('throttle:guessable')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
 
