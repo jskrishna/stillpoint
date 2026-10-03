@@ -1,0 +1,97 @@
+# Stillpoint, whole, on one machine.
+#
+# Four containers: MySQL, PHP-FPM, the nginx in front of it, and the Next.js
+# app. It is a working deployment and a way to run the product without a PHP
+# toolchain — not a production topology, which would put the database somewhere
+# it is backed up and the two apps behind a load balancer.
+#
+#   cp deploy/.env.example .env && $EDITOR .env   # APP_KEY is not optional
+#   docker compose up --build
+#   docker compose exec api php artisan migrate --force
+#   docker compose exec api php artisan db:seed --force   # demo accounts
+#
+# Then the web app is on http://localhost:3000 and the API on
+# http://localhost:8000.
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-stillpoint}
+      MYSQL_USER: ${DB_USERNAME:-stillpoint}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    # Not published. Nothing outside this network has any business reaching the
+    # database directly, and the one column worth stealing is encrypted at rest
+    # precisely because something eventually will.
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-p${DB_ROOT_PASSWORD}']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    # Named so a pre-built image (CI builds all three) is reused rather than
+    # rebuilt from scratch by `compose up`.
+    image: stillpoint-api:local
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_NAME: Stillpoint
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      # Losing this loses every journal, every session and every safety flag:
+      # the encrypted casts key off it and there is no other copy. See
+      # deploy/README.md.
+      APP_KEY: ${APP_KEY:?set APP_KEY in .env — see deploy/README.md}
+      APP_URL: ${API_URL:-http://localhost:8000}
+      APP_FRONTEND_URL: ${WEB_URL:-http://localhost:3000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: '3306'
+      DB_DATABASE: ${DB_DATABASE:-stillpoint}
+      DB_USERNAME: ${DB_USERNAME:-stillpoint}
+      DB_PASSWORD: ${DB_PASSWORD}
+      LOG_CHANNEL: stderr
+      # No mail driver is chosen yet, so a password reset link is written to
+      # the log rather than sent. deploy/README.md calls this out: it is the
+      # one thing here that is not production-ready.
+      MAIL_MAILER: ${MAIL_MAILER:-log}
+
+  nginx:
+    image: stillpoint-nginx:local
+    build:
+      context: .
+      dockerfile: deploy/nginx.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${API_PORT:-8000}:80'
+
+  web:
+    image: stillpoint-web:local
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+      args:
+        # Read by the browser, so it is fixed when the image is built. Change
+        # it and the image has to be rebuilt — there is no runtime override.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000/api}
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+
+volumes:
+  mysql:

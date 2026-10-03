@@ -243,3 +243,95 @@ jobs:
         if: failure()
         working-directory: apps/api
         run: tail -n 200 storage/logs/laravel.log || true
+
+  docker:
+    name: Deployment — the images build and come up
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [api, check]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Built, not pushed. There is no registry and no release process yet;
+      # what this job answers is whether `docker compose up` would work for
+      # someone who cloned this, which was not true until it ran.
+      - name: Build the API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/api.Dockerfile
+          push: false
+          load: true
+          tags: stillpoint-api:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build the nginx image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/nginx.Dockerfile
+          push: false
+          load: true
+          tags: stillpoint-nginx:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build the web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/web.Dockerfile
+          push: false
+          load: true
+          tags: stillpoint-web:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Building proves the images exist; this proves they start, that the
+      # migrations run against the MySQL they will meet, and that the API and
+      # the web app each answer a request. A stack that builds and does not
+      # come up is the failure this is here to catch.
+      - name: Bring the stack up
+        run: |
+          cat > .env <<'ENV'
+          # A real 32-byte key, because Laravel will not boot without one. It
+          # is in the repository on purpose and must never be used anywhere
+          # else: it encrypts an ephemeral database that is thrown away when
+          # this job ends.
+          APP_KEY=base64:Xgdsl6u1Rncati1S3SjwwbZ4AcJBUOBwyFGiipytm7Y=
+          WEB_URL=http://localhost:3000
+          API_URL=http://localhost:8000
+          PUBLIC_API_URL=http://localhost:8000/api
+          CORS_ALLOWED_ORIGINS=http://localhost:3000
+          DB_DATABASE=stillpoint
+          DB_USERNAME=stillpoint
+          DB_PASSWORD=ci-only-not-a-secret
+          DB_ROOT_PASSWORD=ci-only-not-a-secret
+          WEB_PORT=3000
+          API_PORT=8000
+          MAIL_MAILER=log
+          ENV
+          # The three images are already built and tagged above; compose
+          # reuses them because the services name those tags.
+          docker compose up -d --no-build
+          for i in $(seq 1 60); do
+            api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://localhost:8000/api/me || true)
+            web=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://localhost:3000/welcome || true)
+            # 401 from /api/me is the API answering through nginx and PHP-FPM.
+            if [ "$api" = "401" ] && [ "$web" = "200" ]; then echo "up"; break; fi
+            sleep 5
+          done
+          test "$api" = "401" || { echo "the API did not answer (got $api)"; exit 1; }
+          test "$web" = "200" || { echo "the web app did not answer (got $web)"; exit 1; }
+          # The migrations against the MySQL the compose file actually starts.
+          docker compose exec -T api php artisan migrate --force
+
+      - name: What the containers said, if anything failed
+        if: failure()
+        run: docker compose logs --tail 120

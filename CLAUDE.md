@@ -388,6 +388,34 @@ the same steps in the same order.
 run the gates in CI's order. A leftover `dist/` has twice made a broken commit
 look green locally.
 
+## Running it somewhere
+
+`docker-compose.yml` and `deploy/` bring the whole thing up: MySQL, PHP-FPM,
+nginx, and the Next.js app. `deploy/README.md` is the detail. Two things from
+it that matter wherever this is discussed:
+
+**`APP_KEY` is the whole journal.** Every entry, every session's content and
+every safety flag's excerpt is encrypted with it, there is no second copy, and
+there is no recovery path — change it or lose it and that content is gone, not
+locked out. Rotating it is a migration that decrypts with the old key and
+re-encrypts with the new one, and nothing here does that yet. This is also the
+reason password reset is safe to offer: the key is not derived from anyone's
+password.
+
+**`MAIL_MAILER=log` means nobody can reset a password.** No mail provider has
+been chosen, so the reset link is written to the log instead of sent. It is the
+one thing in the deployment that is deliberately unfinished, and it needs a
+decision rather than a configuration change.
+
+The CI `docker` job builds all three images and brings the stack up, so they are
+known to build and start. Nothing has run against real traffic, nobody has
+restored a backup, and TLS terminates somewhere that does not exist yet. A green
+build means "this will start", not "this is ready".
+
+`NEXT_PUBLIC_API_URL` is fixed when the web image is built, because the browser
+is what calls the API. Pointing a built image at a different API is not
+possible; rebuild it.
+
 ## Personal content is encrypted at rest
 
 The session data, the journal's title, what happened, belief, forgiveness,
