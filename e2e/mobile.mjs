@@ -38,7 +38,7 @@ import { reporter } from './report.mjs';
 const APP = process.env.MOBILE_URL ?? 'http://127.0.0.1:4000';
 const PASSWORD = 'a-long-enough-password';
 
-const { ok, bad, fails, watchForThrows } = reporter('the mobile app');
+const { ok, bad, finish, watchForThrows } = reporter('the mobile app');
 watchForThrows();
 
 const browser = await launch();
@@ -293,9 +293,4 @@ else for (const [origin, count] of elsewhere) bad(`a request left for ${origin}`
 if (thrown.length === 0) ok('no screen threw while any of that happened');
 else for (const t of thrown.slice(0, 5)) bad('a screen threw', t);
 
-await browser.close();
-
-console.log(
-  fails.length === 0 ? '\nALL PASSED' : `\n${String(fails.length)} FAILED: ${fails.join(', ')}`,
-);
-process.exit(fails.length === 0 ? 0 : 1);
+await finish(() => browser.close());

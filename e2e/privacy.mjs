@@ -26,7 +26,7 @@ import { reporter } from './report.mjs';
  * of someone.
  */
 
-const { ok, bad, fails, watchForThrows } = reporter('nothing leaves this origin');
+const { ok, bad, finish, watchForThrows } = reporter('nothing leaves this origin');
 watchForThrows();
 
 /**
@@ -255,9 +255,4 @@ if (loaded.includes('Newsreader') && loaded.includes('Hanken Grotesk')) {
   bad('the self-hosted fonts did not load', JSON.stringify(faces));
 }
 
-await browser.close();
-
-console.log(
-  fails.length === 0 ? '\nALL PASSED' : `\n${String(fails.length)} FAILED: ${fails.join(', ')}`,
-);
-process.exit(fails.length === 0 ? 0 : 1);
+await finish(() => browser.close());

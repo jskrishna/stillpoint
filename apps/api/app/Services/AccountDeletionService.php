@@ -80,9 +80,17 @@ final readonly class AccountDeletionService
             // because `CoachInvite::open()` stores it that way and sqlite's `=`
             // is case-sensitive where MySQL's collation is not.
             $address = Str::lower(trim((string) $user->email));
-            $invites = CoachInvite::query()
-                ->whereRaw('LOWER(email) = ?', [$address])
-                ->orWhere('accepted_by', $user->id);
+            // Grouped. The two conditions are an `or`, and today there is
+            // nothing else in the query — but `A and B or C` groups as
+            // `(A and B) or C`, so adding one `where` above these later would
+            // silently widen the delete to every invitation anybody accepted.
+            // That is the "a forgotten `where` is silent" problem with the sign
+            // flipped, and it costs a closure to make impossible.
+            $invites = CoachInvite::query()->where(
+                fn ($q) => $q
+                    ->whereRaw('LOWER(email) = ?', [$address])
+                    ->orWhere('accepted_by', $user->id)
+            );
             $removed['invites'] = $invites->count();
             $invites->delete();
 

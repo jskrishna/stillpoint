@@ -22,7 +22,7 @@ const RUN = String(Date.now()).slice(-6);
 const SHARED = `My manager dismissed my work in front of the team ${RUN}`;
 const PRIVATE = `Something I am not ready to discuss ${RUN}`;
 
-const { ok, bad, fails, watchForThrows } = reporter('the coach portal');
+const { ok, bad, finish, watchForThrows } = reporter('the coach portal');
 watchForThrows();
 
 const browser = await launch();
@@ -349,8 +349,4 @@ if (!coachSignedIn) {
 }
 await coach.close();
 
-await browser.close();
-console.log(
-  `\n${fails.length === 0 ? 'ALL PASSED' : `${String(fails.length)} FAILED: ${fails.join('; ')}`}`,
-);
-process.exit(fails.length === 0 ? 0 : 1);
+await finish(() => browser.close());

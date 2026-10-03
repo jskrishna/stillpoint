@@ -44,12 +44,15 @@ export function reporter(name) {
     }
   };
 
-  const section = (heading) => {
-    console.log(`\n${heading}`);
-  };
-
   /**
    * Call this instead of `process.exit` at the end.
+   *
+   * The five browser scripts each had their own copy of this, differing only
+   * in where the newline went and whether the count was interpolated — which
+   * is five places for a verdict line to drift, in the scripts whose whole job
+   * is to be read when something is wrong. `a11y.mjs` keeps its own, because
+   * it counts route-and-palette combinations rather than named assertions and
+   * its summary says so.
    *
    * @param {() => Promise<void>} [cleanUp] Closing the browser, usually.
    */
@@ -79,5 +82,5 @@ export function reporter(name) {
     process.on('unhandledRejection', report('unhandled rejection'));
   };
 
-  return { ok, bad, section, finish, fails, watchForThrows };
+  return { ok, bad, finish, watchForThrows };
 }

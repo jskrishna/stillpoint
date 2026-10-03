@@ -21,7 +21,7 @@ import { reporter } from './report.mjs';
 /** Distinctive enough that finding it in a response is unambiguous. */
 const FLAGGED = 'I feel like a burden to everyone and I cannot go on';
 
-const { ok, bad, fails, watchForThrows } = reporter('the admin console');
+const { ok, bad, finish, watchForThrows } = reporter('the admin console');
 watchForThrows();
 
 const browser = await launch();
@@ -369,8 +369,4 @@ if (!signedIn) {
 }
 await admin.close();
 
-await browser.close();
-console.log(
-  `\n${fails.length === 0 ? 'ALL PASSED' : `${String(fails.length)} FAILED: ${fails.join('; ')}`}`,
-);
-process.exit(fails.length === 0 ? 0 : 1);
+await finish(() => browser.close());

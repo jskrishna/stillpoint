@@ -22,7 +22,7 @@ import { reporter } from './report.mjs';
 // the one the container already has rather than one this script downloads.
 
 const email = `e2e+${Date.now()}@example.com`;
-const { ok, bad, fails, watchForThrows } = reporter('the user journey');
+const { ok, bad, finish, watchForThrows } = reporter('the user journey');
 watchForThrows();
 
 const browser = await launch();
@@ -759,8 +759,4 @@ await page.waitForTimeout(1500);
 if (page.url().includes('/welcome')) ok('the app is unreachable without a token');
 else bad('the app is unreachable without a token', page.url());
 
-await browser.close();
-console.log(
-  `\n${fails.length === 0 ? 'ALL PASSED' : `${fails.length} FAILED: ${fails.join('; ')}`}`,
-);
-process.exit(fails.length === 0 ? 0 : 1);
+await finish(() => browser.close());
