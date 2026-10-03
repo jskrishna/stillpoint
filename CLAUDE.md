@@ -416,6 +416,18 @@ of the interface widened. Do not widen it.
 URL, a `localStorage` store, and a re-export of everything so no screen has to
 know which package a type came from.
 
+**A refusal's wording is the server's.** `apps/mobile/src/describe.ts` turns an
+`ApiError` into a sentence, and the rule is that the API's own message wins — a
+generic line is a fallback for when the framework answered instead of the
+application. A 429 is where that matters: Laravel's throttle middleware answers
+the sign-in routes with a bare "Too Many Requests", which is not something to
+show a person, but the guide's budget running out mid-session is the API's own
+"That was a lot of answers very quickly." Replacing both with "Too many
+attempts" told somebody upset, part-way through being asked questions, that
+they had made too many attempts at something — and the web app showed the
+server's sentence, so the two surfaces disagreed about the same limit, which is
+the one thing that file's own note promises they do not.
+
 ### The backend is Laravel, and it owns the rules
 
 `apps/api/app/Domain` is the authority. The PHP there is a port of
