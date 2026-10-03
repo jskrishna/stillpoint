@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# The bundled copy of the web app's standalone build — made by
+# `scripts/bundle-web.mjs`, never edited, and large.
+web/
+*.tsbuildinfo

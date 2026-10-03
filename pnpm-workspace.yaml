@@ -6,3 +6,11 @@ packages:
   # the install.
   - 'apps/web'
   - 'apps/mobile'
+  - 'apps/desktop'
+
+# pnpm 10 does not run a dependency's install scripts unless it is listed here,
+# which is the right default: an install script is arbitrary code from the
+# registry. Electron's fetches the platform binary, without which `electron .`
+# has nothing to run.
+onlyBuiltDependencies:
+  - electron

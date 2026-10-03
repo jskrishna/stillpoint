@@ -183,6 +183,7 @@ packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, typ
 packages/client/          @stillpoint/client — the typed API client, one per surface
 apps/web/                 @stillpoint/web — Next.js: marketing site and web app
 apps/mobile/              @stillpoint/mobile — Expo: the iOS and Android app
+apps/desktop/             @stillpoint/desktop — Electron: a shell around the web app
 parity/                   the cross-language fixture both suites assert against
 e2e/                      a by-hand browser check of web against a running API
 ```
@@ -214,6 +215,53 @@ Two decisions in it are worth keeping:
   than pretending. When the voice vendor is chosen, these two files are what
   gets replaced — and at that point the seam itself is worth moving into a
   package.
+
+### The desktop app is a shell, and must stay one
+
+`apps/desktop` is Electron around the web app's standalone build — the same
+build the browser gets, in a window. Nothing about the product is implemented
+there: no session screen, no safety rule, no API client. That is why the
+designs call for Next.js on both, and it is the only reason a fifth surface
+does not mean a fifth place for a crisis-stop rule to drift.
+
+What it adds is what a window can do and a tab cannot: a remembered size and
+position, a tray, a global shortcut
+(<kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) straight into a session,
+and a menu that goes to the app's own screens. If a feature needs a screen, it
+belongs in `apps/web` and the desktop app gets it for free.
+
+The renderer is sandboxed with no Node and no preload, and navigation is pinned
+to the app's own origin: the page in that window is signed in to somebody's
+journal. The bundled server binds to `127.0.0.1` on an allocated port.
+
+**The port is fixed (8735) on purpose, and it is the app's identity.** Asking
+the operating system for a free port is the obvious thing and it is wrong here:
+the port is part of the origin, the origin is what the browser keys storage by,
+and the web app keeps its bearer token in `localStorage`. A new port each launch
+is an empty store each launch — the desktop app signs everybody out every time
+it starts, and nothing in the logs says why. If the port is taken the app says
+so and stops, because moving to another one is that bug with an extra step. The
+API's `CORS_ALLOWED_ORIGINS` carries that one origin.
+
+**The app surface has no desktop layout.** `apps/web`'s `/app` caps its content
+column at 430px with navigation along the bottom — the phone design, which is
+the only one the artifacts give for those screens. So the window opens narrow:
+that is the designed layout at its designed width, not a desktop one. The
+console, the coach portal and the marketing site do have desktop layouts and
+render as intended. A desktop layout for `/app` is a design decision, and it
+belongs in `apps/web`; the shell will pick it up with no change.
+
+It has been launched under Xvfb here, which proves the server starts, the app
+renders and a session survives a relaunch. **It has never been packaged or run
+on macOS or Windows**, and there is no installer, signing, notarisation or
+auto-update — each of those costs a certificate or a server rather than a line
+of config. Its README says so; do not let `pnpm run build` passing stand in for
+it.
+
+`apps/web` therefore builds `output: 'standalone'` with `outputFileTracingRoot`
+at the workspace root. Both are load-bearing for the desktop app and neither is
+visible from `apps/web` itself — the comment in `next.config.ts` is the only
+warning anyone gets.
 
 ### Display state lives in the protocol package
 

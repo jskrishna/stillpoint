@@ -3,3 +3,8 @@
 pnpm-lock.yaml
 # apps/api is a PHP project with its own formatter (Pint) and its own CI step.
 apps/api/
+
+# The web app's standalone build, copied in by the desktop shell. Not written
+# here and not read by a person.
+apps/desktop/web
+apps/mobile/dist

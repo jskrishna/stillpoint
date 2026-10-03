@@ -4,7 +4,15 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/.next/**', 'apps/api/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/.next/**',
+      'apps/api/**',
+      // The web app's standalone build, copied in by the desktop shell.
+      'apps/desktop/web/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -17,6 +25,7 @@ export default tseslint.config(
           './tsconfig.test.json',
           './apps/web/tsconfig.json',
           './apps/mobile/tsconfig.json',
+          './apps/desktop/tsconfig.json',
         ],
         tsconfigRootDir: import.meta.dirname,
       },
