@@ -4,7 +4,7 @@
 API: register, consent, a full six-step session, the journal, insights,
 settings, the safety stop, and sign-out.
 
-It is not part of `pnpm run check`, because it needs two servers. It **does**
+It is not part of `pnpm run check`, because it needs three servers. It **does**
 run in CI now, in the `e2e` job, which boots the API against a MySQL service,
 seeds the demo accounts, builds and starts the web app, and runs all five
 scripts. Run it by hand too after changing the session flow, the API client or
@@ -138,9 +138,9 @@ node e2e/coach.mjs
 
 ## The accessibility audit
 
-`a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 60
-combinations — against the same two servers. `CLAUDE.md` asks for it after UI
-work.
+`a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 76
+combinations across 19 routes — against the same servers. `CLAUDE.md` asks for
+it after UI work.
 
 ```bash
 node e2e/a11y.mjs

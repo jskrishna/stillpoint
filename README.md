@@ -153,6 +153,15 @@ written in Devanagari became an empty string and was graded as nothing, in a
 product that is India-first. That is fixed; the remaining thinness is the
 argument for making the classifier multilingual rather than translating one.
 
+It also says when it **could not read** an utterance at all. Bengali, Tamil,
+Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi and Urdu are still outside
+it, and the honest answer for those is "not screened" rather than the "nothing
+found" they used to get — the same answer an ordinary bad day gets. Nobody is
+flagged or stopped for it; the console counts it, because a count is what says
+whether the next language is worth covering and the alternatives (grading an
+unreadable sentence up, or flagging every turn a Tamil speaker types) are both
+wrong.
+
 Helplines resolve by country and currently cover India only (Tele-MANAS 14416,
 emergency 112), matching the designs. `helplinesFor()` returns an empty list
 elsewhere rather than something plausible but wrong.
@@ -167,8 +176,10 @@ user's own window rather than with `GROUP BY`.
 
 **`APP_KEY` is the whole journal.** There is no second copy and no recovery
 path. It is also why offering password reset is safe — the key is not derived
-from anyone's password. [`deploy/README.md`](deploy/README.md) says this first,
-and at more length.
+from anyone's password. Rotating it is a migration, and
+`php artisan stillpoint:rotate-key` is it;
+[`deploy/README.md`](deploy/README.md) has the two-step procedure and why the
+order of the steps is the safety of it.
 
 A user can erase their own account, and it takes everything.
 
@@ -209,11 +220,13 @@ and an unpublished draft:
   with the expected risk grade and capture, asserted by both the TypeScript and
   the PHP suite. Regenerating it to turn a red test green records the
   divergence instead of fixing it.
-- **`e2e/`** — four scripts driving a real browser against the real stack:
-  the whole user journey including the safety stop, the console and who may
-  read a flag, the coach portal and what a coach cannot see, and axe-core at
-  WCAG 2.1 AA over every route in both palettes at 390 and 1440. They run in
-  CI, against a seeded database.
+- **`e2e/`** — six scripts driving a real browser against the real stack: the
+  whole user journey including the safety stop, the console and who may read a
+  flag, the coach portal and what a coach cannot see, axe-core at WCAG 2.1 AA
+  over every route in both palettes at 390 and 1440, a check that no request
+  leaves this origin and that the page's own Content-Security-Policy refuses an
+  attempt to send the token elsewhere, and the mobile app's journey through its
+  web export. They run in CI, against a seeded database.
 - **CI also** runs the migrations up and back down against MySQL 8.4, and
   builds the deployment images and brings the stack up.
 
