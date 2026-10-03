@@ -46,6 +46,12 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN pnpm run build:packages && pnpm --filter @stillpoint/web run build
 
+# `public/` holds the self-hosted fonts and so always exists — but a `COPY` of
+# a directory that is not there fails the build with a checksum error that says
+# nothing about why, which is exactly how this was found. One line here instead
+# of a build that breaks the day somebody empties it.
+RUN mkdir -p apps/web/public
+
 # --- runtime ----------------------------------------------------------------
 FROM node:22-alpine AS runtime
 

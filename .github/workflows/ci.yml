@@ -301,7 +301,11 @@ jobs:
       # migrations run against the MySQL they will meet, and that the API and
       # the web app each answer a request. A stack that builds and does not
       # come up is the failure this is here to catch.
-      - name: Bring the stack up
+      # Before the images, so that the diagnostic step below can read the
+      # compose file even when a build fails. Without it `docker compose logs`
+      # refuses to interpolate and reports a missing variable instead of the
+      # failure anybody is actually looking for.
+      - name: Write the environment
         run: |
           cat > .env <<'ENV'
           # A real 32-byte key, because Laravel will not boot without one. It
@@ -321,6 +325,9 @@ jobs:
           API_PORT=8000
           MAIL_MAILER=log
           ENV
+
+      - name: Bring the stack up
+        run: |
           # The three images are already built and tagged above; compose
           # reuses them because the services name those tags.
           docker compose up -d --no-build
@@ -338,4 +345,5 @@ jobs:
 
       - name: What the containers said, if anything failed
         if: failure()
-        run: docker compose logs --tail 120
+        # Never let the diagnostic itself fail the job and bury the real error.
+        run: docker compose logs --tail 120 || true

@@ -81,7 +81,10 @@ Two things in there are easy to break:
   them out of the standalone output because a deployment usually serves them
   from a CDN. Without them every stylesheet and chunk 404s and the app renders
   as unstyled HTML. `apps/desktop/scripts/bundle-web.mjs` has the same two
-  lines for the same reason.
+  lines for the same reason. The build stage also `mkdir -p`s `public/`: a
+  `COPY` of a directory that is not there fails with a checksum error that
+  mentions nothing relevant, which is how the first red build on this job
+  announced itself.
 - **`NEXT_PUBLIC_API_URL` is fixed when the web image is built**, because the
   browser is what calls the API. Pointing a built image at a different API is
   not possible; rebuild it. That is a property of how Next inlines
