@@ -15,6 +15,7 @@ import { isFeelingId, type FeelingId } from './feelings.js';
 import type { Extraction } from './guide.js';
 import { forgivenessFor } from './session.js';
 import { answerKindOf, type StepId } from './steps.js';
+import { firstCharacters } from './utterance.js';
 
 /** The feeling ids in an answer to step 3, in the order they were given. */
 export function feelingsIn(utterance: string): readonly FeelingId[] {
@@ -37,6 +38,15 @@ export function isSubstantiveAnswer(stepId: StepId, utterance: string): boolean 
   return utterance.trim().split(/\s+/).filter(Boolean).length >= 3;
 }
 
+/**
+ * How much of the first answer becomes the journal's title.
+ *
+ * The designs show a short title ("Called out at work"); until the PRD says
+ * how one is written, it is the opening of what the person said, cut to
+ * something a list can show.
+ */
+const TITLE_LENGTH = 60;
+
 /** What a step's answer is taken to mean, with no interpretation at all. */
 export function literalExtraction(stepId: StepId, utterance: string): Extraction | undefined {
   const text = utterance.trim();
@@ -44,7 +54,11 @@ export function literalExtraction(stepId: StepId, utterance: string): Extraction
 
   switch (stepId) {
     case 'notice':
-      return { whatHappened: text, title: text.slice(0, 60) };
+      // Whole characters, and the same count PHP's `mb_substr` takes.
+      // `slice` counts UTF-16 code units, so an answer with an emoji in it
+      // produced a different title in each language — and a shorter one that
+      // could end in half a character.
+      return { whatHappened: text, title: firstCharacters(text, TITLE_LENGTH) };
     case 'feel': {
       const feelings = feelingsIn(text);
       return feelings.length === 0 ? undefined : { feelings };

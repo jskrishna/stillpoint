@@ -116,6 +116,18 @@ const STEP_CASES = [
   ['notice', 'मेरे मैनेजर ने पूरी टीम के सामने मेरे काम को खारिज कर दिया और मुझे बहुत बुरा लगा'],
   ['notice', 'मुझे गुस्सा आ रहा है'],
   ['inquire', 'मैं काफी नहीं हूँ।'],
+
+  // And the case the note above describes but did not cover, which is where
+  // the two languages did in fact disagree. An emoji is outside the BMP, so
+  // JavaScript counted it as two and PHP as one: the same answer produced a
+  // 30-character title in one language and a 40-character one in the other,
+  // and the shorter one ended in half of a character, which a journal shows
+  // as a replacement glyph. On a phone an emoji is not an unusual thing to
+  // type, so this is the realistic version of the hazard rather than the
+  // exotic one.
+  ['notice', '😢'.repeat(40)],
+  ['notice', `a${'😢'.repeat(40)}`],
+  ['notice', `${'x'.repeat(59)}😢`],
 ];
 
 /**

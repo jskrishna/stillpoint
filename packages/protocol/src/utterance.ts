@@ -34,8 +34,25 @@ export const RECORDED_UTTERANCE_LIMIT = 20_000;
  * quietly treating one language as more expensive than another.
  */
 export function recordable(utterance: string): string {
-  const points = [...utterance];
-  return points.length <= RECORDED_UTTERANCE_LIMIT
-    ? utterance
-    : points.slice(0, RECORDED_UTTERANCE_LIMIT).join('');
+  return firstCharacters(utterance, RECORDED_UTTERANCE_LIMIT);
+}
+
+/**
+ * The first `n` characters of a string, counting whole ones.
+ *
+ * `slice` counts UTF-16 code units, which is neither what anybody means by a
+ * character nor what PHP's `mb_substr` counts — so the same answer was being
+ * truncated to two different lengths in the two languages, and the shorter of
+ * them could end in half of a character. A journal title built with `slice`
+ * ended in a replacement glyph as soon as somebody typed an emoji, which on a
+ * phone is not an unusual thing to type.
+ *
+ * Code points rather than grapheme clusters: a flag or a family emoji is
+ * several code points and this will still cut between them. That is a smaller
+ * wrong than a lone surrogate, and `Intl.Segmenter` has no counterpart in the
+ * PHP here, so matching it would reintroduce the divergence this removes.
+ */
+export function firstCharacters(text: string, n: number): string {
+  const points = [...text];
+  return points.length <= n ? text : points.slice(0, n).join('');
 }

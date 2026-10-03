@@ -570,6 +570,25 @@ changing both languages. **Regenerating to turn a red parity test green records
 the divergence instead of fixing it**, which is the whole failure the file
 exists to prevent.
 
+**A fixture with no case for a hazard does not cover it, however well the
+hazard is written down.** `STEP_CASES` carried a note saying that a journal
+title is cut to 60 and that JavaScript counts UTF-16 units where PHP's
+`mb_substr` counts characters — and then pinned Devanagari, which agrees
+because it is entirely in the BMP, while admitting in the same breath that this
+"is a fact about the script rather than a guarantee either implementation
+makes". The case that disagrees was never added, and the two languages did
+disagree: an answer of 40 emoji became a 30-character title in TypeScript and a
+40-character one in PHP, and the shorter one ended in half of a character,
+which a journal renders as a replacement glyph. On a phone an emoji is not an
+unusual thing to type.
+
+Both sides count characters now — `firstCharacters()` in
+`packages/protocol/src/utterance.ts`, which `recordable()` also uses, against
+`mb_substr` — and the fixture has the astral cases. Note what catching it looks
+like: PHP fails on `json_decode` with "single unpaired UTF-16 surrogate",
+because a divergent fixture is not valid UTF-8 rather than merely unequal. That
+is loud but says nothing about titles, so recognise it.
+
 Note `pnpm-workspace.yaml` lists `apps/web` and not `apps/*`: Laravel ships a
 `package.json` for Vite scaffolding this API does not use, and globbing pulled
 those dependencies in. `apps/api` is also excluded from Prettier and ESLint —

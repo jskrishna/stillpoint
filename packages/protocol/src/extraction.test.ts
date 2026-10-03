@@ -79,3 +79,42 @@ describe('literalExtraction', () => {
     expect(literalExtraction('notice', '   ')).toBeUndefined();
   });
 });
+
+describe('the journal title', () => {
+  it('is the opening of what the person said, cut to 60 characters', () => {
+    const said = `${'x'.repeat(100)}`;
+    expect(literalExtraction('notice', said)?.title).toHaveLength(60);
+  });
+
+  it('is the whole answer when the answer is short', () => {
+    const said = 'My manager dismissed my work in front of the team';
+    expect(literalExtraction('notice', said)?.title).toBe(said);
+  });
+
+  /**
+   * The two languages have to agree about this, and they did not: the title
+   * was cut with `slice`, which counts UTF-16 code units, where PHP's
+   * `mb_substr` counts characters. The same answer became a 30-character title
+   * in one language and a 40-character one in the other.
+   */
+  it('counts characters, so an emoji answer matches the PHP side', () => {
+    const said = '😢'.repeat(40);
+    expect([...(literalExtraction('notice', said)?.title ?? '')]).toHaveLength(40);
+  });
+
+  it('never ends in half a character', () => {
+    const said = `a${'😢'.repeat(40)}`;
+    const title = literalExtraction('notice', said)?.title ?? '';
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    expect(lone.test(title)).toBe(false);
+  });
+
+  it('keeps the whole of what was said, however long, beside the short title', () => {
+    // The title is for a list; `whatHappened` is the answer, and cutting it
+    // would be losing what somebody told the guide.
+    const said = 'x'.repeat(5000);
+    const capture = literalExtraction('notice', said);
+    expect(capture?.whatHappened).toHaveLength(5000);
+    expect(capture?.title).toHaveLength(60);
+  });
+});
