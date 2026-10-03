@@ -182,9 +182,48 @@ packages/protocol/        @stillpoint/protocol — the same domain in TypeScript
 packages/design-tokens/   @stillpoint/design-tokens — Warm & Clear colour, type, space
 packages/client/          @stillpoint/client — the typed API client, one per surface
 apps/web/                 @stillpoint/web — Next.js: marketing site and web app
+apps/mobile/              @stillpoint/mobile — Expo: the iOS and Android app
 parity/                   the cross-language fixture both suites assert against
 e2e/                      a by-hand browser check of web against a running API
 ```
+
+### The phone is a real surface, and it is not verified on a phone
+
+`apps/mobile` is Expo (SDK 57) with expo-router, consuming all three packages.
+It has the welcome and consent flow, the six-step session, the journal and an
+entry, what the app has noticed, and settings. Its own README has the detail.
+
+**What can be verified here is verified, and the rest is named.**
+`expo export --platform web` is a real build — every module bundled, all
+routes statically rendered — and it runs in the container alongside
+`typecheck`. What has never run is the app on a phone: there is no simulator
+here and no device on CI. The keychain, text-to-speech, `tel:` links on the
+safety screen, the splash screen and safe-area insets on a notched device are
+all unproven. Do not describe this app as tested on a device, and do not let a
+green export stand in for that.
+
+Two decisions in it are worth keeping:
+
+- **The tab bar has labels and no icons.** The design set does not assign the
+  tabs any iconography, and drawing four glyphs would be inventing product
+  visuals the same way inventing step copy would be inventing the guide's
+  voice.
+- **The voice seam is the same shape as the web's** (`src/voice.ts` against
+  `apps/web/src/lib/voice`), with `expo-speech` as the stand-in. Listening is
+  still not built on either surface, and both say so in the same words rather
+  than pretending. When the voice vendor is chosen, these two files are what
+  gets replaced — and at that point the seam itself is worth moving into a
+  package.
+
+### Display state lives in the protocol package
+
+`packages/protocol/src/display.ts` holds `relativeDay`, `duration`, `greeting`
+and `partOfDay` — the pure formatting both clients need. It is not the
+presentation the package forbids: no colours, no copy of the guide's, no
+framework. It is there so the web and the phone cannot end up disagreeing about
+what "Yesterday" means, and the locale stays `en-IN` in one place, because the
+product is India-first and a weekday in the device's locale would be the one
+thing on the screen in another language.
 
 ### One API client, not one per surface
 

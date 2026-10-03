@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, type ApiJournalEntry } from '../../../lib/api';
-import { duration, relativeDay } from '../../../lib/format';
 import styles from '../app.module.css';
+import { duration, relativeDay } from '@stillpoint/protocol';
 
 /**
  * The journal, as the server keeps it.

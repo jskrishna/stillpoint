@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Stillpoint",
+    "slug": "stillpoint",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "stillpoint",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.stillpoint.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Stillpoint listens while you talk through what happened, so you can speak instead of type. Nothing is recorded.",
+        "NSSpeechRecognitionUsageDescription": "Stillpoint turns what you say into text so the guide can follow along."
+      }
+    },
+    "android": {
+      "package": "app.stillpoint.mobile",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#FBF4EC",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "permissions": ["android.permission.RECORD_AUDIO"]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FBF4EC",
+          "dark": { "backgroundColor": "#1D1714" },
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 96
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

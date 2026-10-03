@@ -13,7 +13,11 @@ export default tseslint.config(
       parserOptions: {
         // tsconfig.test.json spans src, tests and the root *.config.ts files,
         // so every linted TypeScript file belongs to a known project.
-        project: ['./tsconfig.test.json', './apps/web/tsconfig.json'],
+        project: [
+          './tsconfig.test.json',
+          './apps/web/tsconfig.json',
+          './apps/mobile/tsconfig.json',
+        ],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -23,6 +27,21 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+    },
+  },
+  {
+    // The mobile app's own config files are CommonJS for Metro and Babel,
+    // which load them with `require`, so the ESM rules do not apply.
+    files: ['apps/mobile/*.config.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      parserOptions: { project: null, projectService: false },
+      globals: { require: 'readonly', module: 'writable', __dirname: 'readonly' },
+    },
+    rules: {
+      // Metro and Babel load these with `require`; an `import` here would not
+      // run at all.
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   {

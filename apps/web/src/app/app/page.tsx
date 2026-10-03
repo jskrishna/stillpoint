@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { STEP_COUNT } from '@stillpoint/protocol';
+import { STEP_COUNT, greeting, relativeDay } from '@stillpoint/protocol';
 import {
   ApiError,
   api,
@@ -12,8 +12,6 @@ import {
   type ApiSession,
   type Profile,
 } from '../../lib/api';
-import { greeting } from '../../lib/greeting';
-import { relativeDay } from '../../lib/format';
 import styles from './app.module.css';
 
 /** The app home: start a session, and the most recent entries. */

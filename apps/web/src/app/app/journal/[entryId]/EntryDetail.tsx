@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FEELINGS } from '@stillpoint/protocol';
+import { FEELINGS, duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
-import { duration, relativeDay } from '../../../../lib/format';
 import styles from '../../app.module.css';
 
 const LABEL = new Map<string, string>(FEELINGS.map((f) => [f.id, f.label]));

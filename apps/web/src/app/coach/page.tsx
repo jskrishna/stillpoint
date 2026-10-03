@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import InviteClient from './InviteClient';
 import { ApiError, api, type ApiClient } from '../../lib/api';
-import { relativeDay } from '../../lib/format';
 import styles from './coach.module.css';
+import { relativeDay } from '@stillpoint/protocol';
 
 /**
  * The coach's client list.
