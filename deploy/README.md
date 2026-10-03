@@ -54,6 +54,10 @@ front of real people:
   that is deliberately not finished, and it needs a provider decision.
 - **There is no queue, no scheduler and no cache store.** Nothing in the
   product needs them yet; `php artisan queue:work` has nothing to do.
+- **Tokens expire after thirty days** (`SANCTUM_TOKEN_MINUTES`), and there is
+  no refresh flow, so that is how often someone signs in again.
+  `sanctum:prune-expired` tidies the rows and wants a scheduler; expired tokens
+  are refused either way.
 - **Sanctum's token mode is in use, and the web client keeps its token in
   `localStorage`.** The weakness is documented at the top of
   `apps/web/src/lib/api.ts`. Cookie mode is the fix, and it is a change to how

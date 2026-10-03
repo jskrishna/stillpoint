@@ -68,6 +68,54 @@ final class AuthApiTest extends TestCase
         ])->assertJsonValidationErrors('password');
     }
 
+    /**
+     * Twelve, not Laravel's eight.
+     *
+     * Pinned because the minimum is set in `AppServiceProvider` rather than in
+     * each rule, and a default that quietly goes back to eight is exactly the
+     * kind of change nothing else here would notice.
+     */
+    public function test_eleven_characters_is_not_enough(): void
+    {
+        $this->postJson('/api/auth/register', [
+            'name' => 'A', 'email' => 'eleven@example.com', 'password' => 'elevenchars',
+        ])->assertJsonValidationErrors('password');
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'A', 'email' => 'twelve@example.com', 'password' => 'twelvechars!',
+        ])->assertCreated();
+    }
+
+    /**
+     * A token stops working eventually.
+     *
+     * Laravel's default is that it never does. A token for this product reads
+     * somebody's journal, and one that leaks would otherwise work for as long
+     * as the account existed.
+     */
+    public function test_a_token_expires(): void
+    {
+        $user = User::factory()->create(['password' => 'a-long-enough-password']);
+
+        $token = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'a-long-enough-password',
+        ])->json('token');
+
+        $this->withToken($token)->getJson('/api/me')->assertOk();
+
+        $this->travel((int) config('sanctum.expiration') + 1)->minutes();
+
+        // The guard caches the user it resolved for the first request, and a
+        // test makes several against the same application instance. Without
+        // this the second request is answered from that cache and the token is
+        // never looked at again — which would make this test pass with the
+        // expiry removed.
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)->getJson('/api/me')->assertUnauthorized();
+    }
+
     public function test_a_user_can_log_in(): void
     {
         User::factory()->create(['email' => 'aarav@example.com', 'password' => 'a-long-enough-password']);

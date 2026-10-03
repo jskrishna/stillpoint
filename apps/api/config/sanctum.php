@@ -50,7 +50,25 @@ return [
     |
     */
 
-    'expiration' => null,
+    /*
+     * Thirty days.
+     *
+     * Laravel's default is null, which means a token works forever. A token for
+     * this product reads somebody's journal, and one that has leaked — from a
+     * backup, a stolen laptop, an XSS against the `localStorage` the web client
+     * documents as its known weakness — would keep working for as long as the
+     * account existed.
+     *
+     * Thirty days rather than something shorter because there is no refresh
+     * flow: expiry means signing in again, and a phone that asks for a password
+     * every week is a phone someone stops opening when they are upset. The real
+     * answer is Sanctum's cookie mode with a refresh, and that is a change to
+     * how every surface authenticates rather than a number here.
+     *
+     * Expired tokens are rejected whether or not they are tidied up;
+     * `sanctum:prune-expired` is housekeeping and wants a scheduler.
+     */
+    'expiration' => (int) env('SANCTUM_TOKEN_MINUTES', 60 * 24 * 30),
 
     /*
     |--------------------------------------------------------------------------

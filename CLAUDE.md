@@ -530,6 +530,27 @@ Mail is `MAIL_MAILER=log` in development: the link is written to
 `config('app.frontend_url')` (`APP_FRONTEND_URL`), because the token is spent
 on a web screen, not on an API route.
 
+## Signing in
+
+Two defaults were Laravel's and are not any more, both set once rather than at
+each call site:
+
+- **A password is at least twelve characters**, set with `Password::defaults()`
+  in `AppServiceProvider`. Length and nothing else: composition rules push
+  people towards a short password with a digit on the end. `uncompromised()` is
+  deliberately absent — it would put a third-party request in the middle of
+  registration, in a product that will not link a font from someone else, and
+  it fails open when that request fails.
+- **A token expires after thirty days** (`SANCTUM_TOKEN_MINUTES`). Laravel's
+  default is never. Thirty rather than something shorter because there is no
+  refresh flow, and a phone that asks for a password every week is a phone
+  someone stops opening when they are upset. The real answer is cookie mode
+  with a refresh, which is a change to how every surface authenticates.
+
+Both have tests, and both tests were checked by removing the setting. The
+expiry one needs `forgetGuards()` after travelling: the guard caches the user it
+resolved, and without that the test passes with the expiry removed.
+
 ## Roles, and who reads what
 
 A user has one of three roles, and nobody is staff by registering: `role` is not
