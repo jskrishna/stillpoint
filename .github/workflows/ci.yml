@@ -36,6 +36,13 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      # Booting the app needs an APP_KEY, which .env.example does not carry.
+      # The domain tests do not boot it, but any feature test does.
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
       - name: Check formatting
         run: ./vendor/bin/pint --test
 
