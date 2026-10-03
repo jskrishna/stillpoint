@@ -27,8 +27,20 @@ return new class extends Migration
         });
     }
 
+    /**
+     * MySQL will not let the unique index go while it is the only index on a
+     * foreign key column, and `guided_session_id` has a foreign key. Adding the
+     * index back comes first, then the unique one can be dropped.
+     *
+     * sqlite does not care either way, which is why this only showed up in CI
+     * — the `up()` ran everywhere, and only the rollback against MySQL failed.
+     */
     public function down(): void
     {
+        Schema::table('journal_entries', function (Blueprint $table) {
+            $table->index('guided_session_id');
+        });
+
         Schema::table('journal_entries', function (Blueprint $table) {
             $table->dropUnique(['guided_session_id']);
         });
