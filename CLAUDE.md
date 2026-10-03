@@ -989,6 +989,14 @@ it is missing from `tsconfig.test.json`'s `include`.
 - `noPropertyAccessFromIndexSignature` is off in `apps/web` only: CSS Modules
   type as an index signature, so every `styles.foo` would need `styles['foo']`.
 
+## Decisions not taken
+
+`DECISIONS.md` is the consolidated list, for the person deciding rather than
+the person reading code. Every item on it is also written down at the place the
+code waits for it, which is where it belongs — the page is an index, not the
+source of truth, and the rule about not inventing product copy applies to all
+of it.
+
 ## Decisions taken
 
 - **Design direction: Warm & Clear.** Settled; see above.

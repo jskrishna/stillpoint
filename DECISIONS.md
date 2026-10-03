@@ -1,0 +1,72 @@
+# What is waiting on a decision
+
+Everything in this file is blocked on somebody choosing something, not on
+somebody writing code. Each one is also written down where the code waits for
+it — this page exists so the list can be read in one go by the person who has
+to decide, rather than found by reading five files.
+
+Nothing here is guessed at in the meantime. A `null` is an honest gap; a
+placeholder that looks like a product decision becomes one.
+
+The "then" column is an estimate of the work after an answer arrives, and
+estimates are what they are.
+
+## The product's own voice
+
+| Decision                       | Who     | What happens instead today                                                                                                                                                 | Where it waits                                           | Then       |
+| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ---------- |
+| **Step prompt copy**, 5 of 6   | PRD     | Only step 4 "Remember" has copy. The rest are `null`, `incompleteSteps()` lists them, and `publishProblems()` refuses to publish a protocol version until they are filled. | `ProtocolVersion::baseline()`, the console's step editor | ~2–3 hours |
+| **Pricing** for Plus and Coach | product | `priceMinor` is `null` and the pricing page prints `[PRICE]/mo`, as the designs do.                                                                                        | `apps/web/src/app/plans.ts`                              | ~1 hour    |
+| **What a quick session is**    | PRD     | It runs all six steps, because nothing says otherwise. The designs show quick sessions as shorter and label them in the journal, but not which steps are skipped.          | `Plan`, `plans.ts`, the session reducer                  | ~2 hours   |
+| **"Up to 25 clients"**         | product | Not enforced. The Coach plan states it; what a coach on some _other_ plan is allowed is stated nowhere, so a cap would be a product decision made by a guess.              | `App\Domain\Plan`, `packages/protocol/src/plans.ts`      | ~1 hour    |
+
+## Safety, and the law
+
+| Decision                                                        | Who                           | What happens instead today                                                                                                                                                                                     | Where it waits                                             | Then                              |
+| --------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------- |
+| **A trained classifier, and sign-off on it**                    | someone qualified to judge it | A phrase screen, tuned for recall, covering English, Hinglish and Hindi thinly and saying so. It is a backstop and must never be described as sufficient.                                                      | `RiskScreen` is the seam; `DomainServiceProvider` binds it | the classifier is its own project |
+| **Binding a listener** (hearing the user)                       | product **and** legal         | `noEar` reports itself unavailable with a reason the screen shows, and every session is typed. Every option today sends the user's audio somewhere, and the setup screen promises "Your voice is never saved". | `apps/web/src/lib/voice/`, `apps/mobile/src/voice.ts`      | ~1–2 days                         |
+| **Whether a safety flag outlives an erasure, and for how long** | safeguarding + DPDP           | It is deleted with the account, because that is what erasure means. Which also means that if somebody said they were in danger and then deleted their account, a reviewer cannot follow it up.                 | `AccountDeletionService`                                   | ~2 hours                          |
+| **How long a coach invitation keeps an address**                | DPDP + product                | Forever. The address is not a user's — the table exists so a coach can invite somebody with no account — so the product holds an email address indefinitely because a third party typed it.                    | `coach_invites`, `CoachInviteController`                   | ~2 hours                          |
+
+## Things that need an account somewhere
+
+| Decision                     | Who     | What happens instead today                                                                                                                                                                                                                                     | Where it waits                                         | Then        |
+| ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------- |
+| **A mail provider**          | product | `MAIL_MAILER=log`. A password-reset link is written to the log instead of sent, so in the deployment nobody can actually reset a password; an invitation's link comes back to the coach to pass on, and the screen says so rather than implying mail went out. | `config/mail.php`, `CoachInviteController::forCoach()` | ~2 hours    |
+| **Google and Apple sign-in** | product | The buttons are there and the screen says they are not built yet. Needs provider credentials and, for Apple, a developer account.                                                                                                                              | `apps/web/src/app/welcome/SignInForm.tsx`              | ~1 day      |
+| **Desktop packaging**        | product | No installer, signing, notarisation or auto-update. Each costs a certificate or a server rather than a line of configuration. The shell has only ever run on Linux.                                                                                            | `apps/desktop`                                         | ~1 day each |
+
+## Design, not code
+
+| Decision                        | Who    | What happens instead today                                                                                                                                                                                                               | Then      |
+| ------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **The marketing site's UI**     | design | `/` and `/pricing` are the earlier build and are deliberately untouched, pending a rebuild.                                                                                                                                              | ~1–2 days |
+| **A desktop layout for `/app`** | design | The app surface caps its column at 430px with navigation along the bottom — the phone design, which is the only one the artifacts give for those screens. So the desktop window opens narrow: the designed layout at its designed width. | ~1 day    |
+
+## Deployment, before real people
+
+These are in `deploy/README.md` at more length. They are infrastructure
+decisions rather than product ones.
+
+- **Where the database lives, and who backs it up.** Encrypted columns cannot
+  be reconstructed from anywhere else, and `APP_KEY` cannot be recovered.
+- **Where TLS terminates.** `deploy/nginx.conf` listens on port 80 and assumes
+  something in front holds the certificate. Bearer tokens over plain HTTP are
+  bearer tokens in public.
+- **Cookie mode instead of a bearer token in `localStorage`.** The weakness is
+  documented at the top of `apps/web/src/lib/api.ts`; a Content-Security-Policy
+  currently stops a stolen token being sent anywhere, which is a mitigation and
+  not the fix. Adopting it is a change to how every surface authenticates, and
+  it needs Sanctum's `sanctum/csrf-cookie` route turned back on in the same
+  change.
+
+## And one that needs a phone, not a decision
+
+**The mobile app has never run on a device.** There is no simulator in the
+development container and no device attached to CI. `e2e/mobile.mjs` drives the
+web export through the whole journey in a real browser, which covers the
+screens, the reducer, the API binding and the navigation — and cannot cover the
+keychain, text-to-speech, `tel:` links, the share sheet, the splash screen,
+safe-area insets on a notched device, or being backgrounded mid-session. Treat
+the first run on hardware as a test pass that has not happened.

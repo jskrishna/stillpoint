@@ -44,6 +44,12 @@ reached step 6, the feelings chosen most, and the belief that keeps coming back.
 | **Admin console** | `apps/web/src/app/admin` | Built: overview, safety queue, step-prompt editor, users and roles.            |
 | **Coach portal**  | `apps/web/src/app/coach` | Built: client list and detail, shared sessions only.                           |
 
+**[`DECISIONS.md`](DECISIONS.md) is the list of what is waiting on somebody
+choosing something** rather than on somebody writing code: the step copy, the
+prices, the voice vendor, a mail provider, clinical sign-off for the risk
+screen, and two retention questions. Each is also written down where the code
+waits for it; that page exists so the list can be read in one go.
+
 Plans: **Free** (3 full sessions a week, unlimited quick sessions, journal),
 **Plus** (unlimited sessions, insights, better voices), **Coach** (up to 25
 clients, shared sessions and notes). Help in a crisis is always free.
