@@ -29,13 +29,21 @@ and in the development container, and the export is a real build: it bundles
 every module and statically renders all 15 routes, so a broken import or a
 component that throws on first render fails it.
 
-**Nothing here has run on a phone.** There is no simulator in the development
-container and no device attached to CI. What that leaves unverified is real:
-the keychain (`expo-secure-store`), text-to-speech (`expo-speech`), `tel:`
-links on the safety screen, writing the export and handing it to the share
-sheet (`expo-file-system`, `expo-sharing`), the splash screen, safe-area insets
-on a notched device, and how any of it behaves when the app is backgrounded
-mid-session.
+`e2e/mobile.mjs` goes further: it serves that web export and drives it in a
+real browser at a phone's width against a running API — register, the consent
+gate, voice setup, a full six-step session, the journal, and the safety stop,
+including asking the **server** what it recorded and that it refuses another
+turn on a stopped session. The screens, the reducer, the API binding and the
+navigation are the same files a phone runs, and until that script existed none
+of them had ever been executed. It runs in CI.
+
+**Nothing here has run on a phone**, though, and that is still the sentence
+that matters. What a browser cannot stand in for: the keychain
+(`expo-secure-store` — `localStorage` on web), text-to-speech
+(`expo-speech`), `tel:` links on the safety screen, writing the export and
+handing it to the share sheet (`expo-file-system`, `expo-sharing`), the splash
+screen, safe-area insets on a notched device, and how any of it behaves when
+the app is backgrounded mid-session.
 Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 

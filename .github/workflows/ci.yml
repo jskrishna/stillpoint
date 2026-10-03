@@ -224,6 +224,14 @@ jobs:
       # Only the packages and the web app. The mobile export and the desktop
       # bundle are the `check` job's to build, and neither is under test here.
       #
+      # The mobile app's web export, which is how its screens get executed at
+      # all. `expo export` already ran in the `check` job and proved every
+      # route bundles and statically renders; this serves that output so a real
+      # browser can drive it against the real API. Port 4000 is already in the
+      # API's CORS list as "a static export's port".
+      - name: Build the mobile app's web export
+        run: pnpm --filter @stillpoint/mobile run build
+
       # `build`, not `build:standalone`: this job serves the app with
       # `next start`, which Next does not support alongside `output:
       # 'standalone'` and says so at every boot. The standalone output is the
@@ -252,18 +260,24 @@ jobs:
           echo $! > /tmp/api.pid
           pnpm --filter @stillpoint/web exec next start --port 3000 &
           echo $! > /tmp/web.pid
+          python3 -m http.server 4000 --bind 127.0.0.1 \
+            --directory "$GITHUB_WORKSPACE/apps/mobile/dist" > /tmp/mobile.log 2>&1 &
+          echo $! > /tmp/mobile.pid
           for i in $(seq 1 60); do
             api=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8000/api/me || true)
             web=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:3000/welcome || true)
+            mob=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:4000/ || true)
             # 401 from /api/me is the API answering, which is all this waits for.
-            if [ "$api" = "401" ] && [ "$web" = "200" ]; then echo "up"; exit 0; fi
+            if [ "$api" = "401" ] && [ "$web" = "200" ] && [ "$mob" = "200" ]; then
+              echo "up"; exit 0
+            fi
             sleep 2
           done
-          echo "servers did not come up (api=$api web=$web)"
+          echo "servers did not come up (api=$api web=$web mobile=$mob)"
           exit 1
         working-directory: apps/api
 
-      # Five scripts, run whatever any one of them does: a failure in the
+      # Six scripts, run whatever any one of them does: a failure in the
       # safety stop and a failure in the coach's sharing rule are different
       # news, and stopping at the first would hide the second.
       - name: The user journey, including the safety stop
@@ -284,6 +298,12 @@ jobs:
       - name: Nothing leaves this origin
         if: '!cancelled()'
         run: node e2e/privacy.mjs
+
+      # The mobile app's own journey. Native modules are not covered and cannot
+      # be here; `e2e/mobile.mjs` says exactly what that leaves.
+      - name: The mobile app, actually running
+        if: '!cancelled()'
+        run: node e2e/mobile.mjs
 
       - name: The API log, if anything failed
         if: failure()

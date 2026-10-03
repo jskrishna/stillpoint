@@ -461,7 +461,10 @@ pnpm run build   # every workspace project, packages first
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
 
-`e2e/` holds five by-hand checks against a running API — see `e2e/README.md`.
+`e2e/` holds six checks against a running API — see `e2e/README.md`. One of
+them, `mobile.mjs`, is the only thing that executes `apps/mobile` at all: it
+drives the Expo web export in a browser at a phone's width. It does not touch
+anything native, and `apps/mobile/README.md` lists what that leaves.
 `flow.mjs` is a by-hand check of the web app against a running API —
 register, consent, a full session, journal, insights, settings, the safety stop
 and sign-out. It needs two servers, so it is not in `check` and not in CI; see

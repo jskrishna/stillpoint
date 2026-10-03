@@ -24,6 +24,15 @@ now exercised by the one check that drives a real browser.
 Locally the single-worker server below is right, and sqlite is fine: nothing is
 competing for the file.
 
+`mobile.mjs` is the odd one out and the most useful recently: it is the only
+thing that runs `apps/mobile`. CI typechecked that app and `expo export`
+bundled it, which proves a broken import and nothing about behaviour — a screen
+that renders and then fails the moment it talks to the API passes that build.
+So the web export is served and driven in a browser at 390px against the real
+API, through the whole journey and the safety stop. Nothing native is covered;
+`apps/mobile/README.md` lists what that leaves, and the first run on hardware
+is still a test pass that has not happened.
+
 ```bash
 # 0. the accounts these scripts need. `role` is not fillable and pairing has no
 #    public route, so they cannot be made through the API.
@@ -35,6 +44,10 @@ cd apps/api && php artisan serve --port=8000 &
 # 2. the web app, on :3000  (the API's CORS list allows localhost and 127.0.0.1)
 pnpm run build
 cd apps/web && npx next start --port 3000 &
+
+# 2b. the mobile app's web export, on :4000 (already in the API's CORS list)
+pnpm --filter @stillpoint/mobile run build
+cd apps/mobile/dist && python3 -m http.server 4000 --bind 127.0.0.1 &
 
 # 3. the check
 node e2e/flow.mjs
