@@ -13,7 +13,7 @@ import {
   type GuideVoice,
   type TalkMode,
 } from '@stillpoint/protocol';
-import { ApiError, api, type Profile } from '../../../lib/api';
+import { ApiError, api, type ApiMyCoach, type Profile } from '../../../lib/api';
 import styles from '../app.module.css';
 
 /**
@@ -26,6 +26,8 @@ import styles from '../app.module.css';
 export default function Settings() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [entryCount, setEntryCount] = useState(0);
+  const [coaches, setCoaches] = useState<readonly ApiMyCoach[]>([]);
+  const [endingCoach, setEndingCoach] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -34,10 +36,11 @@ export default function Settings() {
   useEffect(() => {
     // Only the count is needed here, so only the count is fetched: the journal
     // is paged and the whole of it is a lot of decryption for a number.
-    Promise.all([api.me(), api.journal(1)])
-      .then(([me, page]) => {
+    Promise.all([api.me(), api.journal(1), api.myCoaches()])
+      .then(([me, page, mine]) => {
         setProfile(me);
         setEntryCount(page.total);
+        setCoaches(mine);
       })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
@@ -98,6 +101,25 @@ export default function Settings() {
     }
   };
 
+  /**
+   * Ends a coaching relationship.
+   *
+   * The user's own decision and immediate — a coach cannot do this for them and
+   * does not need to agree. Shared entries stay shared: that flag is a separate
+   * choice and stays where the user put it. What ends is anyone being able to
+   * read them.
+   */
+  const endCoaching = async (coach: ApiMyCoach) => {
+    try {
+      await api.endCoaching(coach.id);
+      setCoaches((current) => current.filter((c) => c.id !== coach.id));
+      setEndingCoach(null);
+      setFailed(null);
+    } catch {
+      setFailed('Could not end that. Check your connection and try again.');
+    }
+  };
+
   const signOut = async () => {
     await api.logout();
     router.push('/welcome');
@@ -150,6 +172,64 @@ export default function Settings() {
           void save({ talkMode });
         }}
       />
+
+      <span className={styles.label}>WHO CAN SEE YOUR SESSIONS</span>
+      {coaches.length === 0 ? (
+        <p className={styles.footnote}>
+          Nobody. Your journal is yours alone until you accept a coach’s invitation.
+        </p>
+      ) : (
+        coaches.map((coach) => (
+          <div key={coach.id}>
+            <div className={styles.settingRow}>
+              <span>
+                {coach.name}
+                <span className={styles.settingValue} style={{ display: 'block' }}>
+                  {coach.sharedSessions === 0
+                    ? 'No sessions shared yet'
+                    : `${String(coach.sharedSessions)} ${
+                        coach.sharedSessions === 1 ? 'session' : 'sessions'
+                      } shared`}
+                </span>
+              </span>
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => {
+                  setEndingCoach(endingCoach === coach.id ? null : coach.id);
+                }}
+              >
+                {endingCoach === coach.id ? 'Keep them' : 'End coaching'}
+              </button>
+            </div>
+            {endingCoach === coach.id ? (
+              <div className={styles.notice}>
+                <p>
+                  {coach.name} will no longer be able to read any of your sessions, including the
+                  ones you already shared. You stay shared on those entries — it is only{' '}
+                  {coach.name} who stops being able to see them. This cannot be undone without a new
+                  invitation.
+                </p>
+                <button
+                  type="button"
+                  className={styles.cta}
+                  style={{
+                    marginTop: 12,
+                    background: 'var(--sp-color-panel)',
+                    color: 'var(--sp-color-danger)',
+                    boxShadow: 'var(--sp-shadow-button)',
+                  }}
+                  onClick={() => {
+                    void endCoaching(coach);
+                  }}
+                >
+                  End coaching with {coach.name}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ))
+      )}
 
       <span className={styles.label}>PRIVACY</span>
       <Choice

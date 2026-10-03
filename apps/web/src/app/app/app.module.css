@@ -303,3 +303,16 @@
   color: var(--sp-color-accent-text);
   margin: var(--sp-space-lg) 0;
 }
+
+/* An action that reads as a link rather than a button: ending a coaching
+   relationship is a decision, not a primary call to action. */
+.linkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--sp-text-small);
+  color: var(--sp-color-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}

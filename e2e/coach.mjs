@@ -218,6 +218,124 @@ if (!coachSignedIn) {
     if (saved === 'Wants to talk about her manager.') ok('the coach’s notes survive a reload');
     else bad('the coach’s notes survive a reload', saved);
   }
+  // -------------------------------------------------------------------------
+  console.log('\n3. An invitation, end to end');
+
+  const invited = `invited+${String(Date.now())}@example.com`;
+
+  await coach.goto(`${WEB}/coach`, { waitUntil: 'networkidle' });
+  await coach.waitForTimeout(1500);
+  await coach.getByLabel('Client’s email address').fill(invited);
+  await coach.getByRole('button', { name: /Create invitation/ }).click();
+  await coach.waitForTimeout(1500);
+
+  const link = await coach.locator('code').first().innerText();
+  if (/\/welcome\/invite\//.test(link)) ok('the coach is given a link to pass on');
+  else bad('the coach is given a link to pass on', link);
+
+  const beforeAccept = await coach.locator('a[href^="/coach/"]').count();
+
+  // A coach cannot attach themselves. Nothing has happened until the client
+  // accepts — read from the API, not the page, because the page legitimately
+  // lists the address under "waiting to be accepted".
+  const pairedYet = await coach.evaluate(async (api) => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const clients = await fetch(`${api}/coach/clients`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+    return clients.map((c) => c.name);
+  }, API);
+  if (!pairedYet.includes('Newly Invited')) ok('inviting alone creates no pairing');
+  else bad('inviting alone creates no pairing', pairedYet.join(', '));
+
+  // Somebody else holding the link cannot accept it.
+  const stranger = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await stranger.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+  await stranger.getByRole('button', { name: 'Create an account instead' }).click();
+  await stranger.getByLabel('Name').fill('Someone Else');
+  await stranger.getByLabel('Email').fill(`stranger+${String(Date.now())}@example.com`);
+  await stranger.getByLabel('Password').fill(PASSWORD);
+  await stranger.getByRole('button', { name: 'Create my account' }).click();
+  await stranger.waitForURL('**/welcome/consent', { timeout: 15000 });
+  await stranger.goto(link, { waitUntil: 'networkidle' });
+  await stranger.waitForTimeout(1500);
+  await stranger.getByRole('button', { name: /^Accept, and share with/ }).click();
+  await stranger.waitForTimeout(1500);
+  if (/different address/i.test(await stranger.locator('body').innerText()))
+    ok('someone else holding the link cannot accept it');
+  else
+    bad(
+      'someone else holding the link cannot accept it',
+      (await stranger.locator('body').innerText()).slice(0, 300),
+    );
+  await stranger.close();
+
+  // The person it was sent to can. The link is readable before signing in.
+  const client = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await client.goto(link, { waitUntil: 'networkidle' });
+  await client.waitForTimeout(1500);
+  const offered = await client.locator('body').innerText();
+  if (/would like to be your coach/.test(offered)) ok('the invitation reads without an account');
+  else bad('the invitation reads without an account', offered.slice(0, 300));
+  if (offered.includes(invited)) ok('it says which address it was sent to');
+  else bad('it says which address it was sent to');
+  if (/only.*when you choose to share/is.test(offered)) ok('it states what a coach will see');
+  else bad('it states what a coach will see');
+
+  await client.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+  await client.getByRole('button', { name: 'Create an account instead' }).click();
+  await client.getByLabel('Name').fill('Newly Invited');
+  await client.getByLabel('Email').fill(invited);
+  await client.getByLabel('Password').fill(PASSWORD);
+  await client.getByRole('button', { name: 'Create my account' }).click();
+  await client.waitForURL('**/welcome/consent', { timeout: 15000 });
+
+  await client.goto(link, { waitUntil: 'networkidle' });
+  await client.waitForTimeout(1500);
+  await client.getByRole('button', { name: /^Accept, and share with/ }).click();
+  await client.waitForTimeout(2000);
+  if (/is now your coach/.test(await client.locator('body').innerText()))
+    ok('the person it was sent to accepts, and that creates the pairing');
+  else
+    bad(
+      'the person it was sent to accepts',
+      (await client.locator('body').innerText()).slice(0, 300),
+    );
+
+  await coach.reload({ waitUntil: 'networkidle' });
+  await coach.waitForTimeout(1800);
+  const afterAccept = await coach.locator('a[href^="/coach/"]').count();
+  if (afterAccept === beforeAccept + 1)
+    ok(`the coach now has the client (${String(beforeAccept)} → ${String(afterAccept)})`);
+  else bad('the coach now has the client', `${String(beforeAccept)} → ${String(afterAccept)}`);
+
+  // -------------------------------------------------------------------------
+  console.log('\n4. The client can see who reads their sessions, and end it');
+
+  await client.goto(`${WEB}/app/settings`, { waitUntil: 'networkidle' });
+  await client.waitForTimeout(1800);
+  const settings = await client.locator('body').innerText();
+  if (/WHO CAN SEE YOUR SESSIONS/.test(settings)) ok('settings says who can see their sessions');
+  else bad('settings says who can see their sessions', settings.slice(0, 300));
+  if (settings.includes('Coach Devi')) ok('the coach is named there');
+  else bad('the coach is named there');
+
+  await client.getByRole('button', { name: 'End coaching' }).first().click();
+  await client.waitForTimeout(400);
+  await client.locator('button', { hasText: /^End coaching with/ }).click();
+  await client.waitForTimeout(1800);
+  if (/Nobody\. Your journal is yours alone/.test(await client.locator('body').innerText()))
+    ok('ending it takes effect on the client’s own screen');
+  else bad('ending it takes effect', (await client.locator('body').innerText()).slice(0, 300));
+
+  // And the coach loses access at once.
+  await coach.reload({ waitUntil: 'networkidle' });
+  await coach.waitForTimeout(1800);
+  const afterEnd = await coach.locator('a[href^="/coach/"]').count();
+  if (afterEnd === beforeAccept)
+    ok(`the coach loses the client at once (${String(afterAccept)} → ${String(afterEnd)})`);
+  else bad('the coach loses the client at once', `${String(afterAccept)} → ${String(afterEnd)}`);
+  await client.close();
 }
 await coach.close();
 

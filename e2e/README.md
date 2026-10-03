@@ -64,8 +64,13 @@ the other, then asserts that the private one's title, belief and note are
 **absent** — from the coach's page and from the API's response, not merely
 hidden by the markup. It also checks that a coach is refused the safety queue.
 
-It needs a coach, a client and a pairing between them, none of which the API
-can make: `role` is not fillable and pairing is not a public route.
+It also walks an invitation end to end: a coach opens one, a stranger holding
+the link is refused, the address it was sent to accepts, and then the client ends
+the pairing and the coach loses access on the next load.
+
+It needs a coach and a client. The pairing it can make itself through the invite
+flow; the roles it cannot, because `role` is not fillable and no request can set
+it.
 
 ```bash
 cd apps/api && php artisan tinker --execute="

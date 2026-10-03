@@ -240,3 +240,68 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Inviting a client, and the invitations already out. */
+.inviteBox {
+  margin-top: var(--sp-space-lg);
+  padding: var(--sp-space-lg);
+  background: var(--sp-color-panel);
+  border-radius: var(--sp-radius-card, 14px);
+  box-shadow: var(--sp-shadow-card, none);
+}
+
+.inviteRow {
+  display: flex;
+  gap: var(--sp-space-sm);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.inviteInput {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: var(--sp-space-sm) var(--sp-space-md);
+  border: 1.5px solid var(--sp-color-field);
+  border-radius: var(--sp-radius-field);
+  background: var(--sp-color-bg);
+  color: var(--sp-color-ink);
+  font: inherit;
+  font-size: var(--sp-text-control);
+}
+
+.inviteLink {
+  display: block;
+  margin-top: var(--sp-space-sm);
+  padding: var(--sp-space-sm) var(--sp-space-md);
+  background: var(--sp-color-bg);
+  border-radius: var(--sp-radius-field);
+  font-family: ui-monospace, monospace;
+  font-size: var(--sp-text-small);
+  color: var(--sp-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.inviteNote {
+  margin: var(--sp-space-sm) 0 0;
+  font-size: var(--sp-text-small);
+  line-height: var(--sp-leading-normal);
+  color: var(--sp-color-muted);
+}
+
+.inviteError {
+  margin: var(--sp-space-sm) 0 0;
+  font-size: var(--sp-text-small);
+  line-height: var(--sp-leading-normal);
+  color: var(--sp-color-accent-text);
+}
+
+.withdraw {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--sp-text-small);
+  color: var(--sp-color-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}

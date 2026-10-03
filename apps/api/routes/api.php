@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\AdminOverviewController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CoachController;
+use App\Http\Controllers\Api\CoachInviteController;
 use App\Http\Controllers\Api\InsightsController;
 use App\Http\Controllers\Api\JournalController;
+use App\Http\Controllers\Api\MyCoachController;
 use App\Http\Controllers\Api\ProtocolVersionController;
 use App\Http\Controllers\Api\SafetyFlagController;
 use App\Http\Controllers\Api\SessionController;
@@ -18,6 +20,13 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
+
+    // Public, because whoever holds an invite link has not signed in yet and
+    // needs to know who is asking before deciding whether to. It says who
+    // invited them and nothing else — an invite is not a way to find out
+    // whether an address has an account. Throttled with the guessable routes
+    // because a token is what it is looked up by.
+    Route::get('invites/{token}', [CoachInviteController::class, 'show']);
 });
 
 // Throttled as a whole. These are authenticated routes, so the limit is per
@@ -50,6 +59,15 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::delete('journal/{entry}', [JournalController::class, 'destroy']);
 
     Route::get('insights', [InsightsController::class, 'show']);
+
+    // Who can read this user's shared sessions, and ending it. The client's
+    // own, which is the point: a sharing rule the sharer cannot inspect or
+    // revoke is a promise about someone else's behaviour.
+    Route::get('me/coaches', [MyCoachController::class, 'index']);
+    Route::delete('me/coaches/{coach}', [MyCoachController::class, 'destroy']);
+
+    // Accepting is what creates a pairing, and only the client can do it.
+    Route::post('invites/{token}/accept', [CoachInviteController::class, 'accept']);
 });
 
 // The admin console. A coach is not an admin: the queue holds what someone said
@@ -73,4 +91,10 @@ Route::middleware(['auth:sanctum', 'throttle:120,1', EnsureCoach::class])->prefi
     Route::get('clients', [CoachController::class, 'clients']);
     Route::get('clients/{client}', [CoachController::class, 'client']);
     Route::patch('clients/{client}', [CoachController::class, 'update']);
+
+    // A coach may invite an address. They may not attach themselves to an
+    // account: the pairing is created by the client accepting.
+    Route::get('invites', [CoachInviteController::class, 'index']);
+    Route::post('invites', [CoachInviteController::class, 'store']);
+    Route::delete('invites/{invite}', [CoachInviteController::class, 'destroy']);
 });

@@ -111,7 +111,9 @@ is a fill**; they are not interchangeable, which is the whole reason both exist.
 
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
-and 1440 — 60 combinations — and the last run was clean across all of them.
+and 1440 — 64 combinations — and the last run was clean across all of them. It
+signs in as each role and resolves the client and invitation routes from real
+rows rather than hard-coding an id.
 
 ## Stack
 
@@ -273,6 +275,23 @@ Two gates, both needed: `EnsureCoach` says this person is a coach at all, and
 `CoachController::authorizePairing()` says they are _this client's_ coach.
 Neither implies the other, and a route with only the first would let any coach
 read any client.
+
+**The client creates the pairing, and the client ends it.** A coach can open an
+invitation to an email address; they cannot attach themselves to an account.
+Accepting is what pairs them, only the address it was sent to may accept, and
+`/me/coaches` lets the client see who can read their shared sessions and end it
+immediately. A sharing rule the sharer cannot inspect or revoke is a promise
+about someone else's behaviour, not a rule.
+
+Ending a pairing does **not** unshare the entries: `shared_with_coach` is a
+separate decision and stays where the user put it. What ends is anyone being
+able to read them, because reading goes through the pairing.
+
+A withdrawn invitation does not undo an accepted pairing, and the API refuses
+rather than implying it might. There is no mail driver yet, so an invitation's
+link comes back to the coach to pass on; the screen says so rather than implying
+an email went out, and `CoachInviteController::forCoach()` stops returning the
+token when mail is wired.
 
 A coach learns that a session stopped for safety through `CoachAttention` —
 that it happened, and when. Never what was said: a safety-stopped session is

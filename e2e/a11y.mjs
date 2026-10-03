@@ -24,7 +24,12 @@ const AXE = readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
 const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
 
-/** Routes that need no account. */
+/**
+ * Routes that need no account.
+ *
+ * `/welcome/invite/<token>` is one of them on purpose: whoever holds an
+ * invitation has not signed in yet. The token is made at run time, below.
+ */
 const PUBLIC_ROUTES = ['/', '/pricing', '/welcome'];
 
 /** Routes behind a token, reached after the script registers and consents. */
@@ -111,30 +116,51 @@ console.log(asAdmin ? `signed in as ${ADMIN_EMAIL}` : 'no admin account — skip
 const { page: coachPage, signedIn: asCoach } = await signIn(COACH_EMAIL, COACH_PASSWORD);
 console.log(asCoach ? `signed in as ${COACH_EMAIL}\n` : 'no coach account — skipping the portal\n');
 
-// A client's id belongs to a real pairing, so the route is resolved rather
-// than guessed. With no client there is nothing to audit on that screen.
+// A client's id belongs to a real pairing and an invitation's token to a real
+// invitation, so both routes are resolved rather than guessed. With no coach
+// there is nothing to audit on either screen.
 const clientRoutes = [];
+const inviteRoutes = [];
 if (asCoach) {
-  const clients = await coachPage.evaluate(async (api) => {
+  const made = await coachPage.evaluate(async (api) => {
     const token = window.localStorage.getItem('stillpoint.token.v1');
-    const r = await fetch(`${api}/coach/clients`, {
-      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-    });
-    return r.ok ? await r.json() : [];
+    const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+
+    const clients = await fetch(`${api}/coach/clients`, { headers }).then((r) =>
+      r.ok ? r.json() : [],
+    );
+
+    // An invitation to audit the screen with. It is never accepted, so it
+    // leaves nothing behind but a pending row.
+    const invite = await fetch(`${api}/coach/invites`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: `a11y-invite+${String(Date.now())}@example.com` }),
+    }).then((r) => (r.ok ? r.json() : null));
+
+    return { clientId: clients[0]?.id, inviteLink: invite?.link };
   }, API);
-  if (clients.length > 0) clientRoutes.push(`/coach/${String(clients[0].id)}`);
+
+  if (made.clientId !== undefined) clientRoutes.push(`/coach/${String(made.clientId)}`);
+  if (made.inviteLink !== undefined && made.inviteLink !== null)
+    inviteRoutes.push(String(made.inviteLink));
 }
 
 const ROUTES = [
   ...PUBLIC_ROUTES.map((route) => ({ route, as: 'user' })),
+  // Audited signed out, which is how it is met.
+  ...inviteRoutes.map((route) => ({ route, as: 'anonymous' })),
   ...PRIVATE_ROUTES.map((route) => ({ route, as: 'user' })),
   ...ADMIN_ROUTES.map((route) => ({ route, as: 'admin' })),
   ...[...COACH_ROUTES, ...clientRoutes].map((route) => ({ route, as: 'coach' })),
 ];
 
-const PAGES = { user: userPage, admin: adminPage, coach: coachPage };
-const AVAILABLE = { user: true, admin: asAdmin, coach: asCoach };
-const SETUP = { admin: 'e2e/admin.mjs', coach: 'e2e/coach.mjs' };
+// A page with no token, for the routes someone meets before signing in.
+const anonymousPage = await browser.newPage();
+
+const PAGES = { user: userPage, admin: adminPage, coach: coachPage, anonymous: anonymousPage };
+const AVAILABLE = { user: true, admin: asAdmin, coach: asCoach, anonymous: asCoach };
+const SETUP = { admin: 'e2e/admin.mjs', coach: 'e2e/coach.mjs', anonymous: 'e2e/coach.mjs' };
 
 let combinations = 0;
 let skipped = 0;

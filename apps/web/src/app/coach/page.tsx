@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import InviteClient from './InviteClient';
 import { ApiError, api, type ApiClient } from '../../lib/api';
 import { relativeDay } from '../../lib/format';
 import styles from './coach.module.css';
@@ -45,7 +46,6 @@ export default function Clients() {
     <>
       <div className={styles.head}>
         <h1 className={styles.title}>Your clients</h1>
-        <span className={styles.button}>Invite client</span>
       </div>
 
       {clients.length === 0 ? (
@@ -105,6 +105,12 @@ export default function Clients() {
           </tbody>
         </table>
       )}
+
+      <InviteClient
+        onAccepted={() => {
+          void api.coachClients().then(setClients);
+        }}
+      />
 
       <p className={styles.privacy}>You only see sessions your clients choose to share.</p>
     </>

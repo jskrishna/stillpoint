@@ -250,6 +250,46 @@ export interface ApiSafetyFlag {
   readonly reviewedAt: string | null;
 }
 
+/** A coach's invitation, as the coach sees it. */
+export interface ApiCoachInvite {
+  readonly id: string;
+  readonly email: string;
+  readonly status: string;
+  readonly usable: boolean;
+  readonly expiresAt: string;
+  readonly acceptedAt: string | null;
+  /**
+   * The path to pass on. Returned because there is no mail driver yet; when
+   * mail is wired the invite is sent and this stops coming back.
+   */
+  readonly link: string;
+}
+
+/**
+ * An invitation, as whoever holds the link sees it.
+ *
+ * Deliberately thin: who is asking, and whether the link still works. Not
+ * whether the address has an account — an invite is not a lookup tool.
+ */
+export interface ApiInvitation {
+  readonly coachName: string;
+  readonly email: string;
+  readonly usable: boolean;
+  readonly reason: string | null;
+  readonly expiresAt: string;
+}
+
+/** A coach who can read this user's shared sessions, from the user's side. */
+export interface ApiMyCoach {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly status: string;
+  readonly since: string | null;
+  /** How many of the user's sessions this coach can currently read. */
+  readonly sharedSessions: number;
+}
+
 /** A session a client chose to share. */
 export interface ApiSharedSession {
   readonly id: string;
@@ -480,4 +520,30 @@ export const api = {
     id: string,
     changes: { coachNotes?: string | null; nextCallAt?: string | null },
   ) => request<ApiClientDetail>(`/coach/clients/${id}`, { method: 'PATCH', body: changes }),
+
+  coachInvites: () => requestList<ApiCoachInvite>('/coach/invites'),
+
+  inviteClient: (email: string) =>
+    request<ApiCoachInvite>('/coach/invites', { method: 'POST', body: { email } }),
+
+  withdrawInvite: (id: string) =>
+    request<ApiCoachInvite>(`/coach/invites/${id}`, { method: 'DELETE' }),
+
+  /* ------------------------------------------------------------ invitations */
+
+  /** Readable without an account: whoever holds the link has not signed in. */
+  invitation: (token: string) => request<ApiInvitation>(`/invites/${token}`, { anonymous: true }),
+
+  /** Accepting is what creates the pairing, and only the client can do it. */
+  acceptInvitation: (token: string) =>
+    request<{ coachName: string; acceptedAt: string | null }>(`/invites/${token}/accept`, {
+      method: 'POST',
+    }),
+
+  /* ------------------------------ who can read my shared sessions, and ending it */
+
+  myCoaches: () => requestList<ApiMyCoach>('/me/coaches'),
+
+  /** Immediate, and the user's alone. A coach cannot do this for them. */
+  endCoaching: (coachId: string) => request<void>(`/me/coaches/${coachId}`, { method: 'DELETE' }),
 };
