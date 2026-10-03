@@ -155,7 +155,14 @@ export {
   type Preferences,
 } from './onboarding.js';
 
-export { baselineRiskScreen, noRiskScreen, type RiskAssessment, type RiskScreen } from './risk.js';
+export {
+  baselineRiskScreen,
+  noRiskScreen,
+  BASELINE_RULES,
+  type Rule,
+  type RiskAssessment,
+  type RiskScreen,
+} from './risk.js';
 
 export { feelingsIn, isSubstantiveAnswer, literalExtraction } from './extraction.js';
 

@@ -1208,7 +1208,16 @@ of it.
 - **Client stack: Expo for mobile, Next.js for web and desktop**, all three
   consuming `packages/*`. Scaffolded and built; see the sections above for what
   is verified on each and what is not.
-- **Step prompt copy stays `null`** until the PRD supplies it. Do not invent it.
+- **Step prompt copy stays `null` in code** until the PRD supplies it, and the
+  shippable copy lives in a draft protocol version that an admin publishes —
+  see "Do not invent product copy" above. Do not move the draft's text into
+  `steps.ts`.
+- **Listening is not in v1.** The guide speaks; answers are typed. Every
+  listener available today sends the user's audio to somebody, and the setup
+  screen's "Your voice is never saved" is true only while none is bound. That
+  sentence is the constraint, not a slogan: binding a hosted listener means
+  rewriting it and adding a DPDP consent flow, which is a product and legal
+  change rather than a refactor. `UserEar` stays the seam.
 - **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders. What a
   plan _allows_ is settled, though: see below.
 

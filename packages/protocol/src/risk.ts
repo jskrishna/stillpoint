@@ -117,7 +117,7 @@ export interface RiskScreen {
   assess(utterance: string): RiskAssessment;
 }
 
-interface Rule {
+export interface Rule {
   readonly level: Exclude<SafetyLevel, 'none'>;
   readonly category: SafetyCategory;
   readonly phrases: readonly string[];
@@ -130,7 +130,18 @@ interface Rule {
  * distinctive enough that ordinary speech does not trip them — but when in
  * doubt, a trip is the safer error.
  */
-const RULES: readonly Rule[] = [
+/**
+ * Exported so `docs/clinical-review/generate.mjs` can build the review pack a
+ * clinician reads from the rules themselves, rather than from a copy of them
+ * that drifts. A clinician signing off on a list the code no longer matches
+ * would be worse than no sign-off at all.
+ *
+ * Exporting these discloses nothing: `baselineRiskScreen` is already in the
+ * browser bundle as the instant-feedback copy, so the phrases have always
+ * shipped to clients. The enforcement is the server's, and the server does not
+ * read this list from a client.
+ */
+export const BASELINE_RULES: readonly Rule[] = [
   {
     level: 'high',
     category: 'self_harm',
@@ -381,7 +392,7 @@ export const baselineRiskScreen: RiskScreen = {
       | { level: Exclude<SafetyLevel, 'none'>; category: SafetyCategory; matched: string }
       | undefined;
 
-    for (const rule of RULES) {
+    for (const rule of BASELINE_RULES) {
       for (const phrase of rule.phrases) {
         if (!text.includes(phrase)) continue;
         if (best === undefined || SEVERITY[rule.level] > SEVERITY[best.level]) {
