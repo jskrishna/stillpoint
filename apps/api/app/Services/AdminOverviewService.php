@@ -53,6 +53,20 @@ final readonly class AdminOverviewService
             'reachedFinalStepPct' => self::percent($reachedFinal, $sessions),
             'feltCalmerPct' => self::percent($feltCalmer, $sessions),
             'openFlags' => SafetyFlag::query()->open()->count(),
+            // Not in the window: a flag raised three weeks ago and still open
+            // is exactly the thing this number is for. A queue nobody is
+            // getting through is the safeguarding failure, and a count on its
+            // own cannot show it — four open flags is reassuring until you
+            // learn the oldest has been waiting six days.
+            //
+            // `select('raised_at')` so the excerpt is never even fetched, and
+            // an ISO string rather than `min()`'s bare SQL datetime: that has
+            // no timezone on it, and a browser reads "2026-10-03 13:00:00" as
+            // its own local time, which is the wrong answer everywhere except
+            // UTC.
+            'oldestOpenFlagAt' => SafetyFlag::query()->open()
+                ->select('raised_at')->orderBy('raised_at')->first()
+                ?->raised_at?->toIso8601String(),
             // Not a protocol figure — a figure about this screen's own reach.
             // The phrase screen reads Latin and Devanagari and nothing else,
             // so these are the sessions where somebody said something it could

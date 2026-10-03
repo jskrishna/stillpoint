@@ -254,6 +254,13 @@ export interface ApiAdminOverview {
   readonly feltCalmerPct: number;
   readonly openFlags: number;
   /**
+   * When the longest-waiting open flag was raised, or null when none is open.
+   *
+   * Not restricted to the window: a flag raised three weeks ago and still open
+   * is precisely what this is for.
+   */
+  readonly oldestOpenFlagAt: string | null;
+  /**
    * Sessions in the window where somebody said something the safety screen
    * could not read, and how many such turns in all.
    *

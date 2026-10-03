@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Domain\CalmerRating;
+use App\Domain\SafetyCategory;
+use App\Domain\SafetyLevel;
 use App\Domain\SessionKind;
 use App\Models\GuidedSession;
 use App\Models\JournalEntry;
+use App\Models\SafetyFlag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -34,6 +37,70 @@ final class AdminOverviewApiTest extends TestCase
         $this->app['auth']->forgetGuards();
         Sanctum::actingAs(User::factory()->coach()->create());
         $this->getJson('/api/admin/overview')->assertNotFound();
+    }
+
+    /**
+     * The age of the longest-waiting open flag.
+     *
+     * The count alone is reassuring in the wrong way: four open flags reads as
+     * a manageable afternoon until you learn the oldest has been waiting six
+     * days. A queue nobody is getting through is the safeguarding failure, and
+     * it does not show up in a count.
+     */
+    public function test_the_overview_reports_the_oldest_open_flag(): void
+    {
+        $owner = User::factory()->create();
+
+        // Deliberately outside the window. A flag raised three weeks ago and
+        // still open is exactly what this figure is for, so restricting it to
+        // the window would hide the worst case.
+        $old = SafetyFlag::create([
+            'user_id' => $owner->id,
+            'level' => SafetyLevel::High,
+            'category' => SafetyCategory::SelfHarm,
+            'excerpt' => 'something they said',
+            'outcome' => 'Session stopped. Helplines shown.',
+            'status' => 'open',
+            'raised_at' => now()->subDays(21),
+        ]);
+        SafetyFlag::create([
+            'user_id' => $owner->id,
+            'level' => SafetyLevel::Medium,
+            'category' => SafetyCategory::SelfHarm,
+            'excerpt' => 'something else',
+            'outcome' => 'Flagged for review. Session continued.',
+            'status' => 'open',
+            'raised_at' => now()->subHours(2),
+        ]);
+        // Reviewed, so it is not waiting on anybody and must not be the answer
+        // even though it is the oldest row in the table.
+        SafetyFlag::create([
+            'user_id' => $owner->id,
+            'level' => SafetyLevel::Low,
+            'category' => SafetyCategory::SelfHarm,
+            'excerpt' => 'long since handled',
+            'outcome' => 'Flagged for review. Session continued.',
+            'status' => 'reviewed',
+            'reviewed_at' => now()->subDays(30),
+            'raised_at' => now()->subDays(40),
+        ]);
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/admin/overview')
+            ->assertOk()
+            ->assertJsonPath('openFlags', 2)
+            ->assertJsonPath('oldestOpenFlagAt', $old->raised_at?->toIso8601String());
+    }
+
+    public function test_the_oldest_open_flag_is_null_when_nothing_is_waiting(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/admin/overview')
+            ->assertOk()
+            ->assertJsonPath('openFlags', 0)
+            ->assertJsonPath('oldestOpenFlagAt', null);
     }
 
     public function test_an_empty_install_reports_zeroes_rather_than_dividing_by_zero(): void

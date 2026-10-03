@@ -105,6 +105,18 @@ if (!signedIn) {
   else bad('the overview loads', overview.slice(0, 300));
   if (/open safety flags/.test(overview)) ok('the overview counts open flags');
   else bad('the overview counts open flags');
+  // The count alone reads as a manageable afternoon until you learn the oldest
+  // has been waiting six days. One of the two sentences is always there.
+  if (
+    /longest-waiting open flag was raised .+ ago|Nothing is waiting in the safety queue/.test(
+      overview,
+    )
+  )
+    ok('the overview says how long the queue has been waiting');
+  else bad('the overview says how long the queue has been waiting', overview.slice(0, 500));
+  if (/WHAT THE SCREEN COULD NOT READ/.test(overview))
+    ok('the overview admits what the screen cannot read');
+  else bad('the overview admits what the screen cannot read', overview.slice(0, 500));
   if (/u_[0-9a-f]{4}/.test(overview)) ok('recent sessions carry an opaque handle');
   else bad('recent sessions carry an opaque handle', overview.slice(-300));
   if (!/@example\.com/.test(overview)) ok('the overview names nobody');
@@ -120,6 +132,14 @@ if (!signedIn) {
   else bad('the queue loads', queue.slice(0, 300));
   if (queue.includes('burden')) ok('a reviewer can read the excerpt');
   else bad('a reviewer can read the excerpt', queue.slice(0, 400));
+
+  // The age of a flag, which the queue did not show at all. After its
+  // severity it is what a reviewer needs most: a `high` raised four days ago
+  // is not the same situation as the same flag raised this morning.
+  const ages = await admin.locator('tbody tr td:nth-child(4)').allInnerTexts();
+  if (ages.length > 0 && ages.every((a) => /^(now|\d+[mhd])$/.test(a.trim())))
+    ok(`every row says how long it has been waiting (${ages.slice(0, 4).join(', ')})`);
+  else bad('every row says how long it has been waiting', ages.join(', '));
 
   const levels = await admin.locator('tbody tr td:first-child').allInnerTexts();
   const rank = { High: 3, Medium: 2, Low: 1 };

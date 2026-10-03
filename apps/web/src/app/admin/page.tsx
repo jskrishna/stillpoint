@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { STEP_LIST } from '@stillpoint/protocol';
+import { describeAge } from '../../lib/ago';
 import { ApiError, api, type ApiAdminOverview } from '../../lib/api';
 import styles from './admin.module.css';
 
@@ -58,6 +59,21 @@ export default function Overview() {
         <Stat value={`${String(overview.feltCalmerPct)}%`} label="felt calmer" />
         <Stat value={String(overview.openFlags)} label="open safety flags" />
       </div>
+
+      {/*
+        The count on its own is reassuring in the wrong way. Four open flags
+        reads as a manageable afternoon until you learn the oldest has been
+        waiting six days — a queue nobody is getting through is the
+        safeguarding failure, and it is invisible in a number.
+      */}
+      {overview.openFlags === 0 ? (
+        <p className={styles.sub}>Nothing is waiting in the safety queue.</p>
+      ) : (
+        <p className={styles.sub}>
+          The longest-waiting open flag was raised{' '}
+          <strong>{describeAge(overview.oldestOpenFlagAt)} ago</strong>.
+        </p>
+      )}
 
       <span className={styles.label}>HOW FAR PEOPLE GET</span>
       <div className={styles.funnel}>

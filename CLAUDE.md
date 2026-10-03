@@ -717,7 +717,13 @@ A no-op (setting the role it already has) records nothing: a trail of no-ops is
 a trail nobody reads.
 
 `AdminOverviewService` reads only plain columns — kind, step, end reason,
-rating, and the count of turns the safety screen could not read. It touches none of the encrypted text: the console answers "how is the
+rating, the count of turns the safety screen could not read, and when the
+longest-waiting open flag was raised. That last one is deliberately **not**
+limited to the window: a flag raised three weeks ago and still open is exactly
+what it is for, and a count alone cannot show it — four open flags reads as a
+manageable afternoon until you learn the oldest has been waiting six days. The
+queue itself shows each flag's age for the same reason; it used to show none.
+`raisedAt` was in the API response all along and no screen printed it. It touches none of the encrypted text: the console answers "how is the
 protocol working", and the one place staff read someone's words is the queue.
 Its percentages are of **sessions started**, so a session that stopped for
 safety (and therefore has no journal row) stays in the denominator rather than
