@@ -37,8 +37,23 @@ plausible-looking number. A wrong crisis number is worse than none.
 
 `packages/protocol/src/risk.ts` is a small phrase screen. It exists so the
 obvious cases cannot be missed while a real classifier is chosen and reviewed.
-It cannot read tone, context, metaphor or code-switching, and it knows English
-phrasings only.
+It cannot read tone, context, metaphor or irony.
+
+**It knows English, Hinglish and Hindi, and it is thin in all three.** It used
+to know English only, and that was worse than it sounded: `normalise()` dropped
+every character outside `[a-z' ]`, so an utterance in Devanagari did not go
+unmatched — it became an empty string and returned `none` before a rule ran.
+Somebody typing "मुझे मरना है" into an India-first product got nothing at all.
+
+The normaliser keeps Devanagari now, and the Hinglish and Hindi phrases are
+graded by the same rule as the English ones: only a statement of intent or of
+an act is `high`, hopelessness stays `medium`. Matching literal substrings in
+Devanagari is brittle — "हूँ" and "हूं" are one word and two strings — and
+Hinglish has no settled spelling, so the common variants are all listed because
+a missed spelling is a missed disclosure. India has many more languages than
+two. None of this makes the screen adequate; it makes the most unambiguous
+phrasings visible, and it is the clearest argument for the classifier being
+multilingual rather than English translated.
 
 **Never describe it as sufficient, and never let a clinical claim rest on it.**
 Shipping needs a trained model and sign-off from someone qualified to judge it.

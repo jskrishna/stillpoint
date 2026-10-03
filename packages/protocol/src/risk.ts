@@ -7,11 +7,32 @@
  * over-eager phrase screen that runs on every utterance so that the obvious
  * cases can never be missed while a real classifier is chosen and reviewed.
  *
- * It will miss things. It cannot read tone, context, metaphor, irony, code
- * switching, or any of the ways people actually say that they are not safe. It
- * knows English phrasings only. **No one should ship this as the only screen,
- * and no clinical claim should rest on it.** A real deployment needs a trained
- * model and sign-off from someone qualified to judge it.
+ * It will miss things. It cannot read tone, context, metaphor or irony, or any
+ * of the ways people actually say that they are not safe. **No one should ship
+ * this as the only screen, and no clinical claim should rest on it.** A real
+ * deployment needs a trained model and sign-off from someone qualified to
+ * judge it.
+ *
+ * ## It used to be blind to half the country
+ *
+ * The product is India-first, and this screen knew English phrasings only —
+ * which was written down as a limitation and was worse than it sounded.
+ * `normalise()` dropped every character outside `[a-z' ]`, so an utterance in
+ * Devanagari did not merely go unmatched: it became an empty string and
+ * returned `none` before any rule ran. Somebody typing "मुझे मरना है" got
+ * nothing at all.
+ *
+ * So the normaliser keeps Devanagari now, and there are Hinglish and Hindi
+ * phrases below, graded by the same rule as the English ones: only a statement
+ * of intent or of an act is `high`.
+ *
+ * **This is still thin, and the thinness is the point to take away.** Matching
+ * literal substrings in Devanagari is brittle — "हूँ" and "हूं" are the same
+ * word and different strings — and Hinglish has no settled spelling, so
+ * "khudkushi" and "khudkhushi" are both common. India has many more languages
+ * than two. What this buys is that the most unambiguous phrasings are no
+ * longer invisible; it does not make the screen adequate, and if anything it
+ * shows why the classifier has to be multilingual rather than translated.
  *
  * Given that, it is tuned for recall over precision: a false flag costs a
  * reviewer a minute, and a missed one costs something that cannot be undone.
@@ -79,6 +100,40 @@ const RULES: readonly Rule[] = [
       'wanted to kill myself',
       'tried to kill myself',
       'tried to end my life',
+
+      // Hinglish, in the Roman script most people actually type on a phone.
+      // Spelling is unsettled, so the common variants are all listed — a
+      // missed spelling is a missed disclosure.
+      'khudkushi',
+      'khudkhushi',
+      'khud kushi',
+      'atmahatya',
+      'aatmahatya',
+      'mujhe marna hai',
+      'mujhe mar jana hai',
+      'marna chahta hu',
+      'marna chahti hu',
+      'marna chahta hoon',
+      'marna chahti hoon',
+      'jaan de dunga',
+      'jaan de dungi',
+      'jaan dene ka',
+      'nas kaat',
+      'khud ko khatam',
+
+      // The same, in Devanagari.
+      'खुदकुशी',
+      'आत्महत्या',
+      'मुझे मरना है',
+      'मरना चाहता',
+      'मरना चाहती',
+      'जान दे दूंगा',
+      'जान दे दूँगा',
+      'जान दे दूंगी',
+      'जान दे दूँगी',
+      'जान देने का',
+      'नस काट',
+      'खुद को खत्म',
     ],
   },
   {
@@ -103,6 +158,32 @@ const RULES: readonly Rule[] = [
       'no point in living',
       "better off if i wasn't here",
       'better off if i was not here',
+
+      // Hinglish. Graded the same as their English counterparts rather than
+      // up: "jeene ka mann nahi" is "I don't want to live", which is medium
+      // above, and an upset person says it on an ordinary bad day.
+      'jeene ka mann nahi',
+      'jeena nahi chahta',
+      'jeena nahi chahti',
+      'jeene ki iccha nahi',
+      'sabke liye bojh',
+      'sab ke liye bojh',
+      'bojh ban gaya hu',
+      'bojh ban gayi hu',
+      'bojh hu sabpe',
+      'jeene se thak',
+      'thak gaya hu jeene',
+      'thak gayi hu jeene',
+
+      // The same, in Devanagari.
+      'जीने का मन नहीं',
+      'जीना नहीं चाहता',
+      'जीना नहीं चाहती',
+      'जीने की इच्छा नहीं',
+      'सबके लिए बोझ',
+      'बोझ बन गया',
+      'बोझ बन गई',
+      'जीने से थक',
     ],
   },
   {
@@ -193,14 +274,29 @@ const SEVERITY: Readonly<Record<Exclude<SafetyLevel, 'none'>, number>> = {
  * Curly apostrophes become straight so "don't" and "don’t" match the same rule,
  * and runs of whitespace and punctuation collapse so line breaks from a
  * transcript do not hide a phrase.
+ *
+ * Devanagari is kept. It used to be stripped along with everything else outside
+ * `[a-z' ]`, which turned a sentence written in Hindi into an empty string and
+ * graded it `none` without a rule ever running. Lower-casing is a no-op for the
+ * script, and its own punctuation — the danda and the double danda — is removed
+ * with the rest.
  */
 function normalise(utterance: string): string {
-  return utterance
-    .toLowerCase()
-    .replace(/[’‘`]/g, "'")
-    .replace(/[^a-z' ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    utterance
+      .toLowerCase()
+      .replace(/[’‘`]/g, "'")
+      // Danda, double danda, and the zero-width joiners that a mobile keyboard
+      // leaves inside a conjunct.
+      .replace(/[\u0964\u0965\u200c\u200d]/gu, ' ')
+      // `\p{Script=Devanagari}` rather than the code-point range: it says what
+      // it means, it covers the extended block as well, and a hand-written
+      // range that includes combining marks is the thing
+      // `no-misleading-character-class` is right to object to.
+      .replace(/[^a-z'\p{Script=Devanagari} ]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 /**

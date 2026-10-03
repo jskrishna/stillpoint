@@ -94,6 +94,69 @@
       "matched": "he hit me"
     },
     {
+      "utterance": "मुझे मरना है",
+      "why": "Hindi, a statement of intent — this used to be invisible",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "मुझे मरना है"
+    },
+    {
+      "utterance": "मैं आत्महत्या करना चाहता हूँ",
+      "why": "Hindi, the word for suicide",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "आत्महत्या"
+    },
+    {
+      "utterance": "mujhe marna hai yaar",
+      "why": "Hinglish, the script most people type on a phone",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "mujhe marna hai"
+    },
+    {
+      "utterance": "khudkhushi kar lunga",
+      "why": "Hinglish, and the spelling nobody agrees on",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "khudkhushi"
+    },
+    {
+      "utterance": "ab jeene ka mann nahi karta",
+      "why": "hopelessness, so medium — not a stop",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "jeene ka mann nahi"
+    },
+    {
+      "utterance": "main sabke liye bojh ban gaya hu",
+      "why": "burdensomeness in Hinglish, medium",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "sabke liye bojh"
+    },
+    {
+      "utterance": "मैं जीने से थक गया हूँ",
+      "why": "the same in Devanagari, medium",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "जीने से थक"
+    },
+    {
+      "utterance": "aaj mera manager bahut bura bola",
+      "why": "an ordinary bad day in Hinglish — none",
+      "level": "none",
+      "category": null,
+      "matched": null
+    },
+    {
+      "utterance": "मेरा दिन बहुत खराब था",
+      "why": "an ordinary bad day in Hindi — none",
+      "level": "none",
+      "category": null,
+      "matched": null
+    },
+    {
       "utterance": "my husband threatens me when he drinks",
       "why": "a disclosure of threats, not a feeling",
       "level": "medium",

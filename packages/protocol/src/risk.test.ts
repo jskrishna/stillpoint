@@ -77,6 +77,71 @@ describe('the baseline risk screen', () => {
   });
 });
 
+describe('Hindi and Hinglish', () => {
+  /**
+   * The bug this closes, stated as a test.
+   *
+   * `normalise()` dropped every character outside `[a-z' ]`. An utterance
+   * written in Devanagari did not go unmatched — it became an empty string and
+   * returned `none` before a single rule ran. In an India-first product, that
+   * is the clearest disclosure there is, arriving invisible.
+   */
+  it('does not throw away the script half the country writes in', () => {
+    expect(baselineRiskScreen.assess('मुझे मरना है')).toEqual({
+      level: 'high',
+      category: 'self_harm',
+      matched: 'मुझे मरना है',
+    });
+  });
+
+  it('reads a statement of intent in either script as high', () => {
+    for (const said of [
+      'mujhe marna hai yaar',
+      'khudkhushi kar lunga',
+      'मैं आत्महत्या करना चाहता हूँ',
+      'ab main jaan de dunga',
+    ]) {
+      expect(baselineRiskScreen.assess(said).level, said).toBe('high');
+    }
+  });
+
+  /**
+   * The ceiling rule, in the other scripts too. Hopelessness is not intent,
+   * `high` ends a session, and someone having an ordinary bad day says these.
+   */
+  it('keeps hopelessness at medium rather than grading it up', () => {
+    for (const said of [
+      'ab jeene ka mann nahi karta',
+      'main sabke liye bojh ban gaya hu',
+      'मैं जीने से थक गया हूँ',
+      'जीने का मन नहीं है',
+    ]) {
+      expect(baselineRiskScreen.assess(said).level, said).toBe('medium');
+    }
+  });
+
+  it('leaves an ordinary bad day alone in both scripts', () => {
+    for (const said of [
+      'aaj mera manager bahut bura bola',
+      'मेरा दिन बहुत खराब था',
+      'mujhe gussa aa raha hai',
+    ]) {
+      expect(baselineRiskScreen.assess(said), said).toEqual({ level: 'none' });
+    }
+  });
+
+  it('is not fooled by a danda or a stray zero-width joiner', () => {
+    // Both arrive from a phone keyboard, and both used to be the difference
+    // between a match and nothing.
+    expect(baselineRiskScreen.assess('मुझे मरना है। बस।').level).toBe('high');
+    expect(baselineRiskScreen.assess('मुझे\u200c मरना है').level).toBe('high');
+  });
+
+  it('still sees English in a sentence that is mostly not', () => {
+    expect(baselineRiskScreen.assess('मेरा मन नहीं लग रहा, I want to die').level).toBe('high');
+  });
+});
+
 describe('noRiskScreen', () => {
   it('finds nothing, for tests that are not about safety', () => {
     expect(noRiskScreen.assess('I want to die').level).toBe('none');

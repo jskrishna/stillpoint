@@ -143,9 +143,15 @@ risk level, the category or the matched phrase: a user mid-crisis has no use for
 to dodge it.
 
 `risk.ts` is a deliberately over-eager phrase screen, and a **backstop rather
-than the detector**: it will miss things, it reads English phrasings only, and
-no clinical claim should rest on it. A real deployment needs a trained model and
-sign-off from someone qualified to judge it.
+than the detector**: it will miss things, and no clinical claim should rest on
+it. A real deployment needs a trained model and sign-off from someone qualified
+to judge it.
+
+It covers English, Hinglish and Hindi, thinly. It used to cover English only,
+and the normaliser dropped every non-Latin character — so a crisis disclosure
+written in Devanagari became an empty string and was graded as nothing, in a
+product that is India-first. That is fixed; the remaining thinness is the
+argument for making the classifier multilingual rather than translating one.
 
 Helplines resolve by country and currently cover India only (Tele-MANAS 14416,
 emergency 112), matching the designs. `helplinesFor()` returns an empty list

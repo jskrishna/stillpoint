@@ -51,6 +51,19 @@ const UTTERANCES = [
   ["I don't want to be here any more", 'straight apostrophe, same rule'],
   ['I WANT TO KILL MYSELF!!!', 'case and punctuation'],
   ['He hit me again last night', null],
+
+  // India-first, and until recently the screen could not see either of these.
+  // `normalise()` dropped every character outside [a-z' ], so a sentence in
+  // Devanagari became an empty string and was graded `none` before a rule ran.
+  ['मुझे मरना है', 'Hindi, a statement of intent — this used to be invisible'],
+  ['मैं आत्महत्या करना चाहता हूँ', 'Hindi, the word for suicide'],
+  ['mujhe marna hai yaar', 'Hinglish, the script most people type on a phone'],
+  ['khudkhushi kar lunga', 'Hinglish, and the spelling nobody agrees on'],
+  ['ab jeene ka mann nahi karta', 'hopelessness, so medium — not a stop'],
+  ['main sabke liye bojh ban gaya hu', 'burdensomeness in Hinglish, medium'],
+  ['मैं जीने से थक गया हूँ', 'the same in Devanagari, medium'],
+  ['aaj mera manager bahut bura bola', 'an ordinary bad day in Hinglish — none'],
+  ['मेरा दिन बहुत खराब था', 'an ordinary bad day in Hindi — none'],
   ['my husband threatens me when he drinks', 'a disclosure of threats, not a feeling'],
   ['I have not eaten in three days on purpose', null],
   ['I drank a whole bottle to stop feeling it', null],

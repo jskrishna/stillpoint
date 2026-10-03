@@ -41,6 +41,22 @@ final class PhraseRiskScreen implements RiskScreen
                 // is meant to make.
                 'wanted to die', 'wanted to kill myself', 'tried to kill myself',
                 'tried to end my life',
+
+                // Hinglish, in the Roman script most people actually type on a
+                // phone. Spelling is unsettled, so the common variants are all
+                // listed — a missed spelling is a missed disclosure.
+                'khudkushi', 'khudkhushi', 'khud kushi', 'atmahatya', 'aatmahatya',
+                'mujhe marna hai', 'mujhe mar jana hai',
+                'marna chahta hu', 'marna chahti hu',
+                'marna chahta hoon', 'marna chahti hoon',
+                'jaan de dunga', 'jaan de dungi', 'jaan dene ka',
+                'nas kaat', 'khud ko khatam',
+
+                // The same, in Devanagari.
+                'खुदकुशी', 'आत्महत्या', 'मुझे मरना है',
+                'मरना चाहता', 'मरना चाहती',
+                'जान दे दूंगा', 'जान दे दूँगा', 'जान दे दूंगी', 'जान दे दूँगी',
+                'जान देने का', 'नस काट', 'खुद को खत्म',
             ],
         ],
         [
@@ -58,6 +74,20 @@ final class PhraseRiskScreen implements RiskScreen
                 'tired of living', "don't want to live", 'do not want to live',
                 'no point in living', "better off if i wasn't here",
                 'better off if i was not here',
+
+                // Hinglish. Graded the same as their English counterparts
+                // rather than up: "jeene ka mann nahi" is "I don't want to
+                // live", which is medium, and an upset person says it on an
+                // ordinary bad day.
+                'jeene ka mann nahi', 'jeena nahi chahta', 'jeena nahi chahti',
+                'jeene ki iccha nahi', 'sabke liye bojh', 'sab ke liye bojh',
+                'bojh ban gaya hu', 'bojh ban gayi hu', 'bojh hu sabpe',
+                'jeene se thak', 'thak gaya hu jeene', 'thak gayi hu jeene',
+
+                // The same, in Devanagari.
+                'जीने का मन नहीं', 'जीना नहीं चाहता', 'जीना नहीं चाहती',
+                'जीने की इच्छा नहीं', 'सबके लिए बोझ', 'बोझ बन गया', 'बोझ बन गई',
+                'जीने से थक',
             ],
         ],
         [
@@ -144,12 +174,23 @@ final class PhraseRiskScreen implements RiskScreen
      * Curly apostrophes become straight so "don't" and "don’t" hit the same
      * rule, and punctuation and line breaks collapse so a phrase cannot hide
      * across a transcript's formatting.
+     *
+     * Devanagari is kept. It used to be stripped along with everything else
+     * outside `[a-z' ]`, which turned a sentence written in Hindi into an empty
+     * string and graded it `none` without a rule ever running. Lower-casing is
+     * a no-op for the script, and its own punctuation — the danda and the
+     * double danda — is removed with the rest.
      */
     private static function normalise(string $utterance): string
     {
         $text = mb_strtolower($utterance);
         $text = str_replace(['’', '‘', '`'], "'", $text);
-        $text = preg_replace("/[^a-z' ]+/u", ' ', $text) ?? '';
+        // Danda, double danda, and the zero-width joiners a mobile keyboard
+        // leaves inside a conjunct.
+        $text = preg_replace('/[\x{0964}\x{0965}\x{200c}\x{200d}]/u', ' ', $text) ?? '';
+        // `\p{Devanagari}` rather than the code-point range: it says what it
+        // means and covers the extended block too.
+        $text = preg_replace("/[^a-z'\p{Devanagari} ]+/u", ' ', $text) ?? '';
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
         return trim($text);
