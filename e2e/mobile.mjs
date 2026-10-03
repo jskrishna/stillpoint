@@ -55,6 +55,24 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
  */
 const thrown = [];
 page.on('pageerror', (e) => thrown.push(String(e).slice(0, 200)));
+
+/**
+ * Anywhere this app talked to that is not Stillpoint.
+ *
+ * The same rule `e2e/privacy.mjs` holds the web app to, and here for the same
+ * reason: it caught a real leak once — the web's fonts were linked from
+ * Google's CDN, so every page load of a product about being upset reached a
+ * third party. The phone app bundles its fonts, and this is what keeps that
+ * true of the export as well as of the claim.
+ */
+const elsewhere = new Map();
+page.on('request', (request) => {
+  const url = request.url();
+  if (url.startsWith('data:') || url.startsWith('blob:')) return;
+  const { hostname, origin } = new URL(url);
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return;
+  elsewhere.set(origin, (elsewhere.get(origin) ?? 0) + 1);
+});
 page.on('console', (m) => {
   if (m.type() !== 'error') return;
   const text = m.text();
@@ -267,7 +285,10 @@ if (serverSays.entries === 1) ok('the safety-stopped session left no journal row
 else bad('the safety-stopped session left no journal row', String(serverSays.entries));
 
 // ---------------------------------------------------------------------------
-console.log('\n6. Nothing threw');
+console.log('\n6. Where the app went, and whether anything threw');
+
+if (elsewhere.size === 0) ok('nothing left this origin');
+else for (const [origin, count] of elsewhere) bad(`a request left for ${origin}`, String(count));
 
 if (thrown.length === 0) ok('no screen threw while any of that happened');
 else for (const t of thrown.slice(0, 5)) bad('a screen threw', t);

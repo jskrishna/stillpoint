@@ -33,7 +33,11 @@ component that throws on first render fails it.
 real browser at a phone's width against a running API — register, the consent
 gate, voice setup, a full six-step session, the journal, and the safety stop,
 including asking the **server** what it recorded and that it refuses another
-turn on a stopped session. The screens, the reducer, the API binding and the
+turn on a stopped session. It also holds this app to the rule
+`e2e/privacy.mjs` holds the web app to: **nothing leaves this origin.** That one
+caught a real leak once — the web's fonts were linked from Google's CDN, so
+every page load of a product about being upset reached a third party. This app
+has always bundled its fonts; now that is checked rather than said. The screens, the reducer, the API binding and the
 navigation are the same files a phone runs, and until that script existed none
 of them had ever been executed. It runs in CI.
 
