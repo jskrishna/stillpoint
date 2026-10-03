@@ -129,10 +129,25 @@ export function transportFor(config: ClientConfig): Transport {
       do {
         const page: Page<T> = await fetchPage(cursor);
         all.push(...page.items);
-        cursor = page.nextCursor;
-        // A cursor that does not advance would spin forever; an empty page
-        // means there is nothing more to walk whatever the cursor says.
+
+        // An empty page means there is nothing more to walk, whatever the
+        // cursor says.
         if (page.items.length === 0) break;
+
+        // And a cursor that does not advance would spin forever. That case was
+        // named in a comment here and not actually guarded: the empty-page
+        // check above does not catch it, because a page that repeats itself has
+        // items. It would loop, re-reading the same rows and growing this array
+        // until the tab died — on an export, which is the one call that walks
+        // every page a person has.
+        //
+        // Stopping is the right answer rather than throwing: this is somebody
+        // asking for their own data, and an export short of the last page beats
+        // no export and a crash. A server that does this is broken, and the
+        // place to notice that is the server's tests.
+        if (page.nextCursor === cursor) break;
+
+        cursor = page.nextCursor;
       } while (cursor !== null);
 
       return all;

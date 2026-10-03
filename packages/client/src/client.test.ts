@@ -316,3 +316,65 @@ describe('the paths', () => {
     expect(calls[0]?.init.headers['Authorization']).toBeUndefined();
   });
 });
+
+describe('walking every page', () => {
+  /** One page of a journal, with whatever cursor the server claims is next. */
+  const page = (ids: readonly string[], nextCursor: string | null): Page<ApiJournalEntry> => ({
+    items: ids.map((id) => ({ id }) as ApiJournalEntry),
+    nextCursor,
+    total: 99,
+  });
+
+  it('walks until the cursor runs out', async () => {
+    const { api, calls } = clientWith([
+      { status: 200, body: page(['a', 'b'], 'c1') },
+      { status: 200, body: page(['c'], null) },
+    ]);
+
+    const all = await api.wholeJournal();
+
+    expect(all.map((e) => e.id)).toEqual(['a', 'b', 'c']);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('stops on an empty page whatever the cursor says', async () => {
+    const { api, calls } = clientWith([
+      { status: 200, body: page(['a'], 'c1') },
+      { status: 200, body: page([], 'c2') },
+    ]);
+
+    await expect(api.wholeJournal()).resolves.toHaveLength(1);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('stops when the cursor stops advancing', async () => {
+    // A server that keeps answering with the cursor it was given. The page is
+    // not empty, so the check above does not catch it: without a guard this
+    // re-reads the same rows forever and grows the array until the tab dies —
+    // on the one call that walks every page somebody has.
+    //
+    // The stub gives up after a few pages rather than answering forever,
+    // because without the guard this loop cannot be interrupted: nothing
+    // yields, so a test timeout never fires and the run hangs until whatever
+    // is above it gives up. A thrown error says what happened; a hung CI job
+    // does not.
+    let served = 0;
+    const fetch: Fetch = () => {
+      served += 1;
+      if (served > 5) throw new Error('everyPage did not stop: the cursor never advanced');
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'status 200',
+        text: () => Promise.resolve(JSON.stringify(page([`row-${String(served)}`], 'stuck'))),
+      });
+    };
+    const api = createClient({ baseUrl: 'https://api.test/api', tokens: memoryTokens('t'), fetch });
+
+    const all = await api.wholeJournal();
+
+    expect(all.map((e) => e.id)).toEqual(['row-1', 'row-2']);
+    expect(served).toBe(2);
+  });
+});
