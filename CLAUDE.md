@@ -496,7 +496,7 @@ look green locally.
 ## Running it somewhere
 
 `docker-compose.yml` and `deploy/` bring the whole thing up: MySQL, PHP-FPM,
-nginx, and the Next.js app. `deploy/README.md` is the detail. Two things from
+nginx, Laravel's scheduler, and the Next.js app. `deploy/README.md` is the detail. Two things from
 it that matter wherever this is discussed:
 
 **`APP_KEY` is the whole journal.** Every entry, every session's content and

@@ -1,7 +1,7 @@
 # Stillpoint, whole, on one machine.
 #
-# Four containers: MySQL, PHP-FPM, the nginx in front of it, and the Next.js
-# app. It is a working deployment and a way to run the product without a PHP
+# Five containers: MySQL, PHP-FPM, the nginx in front of it, Laravel's
+# scheduler, and the Next.js app. It is a working deployment and a way to run the product without a PHP
 # toolchain — not a production topology, which would put the database somewhere
 # it is backed up and the two apps behind a load balancer.
 #
@@ -67,6 +67,36 @@ services:
       # one thing here that is not production-ready.
       MAIL_MAILER: ${MAIL_MAILER:-log}
 
+  # Laravel's scheduler, which until now nothing ran.
+  #
+  # `deploy/README.md` listed "no queue, no scheduler" as a thing to fix before
+  # this is in front of people, and the one scheduled task that exists is the
+  # one that matters least and is still worth doing: `sanctum:prune-expired`
+  # clears out token rows that are already refused. A token table that only
+  # grows is not an outage; it is a table nobody tends.
+  #
+  # The same image as the API, so there is one thing to deploy rather than two
+  # that can be deployed apart. It runs no web server and publishes no port.
+  scheduler:
+    image: stillpoint-api:local
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_NAME: Stillpoint
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      APP_KEY: ${APP_KEY:?set APP_KEY in .env — see deploy/README.md}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: '3306'
+      DB_DATABASE: ${DB_DATABASE:-stillpoint}
+      DB_USERNAME: ${DB_USERNAME:-stillpoint}
+      DB_PASSWORD: ${DB_PASSWORD}
+      LOG_CHANNEL: stderr
+    command: ['php', 'artisan', 'schedule:work']
+
   nginx:
     image: stillpoint-nginx:local
     build:
@@ -77,6 +107,22 @@ services:
       - api
     ports:
       - '${API_PORT:-8000}:80'
+    # `/up` through nginx, which is the only check here that proves anything:
+    # it answers only if nginx is up, PHP-FPM is reachable over FastCGI, and
+    # the application boots. A check on php-fpm alone would have to speak
+    # FastCGI; a check that the port is open would pass while the app was
+    # broken.
+    #
+    # `wget` because nginx:alpine carries busybox and no curl, and `-q -O` in
+    # particular because those are core busybox options — `--spider` is the
+    # tidier spelling and not one I can verify from here. It exits non-zero on
+    # an HTTP error either way, which is the whole requirement.
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1/up']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   web:
     image: stillpoint-web:local
@@ -88,10 +134,21 @@ services:
         # it and the image has to be rebuilt — there is no runtime override.
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000/api}
     restart: unless-stopped
+    # Healthy, not merely started. `depends_on` without a condition waits for
+    # the container to exist, which for nginx is well before it can answer —
+    # so `compose up` used to report everything up while the API was still
+    # booting, and the first person to load the app got an error.
     depends_on:
-      - nginx
+      nginx:
+        condition: service_healthy
     ports:
       - '${WEB_PORT:-3000}:3000'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/welcome']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
 
 volumes:
   mysql:

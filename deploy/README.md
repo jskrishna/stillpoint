@@ -70,12 +70,14 @@ front of real people:
   into the container's log instead of sending them, which means that in this
   configuration nobody can actually reset a password. It is the one thing here
   that is deliberately not finished, and it needs a provider decision.
-- **There is no queue, no scheduler and no cache store.** Nothing in the
-  product needs them yet; `php artisan queue:work` has nothing to do.
+- **There is no queue.** Nothing in the product needs one yet; `php artisan
+queue:work` has nothing to do. There _is_ a scheduler now — the `scheduler`
+  service, running the same image as the API — and one task on it.
 - **Tokens expire after thirty days** (`SANCTUM_TOKEN_MINUTES`), and there is
   no refresh flow, so that is how often someone signs in again.
-  `sanctum:prune-expired` tidies the rows and wants a scheduler; expired tokens
-  are refused either way.
+  `sanctum:prune-expired` runs daily on the scheduler; expired tokens are
+  refused whether or not their row is still there, so this is tidying rather
+  than a control.
 - **Sanctum's token mode is in use, and the web client keeps its token in
   `localStorage`.** The weakness is documented at the top of
   `apps/web/src/lib/api.ts`. Cookie mode is the fix, and it is a change to how
@@ -92,6 +94,13 @@ front of real people:
 All three build from the repository root, because none of them is only one
 directory: the web app consumes `packages/*` through the workspace, and the
 nginx image needs the API's `public/`.
+
+`compose up` now waits for health rather than for containers to exist. nginx is
+checked with `/up` through itself, which is the only check here that proves
+anything: it answers only if nginx is up, PHP-FPM is reachable over FastCGI and
+the application boots. The web app waits for that to pass, because
+`depends_on` without a condition used to report everything up while the API was
+still booting — and the first person to load the app got an error.
 
 Two things in there are easy to break:
 
