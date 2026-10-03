@@ -88,7 +88,7 @@ jobs:
           DB_PASSWORD: root
 
   check:
-    name: Web — lint, typecheck, test, build
+    name: JS — lint, typecheck, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -125,5 +125,9 @@ jobs:
       - name: Test
         run: pnpm run test
 
+      # Every project: the packages, the Next.js app, and the mobile app — for
+      # which `expo export` is a real build, bundling every module and
+      # statically rendering each route. It is the only verification the
+      # mobile app gets, since no simulator or device is attached to CI.
       - name: Build
         run: pnpm run build
