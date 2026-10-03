@@ -44,7 +44,10 @@ COPY apps/web apps/web
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN pnpm run build:packages && pnpm --filter @stillpoint/web run build
+# `build:standalone`, not `build`: the standalone output is opt-in — `next start`
+# is unsupported alongside it — and it lands in `.next-standalone/`. See
+# `apps/web/next.config.ts`.
+RUN pnpm run build:packages && pnpm --filter @stillpoint/web run build:standalone
 
 # `public/` holds the self-hosted fonts and so always exists — but a `COPY` of
 # a directory that is not there fails the build with a checksum error that says
@@ -64,8 +67,8 @@ WORKDIR /app
 # Next leaves these two out of the standalone output because a deployment
 # usually serves them from a CDN. There is no CDN here, and without them every
 # stylesheet and chunk 404s — the same trap the desktop shell's bundler hits.
-COPY --from=build --chown=node:node /repo/apps/web/.next/standalone/ ./
-COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=node:node /repo/apps/web/.next-standalone/standalone/ ./
+COPY --from=build --chown=node:node /repo/apps/web/.next-standalone/static ./apps/web/.next-standalone/static
 COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
 
 USER node

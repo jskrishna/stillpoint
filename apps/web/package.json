@@ -8,8 +8,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:standalone": "node scripts/build-standalone.mjs",
     "start": "next start",
-    "clean": "rm -rf .next out *.tsbuildinfo",
+    "clean": "rm -rf .next .next-standalone out *.tsbuildinfo",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

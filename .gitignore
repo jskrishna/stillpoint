@@ -49,3 +49,7 @@ apps/api/.phpunit.cache/
 
 # Screenshots taken for review. Generated, never source.
 screens/
+
+# The standalone build, which has its own output directory so it cannot
+# overwrite the one `next start` serves.
+.next-standalone/

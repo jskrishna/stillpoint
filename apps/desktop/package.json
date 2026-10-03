@@ -2,11 +2,11 @@
   "name": "@stillpoint/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Stillpoint for macOS, Windows and Linux \u2014 an Electron shell around the Next.js app",
+  "description": "Stillpoint for macOS, Windows and Linux — an Electron shell around the Next.js app",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/bundle-web.mjs",
+    "build": "tsc -p tsconfig.json && pnpm --filter @stillpoint/web run build:standalone && node scripts/bundle-web.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "electron .",
     "dev": "electron .",

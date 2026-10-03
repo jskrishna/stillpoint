@@ -2,13 +2,16 @@
  * Copies the web app's standalone build into this shell.
  *
  * Next's `output: 'standalone'` writes a server and the `node_modules` it
- * actually traced, but deliberately leaves out `.next/static` and `public`:
+ * actually traced, but deliberately leaves out `static/` and `public/`:
  * on a real deployment those are served by a CDN. There is no CDN inside a
  * desktop app, so they are copied in beside the server — without them every
  * stylesheet and script 404s and the window renders unstyled HTML.
  *
  * The result is `apps/desktop/web/`, which `src/server.ts` runs with Electron's
- * own Node. Nothing is rebuilt here: this is the same output the browser gets.
+ * own Node. Nothing is built here — this only copies — but it is not the same
+ * output the browser gets: `next start` and `output: 'standalone'` are not
+ * supported together, so the two are separate builds into separate
+ * directories. This package's `build` script runs the standalone one first.
  */
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,14 +21,18 @@ const here = dirname(fileURLToPath(import.meta.url));
 const desktop = join(here, '..');
 const web = join(desktop, '..', 'web');
 
-const standalone = join(web, '.next', 'standalone');
+// `.next-standalone`, not `.next`: the standalone build is opt-in and writes
+// its own directory, so it cannot overwrite the one `next start` serves. See
+// `apps/web/next.config.ts`.
+const dist = join(web, '.next-standalone');
+const standalone = join(dist, 'standalone');
 const out = join(desktop, 'web');
 
 if (!existsSync(standalone)) {
   console.error(
     'The web app has no standalone build.\n' +
-      'Run `pnpm --filter @stillpoint/web run build` first; `pnpm run build` at the\n' +
-      'root does it in the right order.',
+      'Run `pnpm --filter @stillpoint/web run build:standalone` first; this\n' +
+      "package's own `build` script does it for you.",
   );
   process.exit(1);
 }
@@ -43,7 +50,7 @@ cpSync(join(standalone, 'node_modules'), join(out, 'node_modules'), {
   dereference: true,
 });
 
-cpSync(join(web, '.next', 'static'), join(out, '.next', 'static'), { recursive: true });
+cpSync(join(dist, 'static'), join(out, '.next-standalone', 'static'), { recursive: true });
 
 const publicDir = join(web, 'public');
 if (existsSync(publicDir)) {

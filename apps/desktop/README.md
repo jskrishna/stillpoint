@@ -31,10 +31,19 @@ pnpm run build                                    # at the root: packages, then 
 pnpm --filter @stillpoint/desktop run start
 ```
 
-`pnpm run build` here compiles the main process and then copies
-`apps/web/.next/standalone` — plus `.next/static` and `public`, which Next
-leaves out because a deployment serves them from a CDN and a desktop app has
-no CDN — into `apps/desktop/web/`. That folder is generated and git-ignored.
+`pnpm run build` here compiles the main process, builds the web app in
+standalone mode, and copies `apps/web/.next-standalone/standalone` — plus that
+build's `static/` and `public/`, which Next leaves out because a deployment
+serves them from a CDN and a desktop app has no CDN — into
+`apps/desktop/web/`. That folder is generated and git-ignored.
+
+The standalone build is its **own** build, into its own directory, and both
+halves are deliberate. `next start` is not supported alongside
+`output: 'standalone'` — Next warns at every boot — and `next start` is what
+local development and the end-to-end job use, so standalone is opt-in behind
+`NEXT_OUTPUT=standalone`. And two builds of one app into one `.next` means
+whichever ran last decides what `next start` finds, which is why this one
+writes `.next-standalone` instead.
 
 `STILLPOINT_API_URL` is passed through to the bundled server as
 `NEXT_PUBLIC_API_URL`, for pointing a build at something other than
@@ -74,9 +83,11 @@ global shortcut and the window-position file have only ever run on Linux.
 
 ## Things that will bite
 
-- **The standalone build needs `.next/static` copied in.** Without it the
+- **The standalone build needs its `static/` copied in.** Without it the
   window renders unstyled HTML and every chunk 404s. `scripts/bundle-web.mjs`
   does it; if you change how the web app is built, check this still holds.
+  Note the path inside the bundle is `.next-standalone/static`, because that
+  is the `distDir` the standalone build uses.
 - **`outputFileTracingRoot`** in `apps/web/next.config.ts` must stay pointed at
   the workspace root, or the trace stops at `apps/web` and misses the
   `@stillpoint/*` symlinks pnpm leaves in `node_modules`.

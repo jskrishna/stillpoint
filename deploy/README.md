@@ -77,7 +77,13 @@ nginx image needs the API's `public/`.
 
 Two things in there are easy to break:
 
-- **The web runtime copies `.next/static` and `public` in by hand.** Next leaves
+- **The web image builds with `build:standalone`, not `build`.** The standalone
+  output is opt-in (`NEXT_OUTPUT=standalone`), because `next start` is not
+  supported alongside it, and it lands in `.next-standalone/` rather than
+  `.next/`. See `apps/web/next.config.ts`; a `COPY` from the old path fails the
+  build rather than producing a broken image, which is the one mercy here.
+- **The web runtime copies the standalone build's `static/` and `public` in by
+  hand.** Next leaves
   them out of the standalone output because a deployment usually serves them
   from a CDN. Without them every stylesheet and chunk 404s and the app renders
   as unstyled HTML. `apps/desktop/scripts/bundle-web.mjs` has the same two

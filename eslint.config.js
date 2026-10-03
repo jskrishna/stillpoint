@@ -9,6 +9,10 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       '**/.next/**',
+      // The standalone build has its own `distDir`, so the line above does not
+      // cover it; without this, `next build`'s generated route validators are
+      // linted and fail for not belonging to any tsconfig project.
+      '**/.next-standalone/**',
       'apps/api/**',
       // The web app's standalone build, copied in by the desktop shell.
       'apps/desktop/web/**',
