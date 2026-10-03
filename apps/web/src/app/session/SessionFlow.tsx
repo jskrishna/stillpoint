@@ -14,6 +14,7 @@ import {
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
 import { ApiError, api, hasToken, type ApiSession } from '../../lib/api';
+import { browserVoiceLoop, type VoiceLoop } from '../../lib/voice';
 import styles from './session.module.css';
 
 const RATINGS = [
@@ -41,7 +42,9 @@ export default function SessionFlow() {
   const [lastSaid, setLastSaid] = useState('');
   const [feelings, setFeelings] = useState<readonly FeelingId[]>([]);
   const [showMore, setShowMore] = useState(false);
+  const [voice, setVoice] = useState<VoiceLoop | null>(null);
   const started = useRef(false);
+  const spoken = useRef<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -52,6 +55,19 @@ export default function SessionFlow() {
       router.push('/welcome');
       return;
     }
+
+    // The voice loop is bound from the account's talk mode. Listening is not
+    // built — see `lib/voice/user-ear.ts` — so this only decides whether the
+    // guide speaks its question aloud.
+    api
+      .me()
+      .then((profile) => {
+        setVoice(browserVoiceLoop(profile.talkMode));
+      })
+      .catch(() => {
+        // A session without a voice is a typed session, which works.
+        setVoice(browserVoiceLoop('type'));
+      });
 
     api
       .startSession()
@@ -69,6 +85,32 @@ export default function SessionFlow() {
       });
   }, [router]);
 
+  /**
+   * Says the step's question aloud, once per question.
+   *
+   * Keyed on the text rather than the step, because the guide may ask a backup
+   * question without the step changing — and tracked in a ref so a re-render
+   * does not repeat it. Only the protocol's own copy is ever spoken; the user's
+   * words are never read back out.
+   */
+  useEffect(() => {
+    if (voice === null || session === null) return;
+    const say = session.say ?? '';
+    if (say === '' || say === spoken.current) return;
+
+    spoken.current = say;
+    void voice.guide.speak(say);
+  }, [voice, session]);
+
+  // Stop mid-sentence when the screen goes away, so a question is not still
+  // being spoken over whatever comes next.
+  useEffect(() => {
+    if (voice === null) return;
+    return () => {
+      voice.guide.stop();
+    };
+  }, [voice]);
+
   const send = useCallback(
     /**
      * `utterance` is what the server screens and records; `said` is what this
@@ -80,6 +122,8 @@ export default function SessionFlow() {
       if (session === null || busy) return;
       setBusy(true);
       setError(null);
+      // The user has answered, so the question no longer needs saying.
+      voice?.guide.stop();
       try {
         const next = await api.takeTurn(session.id, utterance);
         setSession(next);
@@ -97,17 +141,18 @@ export default function SessionFlow() {
         setBusy(false);
       }
     },
-    [session, busy],
+    [session, busy, voice],
   );
 
   const stop = useCallback(async () => {
     if (session === null) return;
+    voice?.guide.stop();
     try {
       setSession(await api.stopSession(session.id));
     } catch (e: unknown) {
       setError(describe(e));
     }
-  }, [session]);
+  }, [session, voice]);
 
   const rate = useCallback(
     async (rating: (typeof RATINGS)[number]['value']) => {

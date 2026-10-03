@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
 import { ApiError, api } from '../../../lib/api';
+import { NO_EAR_REASON } from '../../../lib/voice';
 import styles from '../welcome.module.css';
 
 /**
@@ -42,7 +43,10 @@ export default function VoiceSetup() {
         ← Back
       </Link>
       <h1 className={styles.title}>Set up your voice</h1>
-      <p className={styles.lead}>We need your microphone to hear you. Your voice is never saved.</p>
+      <p className={styles.lead}>
+        Choose how the guide sounds. Your voice is never saved — and until speaking is built, it is
+        never sent anywhere either, because your answers are typed.
+      </p>
 
       <span className={styles.label}>GUIDE VOICE</span>
       <div className={styles.choices}>
@@ -69,8 +73,8 @@ export default function VoiceSetup() {
       </div>
 
       <p className={styles.blocked} style={{ textAlign: 'left', marginTop: 16 }}>
-        Speaking is not built yet — the voice stack is still being chosen. Either button starts a
-        typed session for now.
+        The guide can read its questions aloud. Hearing <em>you</em> is not built yet, so you type
+        your answers either way — {NO_EAR_REASON.toLowerCase().replace(/\.$/, '')}.
       </p>
 
       <div className={styles.actions}>
@@ -82,7 +86,7 @@ export default function VoiceSetup() {
           }}
           disabled={busy}
         >
-          Allow microphone
+          Let the guide speak
         </button>
         <button
           type="button"
@@ -92,7 +96,7 @@ export default function VoiceSetup() {
           }}
           disabled={busy}
         >
-          I’ll type instead
+          Keep it silent
         </button>
         {error === null ? null : (
           <p className={styles.error} role="alert">

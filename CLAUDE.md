@@ -397,9 +397,29 @@ it is missing from `tsconfig.test.json`'s `include`.
   MySQL was never the hard part of that decision.
 
 Still unchosen: the voice stack (speech-to-text, text-to-speech, turn-taking).
-Keep it behind an interface so the choice stays reversible. PHP is a poor fit
-for long-lived audio streaming, so expect a separate small gateway for the voice
-loop with Laravel owning everything around it.
+PHP is a poor fit for long-lived audio streaming, so expect a separate small
+gateway for the voice loop with Laravel owning everything around it.
+
+The interface it stays behind is `apps/web/src/lib/voice/`, in the surface and
+not in `packages/protocol`, which must stay free of speech. Two halves, kept
+apart on purpose:
+
+- **`GuideVoice` — the guide speaking.** Bound, and working. `speak()` is only
+  ever handed `session.say`, which is the protocol's own copy and is already on
+  the screen, so saying it aloud discloses nothing new. It is **never** the
+  user's words. `SpeechEngine` is the narrow seam a vendor binds behind; the Web
+  Speech API lives in `browser-engine.ts` and nowhere else, so the browser's
+  accident of design does not become the requirement.
+- **`UserEar` — hearing the user.** Deliberately unbound, and it says so. Every
+  option today sends the user's audio somewhere: Chrome's `SpeechRecognition`
+  uploads it to Google, every hosted service uploads it by definition, and an
+  on-device model is real work. The setup screen says **"Your voice is never
+  saved"**, and India-first puts DPDP consent in the frame. So `noEar` reports
+  itself unavailable with a reason the screen shows, and every session is typed.
+  **Binding a listener is a product and legal decision, not a refactor.**
+
+So "hands free" today means a guide that speaks and answers that are typed. The
+setup screen says that rather than implying the whole mode works.
 
 ## Safety screening is server-side now
 

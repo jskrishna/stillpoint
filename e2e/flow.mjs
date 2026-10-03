@@ -66,14 +66,95 @@ ok('consent is accepted');
 
 // ------------------------------------------------- 2. voice -> app
 console.log('\n2. Voice setup');
-await page.getByRole('button', { name: 'I’ll type instead' }).click();
+await page.getByRole('button', { name: 'Keep it silent' }).click();
 await page.waitForURL('**/app', { timeout: 15000 });
-ok('typing mode saved, lands on home');
+ok('a silent session is chosen, and lands on home');
 await page.waitForFunction(() => !document.body.innerText.includes('Loading…'), null, {
   timeout: 15000,
 });
 if ((await text()).includes('Nothing yet')) ok('journal starts empty');
 else bad('journal starts empty', await text());
+
+// The guide can speak. Checked by replacing the browser's synthesiser before
+// the page loads and recording what it was asked to say — audio cannot be heard
+// from here, but what was handed to the engine can be.
+console.log('\n2b. The guide speaks its question');
+
+/** Replaces `speechSynthesis` with one that records, for the page's lifetime. */
+const recordSpeech = (target) =>
+  target.addInitScript(() => {
+    window.__spoken = [];
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        speak: (u) => {
+          window.__spoken.push({ text: u.text, lang: u.lang, rate: u.rate, pitch: u.pitch });
+          u.onend?.();
+        },
+        cancel: () => undefined,
+        getVoices: () => [],
+      },
+    });
+  });
+
+// A second account, in its own context, choosing to be spoken to.
+const voicePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+await recordSpeech(voicePage);
+
+const speaker = `speaks+${String(Date.now())}@example.com`;
+await voicePage.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await voicePage.getByRole('button', { name: 'Create an account instead' }).click();
+await voicePage.getByLabel('Name').fill('Spoken To');
+await voicePage.getByLabel('Email').fill(speaker);
+await voicePage.getByLabel('Password').fill('correct-horse-battery-staple');
+await voicePage.getByRole('button', { name: 'Create my account' }).click();
+await voicePage.waitForURL('**/welcome/consent', { timeout: 15000 });
+const voiceBoxes = voicePage.locator('input[type=checkbox]');
+await voiceBoxes.nth(0).check();
+await voiceBoxes.nth(1).check();
+await voicePage.getByRole('button', { name: /Continue|Saving/ }).click();
+await voicePage.waitForURL('**/welcome/voice', { timeout: 15000 });
+await voicePage.getByRole('button', { name: 'Let the guide speak' }).click();
+await voicePage.waitForURL('**/app', { timeout: 15000 });
+
+await voicePage.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+await voicePage.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
+  timeout: 15000,
+});
+await voicePage.waitForTimeout(1200);
+
+const said = await voicePage.evaluate(() => window.__spoken);
+const question = 'You’re upset, and that’s okay. What happened?';
+
+if (said.length > 0) ok(`the guide spoke (${String(said.length)} utterance)`);
+else bad('the guide spoke', 'nothing was handed to the engine');
+if (said[0]?.text === question) ok('it spoke the step’s own question');
+else bad('it spoke the step’s own question', String(said[0]?.text));
+if (said[0]?.lang === 'en-IN' && said[0].rate < 1 && said[0].pitch < 1)
+  ok('calm and Indian English, not a screen reader’s default');
+else bad('calm and Indian English', JSON.stringify(said[0]));
+
+// And it never reads the user's own words back out.
+await voicePage.locator('textarea, input[type=text]').first().fill('My manager dismissed my work');
+await voicePage
+  .locator('button', { hasText: /^(Continue|Next)/ })
+  .first()
+  .click();
+await voicePage.waitForTimeout(1500);
+const afterAnswer = await voicePage.evaluate(() => window.__spoken);
+if (!afterAnswer.some((u) => u.text.includes('My manager dismissed my work')))
+  ok('it never reads the user’s own words back');
+else bad('it never reads the user’s own words back', JSON.stringify(afterAnswer));
+await voicePage.close();
+
+// The silent account — this script's own — asks the engine for nothing. The
+// recorder goes on the existing page, which chose "Keep it silent" above.
+await recordSpeech(page);
+await page.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(800);
+if ((await page.evaluate(() => window.__spoken ?? [])).length === 0)
+  ok('a silent session asks the engine for nothing');
+else bad('a silent session asks the engine for nothing');
 
 // ------------------------------------------------- 3. a full session
 console.log('\n3. A full six-step session');
