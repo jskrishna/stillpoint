@@ -446,6 +446,28 @@ export const api = {
     return result.user;
   },
 
+  /**
+   * Asks for a reset link.
+   *
+   * Answers the same whether or not the address has an account, and never
+   * returns the link: anyone could ask, so the only safe place for it is the
+   * inbox it was sent to.
+   */
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
+      anonymous: true,
+    }),
+
+  /** Sets a new password from a token, and signs out everywhere else. */
+  resetPassword: (email: string, token: string, password: string) =>
+    request<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: { email, token, password },
+      anonymous: true,
+    }),
+
   async logout(): Promise<void> {
     try {
       await request<void>('/auth/logout', { method: 'POST' });

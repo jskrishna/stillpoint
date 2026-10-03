@@ -30,7 +30,17 @@ const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
  * `/welcome/invite/<token>` is one of them on purpose: whoever holds an
  * invitation has not signed in yet. The token is made at run time, below.
  */
-const PUBLIC_ROUTES = ['/', '/pricing', '/welcome'];
+const PUBLIC_ROUTES = [
+  '/',
+  '/pricing',
+  '/welcome',
+  '/welcome/forgot',
+  // The reset screen renders for any token: it is only checked when the form
+  // is submitted. What it needs is the `?email=` the link carries, without
+  // which it shows "this link is incomplete" instead of the form — and the
+  // form is the screen worth auditing.
+  '/welcome/reset/a-sample-token?email=someone%40example.com',
+];
 
 /** Routes behind a token, reached after the script registers and consents. */
 const PRIVATE_ROUTES = [

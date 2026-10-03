@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Front-end URL
+    |--------------------------------------------------------------------------
+    |
+    | Where the web app lives. A password-reset link is a page a person opens,
+    | not an API endpoint, so the email has to point here and not at this
+    | application's own host.
+    |
+    */
+
+    'frontend_url' => env('APP_FRONTEND_URL', 'http://localhost:3000'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

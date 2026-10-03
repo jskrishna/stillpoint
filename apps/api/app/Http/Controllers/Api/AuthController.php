@@ -13,6 +13,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password as PasswordBroker;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -70,6 +72,75 @@ final class AuthController extends Controller
         return response()->json([
             'token' => $user->createToken('web')->plainTextToken,
             'user' => self::profile($user),
+        ]);
+    }
+
+    /**
+     * Asks for a reset link.
+     *
+     * **Always answers the same**, whether or not the address has an account.
+     * A different answer for a known address turns this into a way to find out
+     * who uses the product — and what this product is used for is not a thing
+     * to let anyone check.
+     *
+     * The link goes to the address by email and is never returned here, for
+     * the obvious reason: anyone could ask.
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+        ]);
+
+        // The broker's own result is deliberately discarded. It distinguishes
+        // "sent" from "no such user", and that distinction is the leak.
+        PasswordBroker::sendResetLink(['email' => Str::lower(trim($validated['email']))]);
+
+        return response()->json([
+            'message' => 'If that address has an account, a reset link is on its way.',
+        ]);
+    }
+
+    /**
+     * Sets a new password from a reset token.
+     *
+     * Every existing token is revoked with it. A reset is what somebody does
+     * when they have lost control of an account, so leaving the old sessions
+     * signed in would defeat the point.
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'token' => ['required', 'string'],
+            'password' => ['required', Password::defaults()],
+        ]);
+
+        $status = PasswordBroker::reset([
+            'email' => Str::lower(trim($validated['email'])),
+            'password' => $validated['password'],
+            'password_confirmation' => $validated['password'],
+            'token' => $validated['token'],
+        ], function (User $user, string $password): void {
+            $user->password = $password;
+            $user->setRememberToken(Str::random(60));
+            $user->save();
+
+            // Signed in everywhere else is exactly what a reset is meant to
+            // end. The new password is useless if the old token still works.
+            $user->tokens()->delete();
+        });
+
+        if ($status !== PasswordBroker::PASSWORD_RESET) {
+            throw ValidationException::withMessages([
+                // One message for a bad token and an expired one: which it was
+                // is not information worth handing over.
+                'token' => ['That reset link is not valid any more. Ask for a new one.'],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Your password is changed. Sign in with it.',
         ]);
     }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api } from '../../lib/api';
 import styles from './welcome.module.css';
@@ -143,6 +144,11 @@ export default function SignInForm() {
           >
             {creating ? 'I already have an account' : 'Create an account instead'}
           </button>
+          {creating ? null : (
+            <Link href="/welcome/forgot" className={styles.toggle}>
+              I’ve forgotten my password
+            </Link>
+          )}
           <p className={styles.terms}>By continuing you agree to the Terms and Privacy Policy.</p>
         </div>
       </form>

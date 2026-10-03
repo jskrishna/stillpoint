@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Domain\ConsentItem;
 use App\Domain\Role;
+use App\Notifications\ResetPassword;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -106,6 +107,17 @@ class User extends Authenticatable
             ->using(CoachClient::class)
             ->withPivot(['status', 'since', 'next_call_at'])
             ->withTimestamps();
+    }
+
+    /**
+     * Sends the reset email.
+     *
+     * Overridden so the link points at the web app rather than at this API —
+     * see {@see ResetPassword}.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPassword($token));
     }
 
     /**

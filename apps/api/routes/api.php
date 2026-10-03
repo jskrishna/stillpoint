@@ -22,6 +22,11 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
 
+    // Recovering an account. Without these, a forgotten password means an
+    // encrypted journal nobody can ever read again — including its owner.
+    Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
+
     // Public, because whoever holds an invite link has not signed in yet and
     // needs to know who is asking before deciding whether to. It says who
     // invited them and nothing else — an invite is not a way to find out

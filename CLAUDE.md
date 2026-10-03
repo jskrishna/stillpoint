@@ -304,6 +304,33 @@ The journal table is also the rule, not just a store: **a session that ended for
 safety never gets a row.** `JournalEntry::fromSession()` returns null for it,
 and the absence of the row is how that is kept.
 
+## A forgotten password is not a lost journal
+
+`auth/forgot-password` and `auth/reset-password` use Laravel's password broker.
+Two things about them are deliberate and should not be "simplified":
+
+- **The answer is the same whether or not the address has an account.**
+  `forgotPassword()` throws the broker's result away on purpose. It
+  distinguishes "sent" from "no such user", and that distinction is the leak:
+  this product's user list is people who went looking for help with being
+  upset, and confirming membership is not something an unauthenticated caller
+  should be able to do. A bad or expired token gets one message for both
+  reasons, for the same reason.
+- **A reset revokes every token**, this browser's included, so the new password
+  has to be used to get back in. A reset is what you do when you think someone
+  else may have your account.
+
+The journal survives a reset because the `encrypted` casts use the
+application's `APP_KEY`, not anything derived from the password. That is the
+only reason a reset is safe to offer at all — key the encryption to the
+password and this route becomes a shredder. If per-user keys are ever
+introduced, this flow has to be rethought before they land, not after.
+
+Mail is `MAIL_MAILER=log` in development: the link is written to
+`storage/logs/laravel.log` rather than sent. The link points at
+`config('app.frontend_url')` (`APP_FRONTEND_URL`), because the token is spent
+on a web screen, not on an API route.
+
 ## Roles, and who reads what
 
 A user has one of three roles, and nobody is staff by registering: `role` is not
