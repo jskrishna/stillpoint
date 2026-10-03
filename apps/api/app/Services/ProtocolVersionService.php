@@ -59,19 +59,44 @@ final class ProtocolVersionService
      */
     public function openDraft(): ProtocolVersion
     {
-        $existing = $this->draft();
-        if ($existing !== null) {
-            return $existing;
-        }
+        // Locked and in a transaction, the same way and in the same order as
+        // `publishDraft()`, so the two cannot deadlock against each other.
+        //
+        // Two admins opening a draft at the same moment cannot produce two
+        // drafts — `protocol_versions` is unique on (major, minor) and
+        // `nextDraft()` is a pure function of the live version, so both would
+        // aim at one row and the database would refuse the second. The
+        // database was already doing the work; what it was not doing is
+        // answering the second admin sensibly. `updateOrCreate` reads and then
+        // inserts, so the one that lost the race got a unique-constraint
+        // violation and a 500, for a button whose contract is "or returns the
+        // one already open".
+        //
+        // No test. Reproducing it needs two connections writing at once, which
+        // sqlite cannot do, and a sequential test of this would pass with the
+        // lock removed — it would be the "returns the existing draft" case
+        // wearing the name of the race.
+        return DB::transaction(function (): ProtocolVersion {
+            ProtocolVersionModel::query()->orderBy('id')->lockForUpdate()->get();
 
-        $live = ProtocolVersionModel::query()->where('status', 'live')->latest('published_at')->first();
-        $draft = $live === null
-            // Nothing published yet: the baseline is already a draft, and it is
-            // the version with the designs' copy and nulls for the rest.
-            ? ProtocolVersion::baseline()
-            : self::toDomain($live)->nextDraft();
+            $existing = $this->draft();
+            if ($existing !== null) {
+                return $existing;
+            }
 
-        return $this->store($draft);
+            $live = ProtocolVersionModel::query()
+                ->where('status', 'live')
+                ->latest('published_at')
+                ->first();
+            $draft = $live === null
+                // Nothing published yet: the baseline is already a draft, and
+                // it is the version with the designs' copy and nulls for the
+                // rest.
+                ? ProtocolVersion::baseline()
+                : self::toDomain($live)->nextDraft();
+
+            return $this->store($draft);
+        });
     }
 
     /** Writes a version, inserting or updating the row for its number. */

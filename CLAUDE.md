@@ -750,6 +750,17 @@ rule and a habit. It is asserted on the SQL, because there is nothing in the
 response to see it by: adding a field to `CoachAttention` and reaching for
 `$session->data` would otherwise break no test.
 
+Both `openDraft()` and `publishDraft()` lock `protocol_versions` in id order
+inside their transaction — the same lock in the same order, so they cannot
+deadlock against each other. Publishing is the one where it prevents a bad
+state: read outside the lock, two admins can each archive what was live before
+either stores its replacement, and the product is left with two live versions.
+Opening is the one where it only prevents a bad _answer_: the table is unique
+on (major, minor) and `nextDraft()` is a pure function of the live version, so
+two drafts were never possible, but `updateOrCreate` reads and then inserts, so
+whoever lost the race got a constraint violation and a 500 from a button whose
+contract is "or returns the one already open".
+
 Publishing a protocol version is gated by the **server**, not by the editor:
 `ProtocolVersion::publishProblems()` decides, the API refuses with 422 and that
 list, and the screen renders what it is told. A disabled Publish button is a
