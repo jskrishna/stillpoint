@@ -27,3 +27,19 @@ browser and asserts that the **server** ends the session, that the Tele-MANAS
 and 112 numbers are shown, and that no journal row was written. Those are the
 rules in `CLAUDE.md` that must never be weakened, checked against the real
 stack rather than a mock.
+
+## The accessibility audit
+
+`a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 60
+combinations — against the same two servers. `CLAUDE.md` asks for it after UI
+work.
+
+```bash
+node e2e/a11y.mjs
+```
+
+It registers its own account so the routes behind a token render something
+rather than redirecting. Contrast is already covered at the token level by
+`packages/design-tokens/src/contrast.test.ts`; what this catches is the rest — a
+control with no accessible name, a label with nothing to label, a heading level
+skipped, a pairing that only exists once a component is rendered.

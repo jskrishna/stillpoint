@@ -99,9 +99,9 @@ Three of the designs' colours did not meet AA and the tokens deliberately differ
 the table. **Use `accentText` when the accent is small text and `accent` when it
 is a fill**; they are not interchangeable, which is the whole reason both exist.
 
-Re-run the audit after UI work: build, `next start`, then axe-core over every
-route in light and dark at 390 and 1440. The last run was clean across all 60
-combinations.
+Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
+servers up (see `e2e/README.md`). It covers every route in both palettes at 390
+and 1440 — 60 combinations — and the last run was clean across all of them.
 
 ## Stack
 
