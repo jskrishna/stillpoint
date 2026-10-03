@@ -62,12 +62,12 @@ final readonly class SessionService
      * current one, so a publish part-way through never changes the questions
      * under someone already in a session.
      */
-    public function takeTurn(GuidedSession $row, string $utterance): TurnResult
+    public function takeTurn(GuidedSession $row, string $utterance, bool $guideAvailable = true): TurnResult
     {
         $version = $this->versions->forSession($row);
 
-        return DB::transaction(function () use ($row, $version, $utterance) {
-            $result = $this->conversation->takeTurn($row->toDomain(), $version, $utterance);
+        return DB::transaction(function () use ($row, $version, $utterance, $guideAvailable) {
+            $result = $this->conversation->takeTurn($row->toDomain(), $version, $utterance, $guideAvailable);
 
             $row->storeDomain($result->session)->save();
 
@@ -78,9 +78,13 @@ final readonly class SessionService
                     'level' => $result->flag->level,
                     'category' => $result->flag->category,
                     'excerpt' => $result->flag->excerpt,
-                    'outcome' => $result->stopped
-                        ? 'Session stopped. Helplines shown.'
-                        : 'Flagged for review. Session continued.',
+                    'outcome' => match (true) {
+                        $result->stopped => 'Session stopped. Helplines shown.',
+                        // Recorded as its own outcome, so a reviewer is not
+                        // told the session continued when it did not.
+                        $result->throttled => 'Flagged for review. The turn was rate-limited.',
+                        default => 'Flagged for review. Session continued.',
+                    },
                     'raised_at' => now(),
                 ]);
             }

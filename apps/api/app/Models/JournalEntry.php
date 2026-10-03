@@ -120,8 +120,15 @@ final class JournalEntry extends Model
         return $query->where('shared_with_coach', true);
     }
 
+    /**
+     * Newest first, then by id.
+     *
+     * `id` is the tiebreaker because `occurred_at` is not unique — two sessions
+     * can land in the same second — and a cursor needs a settled order or a
+     * page repeats a row.
+     */
     public function scopeNewestFirst(Builder $query): Builder
     {
-        return $query->orderByDesc('occurred_at');
+        return $query->orderByDesc('occurred_at')->orderByDesc('id');
     }
 }

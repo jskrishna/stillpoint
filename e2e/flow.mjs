@@ -164,6 +164,86 @@ if ((await row.count()) > 0) {
   else bad('the note survives toggling sharing', `note=${noteKept} shared=${shared}`);
 } else bad('a journal row exists to open');
 
+// The journal is paged. Checked at the API level with a small page size
+// rather than by seeding twenty sessions: the turns endpoint is throttled to
+// 30 a minute on purpose, and 20 sessions is 120 turns. The screen's "Load
+// older" uses the same cursor as the admin queue's "Load more", which
+// `e2e/admin.mjs` exercises against a queue that really does hold 60 flags.
+const EXTRA = 3;
+console.log(`\n4b. Paging (${String(EXTRA)} more sessions, page size 2)`);
+const paging = await page.evaluate(async (n) => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+
+  // Quick sessions, finished the way a person would: the journal row is the
+  // server's to write, not this script's.
+  for (let i = 0; i < n; i += 1) {
+    const started = await fetch('http://localhost:8000/api/sessions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ kind: 'quick' }),
+    });
+    if (!started.ok) return { error: `starting a session: ${String(started.status)}` };
+    const session = await started.json();
+
+    for (const utterance of [
+      `Seeded session ${String(i)} happened like this`,
+      'I can see how I took it',
+      'angry',
+      'A memory from when I was nine',
+      'I am not good enough',
+      'I let that belief go',
+    ]) {
+      const turn = await fetch(`http://localhost:8000/api/sessions/${session.id}/turns`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ utterance }),
+      });
+      if (turn.status === 409) break;
+      if (!turn.ok) return { error: `taking a turn: ${String(turn.status)}` };
+    }
+  }
+
+  const read = async (query) => {
+    const r = await fetch(`http://localhost:8000/api/journal?${query}`, { headers });
+    if (!r.ok) return { error: `reading the journal: ${String(r.status)}` };
+    return r.json();
+  };
+
+  const first = await read('limit=2');
+  if (first.error !== undefined) return first;
+  const second = await read(`limit=2&cursor=${String(first.nextCursor)}`);
+  if (second.error !== undefined) return second;
+  const bounded = await read('limit=nonsense');
+  if (bounded.error !== undefined) return bounded;
+
+  return {
+    total: first.total,
+    firstPage: first.items.length,
+    secondPage: second.items.length,
+    overlap: first.items.filter((a) => second.items.some((b) => b.id === a.id)).length,
+    defaultedPage: bounded.items.length,
+  };
+}, EXTRA);
+
+if (paging.error !== undefined) {
+  bad('the journal pages', paging.error);
+} else {
+  if (paging.total > 2) ok(`the journal holds more than one page (${String(paging.total)})`);
+  else bad('the journal holds more than one page', JSON.stringify(paging));
+  if (paging.firstPage === 2 && paging.secondPage === 2) ok('each page is the size asked for');
+  else bad('each page is the size asked for', JSON.stringify(paging));
+  if (paging.overlap === 0) ok('two pages share no entry');
+  else bad('two pages share no entry', `${String(paging.overlap)} shared`);
+  // A nonsense limit falls back to the default rather than to one row.
+  if (paging.defaultedPage > 2) ok('a nonsense page size falls back to the default');
+  else bad('a nonsense page size falls back to the default', String(paging.defaultedPage));
+}
+
 // ------------------------------------------------- 5. insights
 console.log('\n5. Insights come from the server');
 await page.goto(`${WEB}/app/insights`, { waitUntil: 'networkidle' });
@@ -189,8 +269,77 @@ const sharing = await page.locator('select').nth(2).inputValue();
 if (sharing === 'never') ok('a changed preference survives a reload');
 else bad('a changed preference survives a reload', sharing);
 
+// The budget must never gate the screen. Checked by spending it and then
+// saying something that must stop the session: a rate limit in front of this
+// route would refuse the request before anything looked at what it said, and
+// then the helplines never appear.
+console.log('\n6b. A spent budget does not silence the screen');
+const spent = await page.evaluate(async () => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+
+  const session = await fetch('http://localhost:8000/api/sessions', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ kind: 'quick' }),
+  }).then((r) => r.json());
+
+  const turn = (utterance) =>
+    fetch(`http://localhost:8000/api/sessions/${session.id}/turns`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ utterance }),
+    });
+
+  // Spend it: ordinary answers until the server starts refusing.
+  let refusals = 0;
+  for (let i = 0; i < 40; i += 1) {
+    const r = await turn('no');
+    if (r.status === 429) refusals += 1;
+    if (r.status === 409) break;
+    if (refusals >= 2) break;
+  }
+  if (refusals === 0) return { error: 'the budget was never spent' };
+
+  // And now the one request that must not be refused.
+  const crisis = await turn('I want to kill myself');
+  const body = await crisis.json();
+
+  return {
+    refusals,
+    status: crisis.status,
+    ended: body.ended,
+    endReason: body.endReason,
+    numbers: (body.safety?.helplines ?? []).map((h) => h.number),
+  };
+});
+
+if (spent.error !== undefined) {
+  bad('the budget can be spent', spent.error);
+} else {
+  ok(`ordinary answers are refused once the budget is spent (${String(spent.refusals)} refusals)`);
+  if (spent.status === 200) ok('the crisis utterance is not refused');
+  else bad('the crisis utterance is not refused', String(spent.status));
+  if (spent.ended === true && spent.endReason === 'safety_stop')
+    ok('it still stops the session for safety');
+  else bad('it still stops the session for safety', JSON.stringify(spent));
+  if (spent.numbers.includes('14416') && spent.numbers.includes('112'))
+    ok('the helplines are still given');
+  else bad('the helplines are still given', spent.numbers.join(', '));
+}
+
 // ------------------------------------------------- 7. the safety stop
 console.log('\n7. The safety stop is the server’s, not the browser’s');
+
+// Counted before, not assumed: earlier sections of this script leave journal
+// rows of their own, and what is being checked is that the stop adds none.
+await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+const rowsBeforeStop = await page.locator('a[href^="/app/journal/"]').count();
 await page.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
   timeout: 15000,
@@ -260,9 +409,14 @@ if (stoppedId === undefined) {
 // and it left no journal entry
 await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
-const rows = await page.locator('a[href^="/app/journal/"]').count();
-if (rows === 1) ok('the safety-stopped session left no journal entry');
-else bad('the safety-stopped session left no journal entry', `${rows} rows`);
+const rowsAfterStop = await page.locator('a[href^="/app/journal/"]').count();
+if (rowsAfterStop === rowsBeforeStop)
+  ok(`the safety-stopped session left no journal entry (still ${String(rowsAfterStop)})`);
+else
+  bad(
+    'the safety-stopped session left no journal entry',
+    `${String(rowsBeforeStop)} → ${String(rowsAfterStop)}`,
+  );
 
 // ------------------------------------------------- 8. sign out
 console.log('\n8. Sign out');

@@ -24,6 +24,12 @@ export interface TurnResult {
   readonly risk: RiskAssessment;
   /** True when the session ended because of what was just said. */
   readonly stopped: boolean;
+  /**
+   * True when the guide was not consulted because the caller's budget was
+   * spent. The safety signal was still screened and recorded; only the guide
+   * was withheld.
+   */
+  readonly throttled: boolean;
   /** Set when a reviewer should see this turn. */
   readonly flag?: {
     readonly level: Exclude<SafetyLevel, 'none'>;
@@ -32,9 +38,36 @@ export interface TurnResult {
   };
 }
 
+/**
+ * Whether the guide was actually consulted.
+ *
+ * The two reasons it was not are a safety stop and a spent budget, and neither
+ * should be charged for: a stop never reaches the guide, and a refusal is the
+ * caller being told to wait, not work done for them.
+ */
+export function guideConsulted(result: TurnResult): boolean {
+  return !result.stopped && !result.throttled;
+}
+
 export interface TurnDeps {
   readonly guide: Guide;
   readonly risk: RiskScreen;
+  /**
+   * Whether the guide may be consulted at all.
+   *
+   * The budget is the caller's — a rate limit, a quota, whatever the surface
+   * uses to stop one client from running the guide flat out. It is an argument
+   * rather than something checked before this function because of where it has
+   * to apply: **after** the screen and never before it.
+   *
+   * A limit that can refuse a request before it is screened can refuse someone
+   * saying they are not safe, and then the helplines never appear. So the
+   * screen always runs, the signal is always recorded, and a spent budget only
+   * withholds the guide.
+   *
+   * Defaults to true, because most callers have no budget to speak of.
+   */
+  readonly guideAvailable?: boolean;
 }
 
 /**
@@ -47,10 +80,17 @@ export function takeTurn(
   session: Session,
   version: ProtocolVersion,
   utterance: string,
-  { guide, risk }: TurnDeps,
+  { guide, risk, guideAvailable = true }: TurnDeps,
 ): TurnResult {
   if (session.phase === 'ended') {
-    return { session, say: '', advanced: false, risk: { level: 'none' }, stopped: false };
+    return {
+      session,
+      say: '',
+      advanced: false,
+      risk: { level: 'none' },
+      stopped: false,
+      throttled: false,
+    };
   }
 
   const assessment = risk.assess(utterance);
@@ -77,6 +117,23 @@ export function takeTurn(
       advanced: false,
       risk: assessment,
       stopped: true,
+      // Never throttled: a stop is the one reply that must always be given.
+      throttled: false,
+      ...(flagged === undefined ? {} : { flag: flagged }),
+    };
+  }
+
+  if (!guideAvailable) {
+    // Screened, recorded, and no further. The session does not advance and
+    // nothing is said, so the caller can refuse without having lost the
+    // signal — which is the whole point of checking the budget here.
+    return {
+      session: next,
+      say: '',
+      advanced: false,
+      risk: assessment,
+      stopped: false,
+      throttled: true,
       ...(flagged === undefined ? {} : { flag: flagged }),
     };
   }
@@ -99,6 +156,7 @@ export function takeTurn(
     advanced: reply.advance,
     risk: assessment,
     stopped: false,
+    throttled: false,
     ...(flagged === undefined ? {} : { flag: flagged }),
   };
 }

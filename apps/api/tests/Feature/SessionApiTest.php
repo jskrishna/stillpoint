@@ -6,17 +6,23 @@ namespace Tests\Feature;
 
 use App\Domain\EndReason;
 use App\Domain\SafetyLevel;
+use App\Http\Controllers\Api\SessionController;
 use App\Models\GuidedSession;
 use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
 use App\Models\User;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\TestCase;
 
 final class SessionApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** The user `consentedUser()` made, for the tests that need its id. */
+    private User $user;
 
     private function consentedUser(): User
     {
@@ -25,6 +31,7 @@ final class SessionApiTest extends TestCase
             'consented_at' => now(),
         ]);
         Sanctum::actingAs($user);
+        $this->user = $user;
 
         return $user;
     }
@@ -99,6 +106,75 @@ final class SessionApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('step.ordinal', 4)
             ->assertJsonPath('data.feelings', ['angry']);
+    }
+
+    /**
+     * A spent budget must never silence the safety screen.
+     *
+     * This route used to carry a `throttle` middleware, which refused the
+     * request before anything had looked at what it said. The request it can
+     * refuse is someone saying they are not safe, and then the helplines never
+     * appear. The budget now applies after the screen, and these are that
+     * ordering stated as tests.
+     */
+    public function test_a_spent_budget_still_stops_a_session_for_safety(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+        $this->spendTheBudget();
+
+        $response = $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'I want to kill myself'])
+            ->assertOk()
+            ->assertJsonPath('ended', true)
+            ->assertJsonPath('endReason', 'safety_stop');
+
+        // And the helplines are there, which is the whole point.
+        $numbers = array_column($response->json('safety.helplines'), 'number');
+        $this->assertContains('14416', $numbers);
+        $this->assertContains('112', $numbers);
+    }
+
+    public function test_a_spent_budget_still_raises_a_flag_for_a_medium_signal(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+        $this->spendTheBudget();
+
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'he hit me again last night'])
+            ->assertStatus(Response::HTTP_TOO_MANY_REQUESTS);
+
+        // The turn was refused; the signal a reviewer needs was not.
+        $flag = SafetyFlag::query()->sole();
+        $this->assertSame(SafetyLevel::Medium, $flag->level);
+        $this->assertStringContainsString('rate-limited', $flag->outcome);
+    }
+
+    public function test_an_ordinary_answer_is_refused_once_the_budget_is_spent(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+        $this->spendTheBudget();
+
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'My manager called me out again'])
+            ->assertStatus(Response::HTTP_TOO_MANY_REQUESTS)
+            ->assertJsonStructure(['message', 'retryAfter']);
+
+        // Refused, not advanced.
+        $this->getJson("/api/sessions/{$id}")->assertJsonPath('step.ordinal', 1);
+    }
+
+    public function test_a_safety_stop_does_not_spend_the_budget(): void
+    {
+        $this->consentedUser();
+        $id = $this->newSession();
+
+        $this->postJson("/api/sessions/{$id}/turns", ['utterance' => 'I want to kill myself'])->assertOk();
+
+        // The guide was never consulted, so there is nothing to charge for.
+        $this->assertSame(
+            SessionController::GUIDED_TURNS_PER_MINUTE,
+            app(RateLimiter::class)->remaining('guided-turns:'.$this->user->id, SessionController::GUIDED_TURNS_PER_MINUTE),
+        );
     }
 
     public function test_a_thin_answer_does_not_advance(): void
@@ -264,5 +340,14 @@ final class SessionApiTest extends TestCase
         $id = $this->newSession();
 
         $this->assertSame('1.0', GuidedSession::find($id)->protocol_version);
+    }
+
+    /** Uses up this token's guided-turn budget for the minute. */
+    private function spendTheBudget(): void
+    {
+        $limiter = app(RateLimiter::class);
+        for ($i = 0; $i < SessionController::GUIDED_TURNS_PER_MINUTE; $i++) {
+            $limiter->hit('guided-turns:'.$this->user->id);
+        }
     }
 }

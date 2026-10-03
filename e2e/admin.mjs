@@ -26,6 +26,7 @@ import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3000';
+const API = process.env.API_URL ?? 'http://localhost:8000/api';
 const EXECUTABLE = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@stillpoint.test';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'correct-horse-battery-staple';
@@ -138,8 +139,40 @@ if (!signedIn) {
   const levels = await admin.locator('tbody tr td:first-child').allInnerTexts();
   const rank = { High: 3, Medium: 2, Low: 1 };
   const sorted = levels.every((l, i) => i === 0 || (rank[levels[i - 1]] ?? 0) >= (rank[l] ?? 0));
-  if (sorted) ok(`the queue is most severe first (${levels.join(', ')})`);
+  // Summarised rather than listed: a full page of levels is 50 words of log.
+  const counted = Object.entries(
+    levels.reduce((acc, l) => ({ ...acc, [l]: (acc[l] ?? 0) + 1 }), {}),
+  )
+    .map(([l, n]) => `${String(n)} ${l}`)
+    .join(', ');
+  if (sorted) ok(`the queue is most severe first (${counted})`);
   else bad('the queue is most severe first', levels.join(', '));
+
+  // The queue pages rather than truncating. It was capped at 200 rows with no
+  // way to reach the rest, which is the worse of the two failures available:
+  // the flags it stopped showing would be the ones nobody had looked at.
+  const paging = await admin.evaluate(async (api) => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+    const first = await fetch(`${api}/admin/safety-flags?limit=2`, { headers }).then((r) =>
+      r.json(),
+    );
+    if (first.nextCursor === null) return { total: first.total, pages: 1, overlap: 0 };
+    const second = await fetch(
+      `${api}/admin/safety-flags?limit=2&cursor=${String(first.nextCursor)}`,
+      { headers },
+    ).then((r) => r.json());
+    return {
+      total: first.total,
+      pages: 2,
+      overlap: first.items.filter((a) => second.items.some((b) => b.id === a.id)).length,
+    };
+  }, API);
+
+  if (paging.total >= 1) ok(`the queue reports its whole size (${String(paging.total)})`);
+  else bad('the queue reports its whole size', JSON.stringify(paging));
+  if (paging.pages === 1 || paging.overlap === 0) ok('two pages of the queue share no flag');
+  else bad('two pages of the queue share no flag', `${String(paging.overlap)} shared`);
 
   // Open this run's own flag and review it, rather than whatever happens to be
   // first: the queue may already hold flags from an earlier run.
@@ -205,14 +238,14 @@ if (!signedIn) {
 
   // The server refuses regardless of the button, which is the check that
   // matters: a screen's own guard can always be skipped.
-  const refusal = await admin.evaluate(async () => {
+  const refusal = await admin.evaluate(async (api) => {
     const token = window.localStorage.getItem('stillpoint.token.v1');
-    const r = await fetch('http://localhost:8000/api/admin/protocol-versions/draft/publish', {
+    const r = await fetch(`${api}/admin/protocol-versions/draft/publish`, {
       method: 'POST',
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
     return { status: r.status, body: await r.json() };
-  });
+  }, API);
   if (refusal.status === 422 && (refusal.body.problems ?? []).length > 0)
     ok(
       `the server refuses an incomplete draft (422, ${String(refusal.body.problems.length)} problems)`,

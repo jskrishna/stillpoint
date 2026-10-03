@@ -16,18 +16,31 @@ import styles from '../admin.module.css';
  * someone said at the moment they said they were not safe, and the server
  * answers 404 to anyone without the role.
  */
+/** How many flags a page holds. */
+const PAGE = 50;
+
 export default function SafetyQueue() {
   const [flags, setFlags] = useState<readonly ApiSafetyFlag[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showReviewed, setShowReviewed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
+  const status = showReviewed ? 'all' : 'open';
+
   useEffect(() => {
     setFlags(null);
+    setCursor(null);
     setProblem(null);
     api
-      .safetyFlags(showReviewed ? 'all' : 'open')
-      .then(setFlags)
+      .safetyFlags(showReviewed ? 'all' : 'open', PAGE)
+      .then((page) => {
+        setFlags(page.items);
+        setCursor(page.nextCursor);
+        setTotal(page.total);
+      })
       .catch((e: unknown) => {
         setProblem(
           e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
@@ -37,8 +50,22 @@ export default function SafetyQueue() {
       });
   }, [showReviewed]);
 
+  const loadMore = async () => {
+    if (cursor === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.safetyFlags(status, PAGE, cursor);
+      setFlags((current) => [...(current ?? []), ...page.items]);
+      setCursor(page.nextCursor);
+      setTotal(page.total);
+    } catch {
+      setProblem('Could not load more of the queue. Check your connection.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const ordered = flags ?? [];
-  const open = ordered.filter((f) => f.status === 'open').length;
   const selected = ordered.find((f) => f.id === selectedId) ?? ordered[0];
 
   const review = async (id: string) => {
@@ -64,7 +91,11 @@ export default function SafetyQueue() {
     <>
       <h1 className={styles.title}>Safety flags</h1>
       <p className={styles.sub}>
-        {flags === null ? 'Loading…' : `${open} open · most severe first`}
+        {flags === null
+          ? 'Loading…'
+          : // The server's count of the whole queue, not of this page: a
+            // reviewer needs to know how much is waiting.
+            `${String(total)} ${showReviewed ? 'in all' : 'open'} · most severe first`}
         {' · '}
         <button
           type="button"
@@ -117,6 +148,21 @@ export default function SafetyQueue() {
               ))}
             </tbody>
           </table>
+
+          {cursor === null ? null : (
+            <button
+              type="button"
+              className={`${styles.button} ${styles.secondary}`}
+              onClick={() => {
+                void loadMore();
+              }}
+              disabled={loadingMore}
+            >
+              {loadingMore
+                ? 'Loading…'
+                : `Load more (${String(ordered.length)} of ${String(total)})`}
+            </button>
+          )}
 
           {selected === undefined ? null : (
             <div className={styles.detail}>

@@ -167,4 +167,10 @@ export {
   type Extraction,
 } from './guide.js';
 
-export { takeTurn, openingLine, type TurnResult, type TurnDeps } from './conversation.js';
+export {
+  takeTurn,
+  openingLine,
+  guideConsulted,
+  type TurnResult,
+  type TurnDeps,
+} from './conversation.js';

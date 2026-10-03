@@ -112,6 +112,49 @@ async function requestList<T>(path: string): Promise<readonly T[]> {
   return Array.isArray(result) ? (result as T[]) : [];
 }
 
+/**
+ * A page of a collection.
+ *
+ * The journal and the safety queue are paged, so they have somewhere to put a
+ * cursor; everything else is a bare list. Cursor rather than offset: both are
+ * ordered by time and grow at the top, and an offset page repeats or skips a
+ * row when something is inserted between two requests.
+ */
+export interface Page<T> {
+  readonly items: readonly T[];
+  /** Pass back as `cursor`. `null` once there is nothing older. */
+  readonly nextCursor: string | null;
+  /** The whole collection, not the page. */
+  readonly total: number;
+}
+
+function pageQuery(limit?: number, cursor?: string | null): string {
+  const params = new URLSearchParams();
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (cursor !== undefined && cursor !== null) params.set('cursor', cursor);
+  const query = params.toString();
+  return query === '' ? '' : `?${query}`;
+}
+
+/** Walks every page of a paged endpoint. For an export, not for a screen. */
+async function everyPage<T>(
+  fetchPage: (cursor: string | null) => Promise<Page<T>>,
+): Promise<readonly T[]> {
+  const all: T[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const page: Page<T> = await fetchPage(cursor);
+    all.push(...page.items);
+    cursor = page.nextCursor;
+    // A cursor that does not advance would spin forever; an empty page means
+    // there is nothing more to walk whatever the cursor says.
+    if (page.items.length === 0) break;
+  } while (cursor !== null);
+
+  return all;
+}
+
 /* ---------------------------------------------------------------- types */
 
 export interface Profile {
@@ -370,7 +413,11 @@ export const api = {
   rateSession: (id: string, rating: 'yes' | 'a_little' | 'no') =>
     request<ApiSession>(`/sessions/${id}/rating`, { method: 'POST', body: { rating } }),
 
-  journal: () => requestList<ApiJournalEntry>('/journal'),
+  journal: (limit?: number, cursor?: string | null) =>
+    request<Page<ApiJournalEntry>>(`/journal${pageQuery(limit, cursor)}`),
+
+  /** Every entry, page by page. For "Export my data", not for a screen. */
+  wholeJournal: () => everyPage<ApiJournalEntry>((cursor) => api.journal(100, cursor)),
 
   journalEntry: (id: string) => request<ApiJournalEntry>(`/journal/${id}`),
 
@@ -386,8 +433,14 @@ export const api = {
   adminOverview: () => request<ApiAdminOverview>('/admin/overview'),
 
   /** Open flags by default; 'all' to include the reviewed ones. */
-  safetyFlags: (status: 'open' | 'reviewed' | 'all' = 'open') =>
-    requestList<ApiSafetyFlag>(`/admin/safety-flags?status=${status}`),
+  safetyFlags: (
+    status: 'open' | 'reviewed' | 'all' = 'open',
+    limit?: number,
+    cursor?: string | null,
+  ) =>
+    request<Page<ApiSafetyFlag>>(
+      `/admin/safety-flags?status=${status}${pageQuery(limit, cursor).replace('?', '&')}`,
+    ),
 
   reviewSafetyFlag: (id: string) =>
     request<ApiSafetyFlag>(`/admin/safety-flags/${id}/review`, { method: 'POST' }),

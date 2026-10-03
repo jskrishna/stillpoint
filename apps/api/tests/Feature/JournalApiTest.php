@@ -46,7 +46,7 @@ final class JournalApiTest extends TestCase
         Sanctum::actingAs($mine);
         $response = $this->getJson('/api/journal')->assertOk();
 
-        $titles = array_column($response->json(), 'title');
+        $titles = array_column($response->json('items'), 'title');
         $this->assertSame(['Mine'], $titles);
     }
 
@@ -57,9 +57,102 @@ final class JournalApiTest extends TestCase
         $this->entry($user, ['title' => 'Newer', 'occurred_at' => now()->subDay()]);
 
         Sanctum::actingAs($user);
-        $titles = array_column($this->getJson('/api/journal')->json(), 'title');
+        $titles = array_column($this->getJson('/api/journal')->json('items'), 'title');
 
         $this->assertSame(['Newer', 'Older'], $titles);
+    }
+
+    public function test_the_journal_is_paged_and_a_cursor_reaches_the_rest(): void
+    {
+        $user = User::factory()->create();
+        for ($i = 0; $i < 7; $i++) {
+            $this->entry($user, [
+                'title' => "Entry {$i}",
+                'occurred_at' => now()->subDays($i),
+            ]);
+        }
+
+        Sanctum::actingAs($user);
+        $first = $this->getJson('/api/journal?limit=3')->assertOk();
+
+        $this->assertSame(['Entry 0', 'Entry 1', 'Entry 2'], array_column($first->json('items'), 'title'));
+        // The total is the whole journal, not the page: the settings screen
+        // uses it to say how much "Export my data" will export.
+        $this->assertSame(7, $first->json('total'));
+        $this->assertNotNull($first->json('nextCursor'));
+
+        $cursor = $first->json('nextCursor');
+        $second = $this->getJson("/api/journal?limit=3&cursor={$cursor}")->assertOk();
+        $this->assertSame(['Entry 3', 'Entry 4', 'Entry 5'], array_column($second->json('items'), 'title'));
+
+        $last = $this->getJson("/api/journal?limit=3&cursor={$second->json('nextCursor')}")->assertOk();
+        $this->assertSame(['Entry 6'], array_column($last->json('items'), 'title'));
+        // Nothing left, and the client can tell.
+        $this->assertNull($last->json('nextCursor'));
+    }
+
+    public function test_paging_is_stable_when_entries_share_a_timestamp(): void
+    {
+        $user = User::factory()->create();
+        $at = now();
+        for ($i = 0; $i < 4; $i++) {
+            $this->entry($user, ['title' => "Entry {$i}", 'occurred_at' => $at]);
+        }
+
+        Sanctum::actingAs($user);
+
+        $titles = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/journal?limit=1'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $titles = [...$titles, ...array_column($page->json('items'), 'title')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        // `occurred_at` is not unique — two sessions can land in the same
+        // second — so the order needs a tiebreaker or a page repeats a row.
+        $this->assertCount(4, $titles);
+        $this->assertCount(4, array_unique($titles));
+    }
+
+    public function test_a_page_size_is_bounded_rather_than_trusted(): void
+    {
+        $user = User::factory()->create();
+        for ($i = 0; $i < 3; $i++) {
+            $this->entry($user, ['occurred_at' => now()->subDays($i)]);
+        }
+
+        Sanctum::actingAs($user);
+
+        // Every row here is decrypted one at a time, so an unbounded page is a
+        // way to make the server do unbounded work.
+        $this->assertCount(3, $this->getJson('/api/journal?limit=100000')->json('items'));
+        $this->assertCount(1, $this->getJson('/api/journal?limit=1')->json('items'));
+        $this->assertCount(3, $this->getJson('/api/journal?limit=0')->json('items'));
+        $this->assertCount(3, $this->getJson('/api/journal?limit=-5')->json('items'));
+        $this->assertCount(3, $this->getJson('/api/journal?limit=nonsense')->json('items'));
+    }
+
+    public function test_paging_never_shows_another_users_entry(): void
+    {
+        $mine = User::factory()->create();
+        $theirs = User::factory()->create();
+        for ($i = 0; $i < 4; $i++) {
+            $this->entry($mine, ['title' => "Mine {$i}", 'occurred_at' => now()->subDays($i)]);
+            $this->entry($theirs, ['title' => "Theirs {$i}", 'occurred_at' => now()->subDays($i)]);
+        }
+
+        Sanctum::actingAs($mine);
+        $titles = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/journal?limit=2'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $titles = [...$titles, ...array_column($page->json('items'), 'title')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        $this->assertSame(['Mine 0', 'Mine 1', 'Mine 2', 'Mine 3'], $titles);
+        $this->assertSame(4, $this->getJson('/api/journal')->json('total'));
     }
 
     public function test_quotes_the_belief_as_the_list_summary(): void
@@ -68,7 +161,7 @@ final class JournalApiTest extends TestCase
         $this->entry($user, ['belief' => 'I’m not good enough.']);
 
         Sanctum::actingAs($user);
-        $this->getJson('/api/journal')->assertJsonPath('0.summary', '“I’m not good enough.”');
+        $this->getJson('/api/journal')->assertJsonPath('items.0.summary', '“I’m not good enough.”');
     }
 
     public function test_labels_a_quick_session_with_no_belief(): void
@@ -77,7 +170,7 @@ final class JournalApiTest extends TestCase
         $this->entry($user, ['kind' => SessionKind::Quick]);
 
         Sanctum::actingAs($user);
-        $this->getJson('/api/journal')->assertJsonPath('0.summary', 'Quick session');
+        $this->getJson('/api/journal')->assertJsonPath('items.0.summary', 'Quick session');
     }
 
     public function test_cannot_read_someone_elses_entry(): void

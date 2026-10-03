@@ -15,8 +15,14 @@ import styles from '../app.module.css';
  * second summary rule in the browser would be a second answer to "what was
  * this session about".
  */
+/** How many entries a page holds. The journal grows; the screen does not. */
+const PAGE = 20;
+
 export default function Journal() {
   const [entries, setEntries] = useState<readonly ApiJournalEntry[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
   const router = useRouter();
@@ -24,8 +30,12 @@ export default function Journal() {
   useEffect(() => {
     setNow(new Date());
     api
-      .journal()
-      .then(setEntries)
+      .journal(PAGE)
+      .then((page) => {
+        setEntries(page.items);
+        setCursor(page.nextCursor);
+        setTotal(page.total);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
           router.push('/welcome');
@@ -35,10 +45,30 @@ export default function Journal() {
       });
   }, [router]);
 
+  const loadOlder = async () => {
+    if (cursor === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.journal(PAGE, cursor);
+      setEntries((current) => [...(current ?? []), ...page.items]);
+      setCursor(page.nextCursor);
+      setTotal(page.total);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   return (
     <>
       <h1 className={styles.title}>Journal</h1>
-      <p className={styles.subtitle}>Only you can see these.</p>
+      <p className={styles.subtitle}>
+        Only you can see these.
+        {entries === null || total <= entries.length
+          ? ''
+          : ` Showing ${String(entries.length)} of ${String(total)}.`}
+      </p>
 
       {failed ? (
         <p className={styles.failure}>Could not load your journal. Check your connection.</p>
@@ -60,6 +90,19 @@ export default function Journal() {
             <span className={styles.chevron}>›</span>
           </Link>
         ))
+      )}
+
+      {cursor === null ? null : (
+        <button
+          type="button"
+          className={styles.cta}
+          onClick={() => {
+            void loadOlder();
+          }}
+          disabled={loadingMore}
+        >
+          {loadingMore ? 'Loading…' : 'Load older'}
+        </button>
       )}
     </>
   );

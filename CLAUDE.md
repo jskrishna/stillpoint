@@ -62,6 +62,16 @@ said they are not safe is the exact failure this ordering prevents. There is a
 test asserting the guide is never called; treat a change that breaks it as a
 bug, not a failing test to update.
 
+Nothing may come before that screen, and that includes a rate limit. The turns
+route carries **no `throttle` middleware**: middleware refuses a request before
+anything has looked at what it said, and the request it can refuse is someone
+saying they are not safe — and then the helplines never appear. The budget is
+`App\Support\GuideBudget`, resolved in the controller and passed into the turn
+as `guideAvailable`, so a spent budget withholds **the guide** and nothing else.
+The screen still runs, a flag is still raised, a stop still stops. Only the
+guide is charged for: `TurnResult::guideConsulted()` is false for a stop and for
+a refusal, so neither spends the budget.
+
 ### The guide is a stand-in, and so is what it records
 
 `scriptedGuide` / `ScriptedGuide` decide what to say by reading the protocol and
@@ -286,6 +296,31 @@ protocol working", and the one place staff read someone's words is the queue.
 Its percentages are of **sessions started**, so a session that stopped for
 safety (and therefore has no journal row) stays in the denominator rather than
 flattering the numbers.
+
+## The API pages, and is bounded
+
+`GET /journal` and `GET /admin/safety-flags` are paged, and they are the only
+two endpoints with an envelope:
+
+```json
+{ "items": [...], "nextCursor": "..." | null, "total": 42 }
+```
+
+Cursor, not offset: both lists are ordered by time and grow at the top, and an
+offset page silently repeats or skips a row when something is inserted between
+two requests. For the queue that would mean a reviewer never seeing a flag.
+
+A cursor is built from the ordering columns, so **both orderings end in `id`** —
+`occurred_at` and `raised_at` are not unique, and a tie with no tiebreaker makes
+a page repeat a row. The queue's severity is a stored `severity` column for the
+same reason: it used to be a `CASE level ...` expression, which sorts correctly
+but is not a column a cursor can read, and two pages overlapped. The rank itself
+is still the domain's (`SafetyLevel::rank()`); the model keeps the column in
+step on write.
+
+Page sizes are bounded and a nonsense one falls back to the default. These rows
+are decrypted one at a time, so an unbounded page is a way to make the server do
+unbounded work.
 
 ## The API's shape
 

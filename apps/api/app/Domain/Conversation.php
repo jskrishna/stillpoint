@@ -21,8 +21,25 @@ final readonly class Conversation
         private RiskScreen $risk,
     ) {}
 
-    public function takeTurn(Session $session, ProtocolVersion $version, string $utterance): TurnResult
-    {
+    /**
+     * @param  bool  $guideAvailable  Whether the guide may be consulted at all.
+     *
+     * The budget is the caller's — a rate limit, a quota, whatever the surface
+     * uses to stop one client running the guide flat out. It is an argument
+     * rather than something checked before this method because of *where* it
+     * has to apply: after the screen and never before it.
+     *
+     * A limit that can refuse a request before it is screened can refuse
+     * someone saying they are not safe, and then the helplines never appear.
+     * So the screen always runs, the signal is always recorded, and a spent
+     * budget only withholds the guide.
+     */
+    public function takeTurn(
+        Session $session,
+        ProtocolVersion $version,
+        string $utterance,
+        bool $guideAvailable = true,
+    ): TurnResult {
         if ($session->hasEnded()) {
             return new TurnResult($session, '', false, RiskAssessment::none(), false);
         }
@@ -39,8 +56,17 @@ final readonly class Conversation
 
         if ($assessment->level->mustStop()) {
             // The guide is never consulted, and nothing is said back: the
-            // safety screen takes over the surface from here.
+            // safety screen takes over the surface from here. Never throttled:
+            // a stop is the one reply that must always be given.
             return new TurnResult($next, '', false, $assessment, true, $flag);
+        }
+
+        if (! $guideAvailable) {
+            // Screened, recorded, and no further. The session does not advance
+            // and nothing is said, so the caller can refuse without having
+            // lost the signal — which is the whole point of checking the
+            // budget here rather than in front of this method.
+            return new TurnResult($next, '', false, $assessment, false, $flag, throttled: true);
         }
 
         $reply = $this->guide->respond($next, $version, $utterance);

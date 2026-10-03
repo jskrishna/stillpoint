@@ -12,6 +12,8 @@ use App\Http\Resources\SessionResource;
 use App\Models\GuidedSession;
 use App\Services\ProtocolVersionService;
 use App\Services\SessionService;
+use App\Support\GuideBudget;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,6 +21,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class SessionController extends Controller
 {
+    /**
+     * Guided turns one caller may take in a minute.
+     *
+     * A number, not a configuration knob: it is a statement about human pace,
+     * and the only reason to change it is a different idea of that.
+     */
+    public const GUIDED_TURNS_PER_MINUTE = 30;
+
     public function __construct(
         private readonly SessionService $sessions,
         private readonly ProtocolVersionService $versions,
@@ -81,13 +91,56 @@ final class SessionController extends Controller
             return response()->json(['message' => 'This session has ended.'], Response::HTTP_CONFLICT);
         }
 
-        $result = $this->sessions->takeTurn($session, $validated['utterance']);
+        // The budget is resolved here and passed in, so it applies *after* the
+        // screen. This route carries no `throttle` middleware on purpose: a
+        // limit in front of it would refuse a request before anything had
+        // looked at what was said, and the one request that must never be
+        // refused is someone saying they are not safe.
+        $budget = $this->guideBudget($request);
+
+        $result = $this->sessions->takeTurn(
+            $session,
+            $validated['utterance'],
+            guideAvailable: $budget->remaining() > 0,
+        );
+
+        if ($result->throttled) {
+            // The signal was screened and recorded; only the guide was
+            // withheld. 429 and a human message, not a silent no-op.
+            return response()->json([
+                'message' => 'That was a lot of answers very quickly. Give it a moment and try again.',
+                'retryAfter' => $budget->availableIn(),
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
+        // Charged only when the guide actually ran. A safety stop never
+        // reaches it, so a session that stopped has nothing to pay for.
+        if ($result->guideConsulted()) {
+            $budget->hit();
+        }
 
         return (new SessionResource(
             $session->refresh(),
             $this->versions->forSession($session),
             $result->say,
         ))->response();
+    }
+
+    /**
+     * How many more guided turns this token may take this minute.
+     *
+     * Generous, because what it guards against is one client running the guide
+     * flat out, not a person typing: a step takes a human seconds at least,
+     * and 30 answers in a minute is not someone working through something that
+     * upset them.
+     */
+    private function guideBudget(Request $request): GuideBudget
+    {
+        return new GuideBudget(
+            app(RateLimiter::class),
+            'guided-turns:'.($request->user()?->id ?? $request->ip()),
+            perMinute: self::GUIDED_TURNS_PER_MINUTE,
+        );
     }
 
     /** The user choosing to stop, which they may do at any time. */

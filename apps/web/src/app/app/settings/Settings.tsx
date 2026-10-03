@@ -13,7 +13,7 @@ import {
   type GuideVoice,
   type TalkMode,
 } from '@stillpoint/protocol';
-import { ApiError, api, type ApiJournalEntry, type Profile } from '../../../lib/api';
+import { ApiError, api, type Profile } from '../../../lib/api';
 import styles from '../app.module.css';
 
 /**
@@ -25,16 +25,19 @@ import styles from '../app.module.css';
  */
 export default function Settings() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [entries, setEntries] = useState<readonly ApiJournalEntry[]>([]);
+  const [entryCount, setEntryCount] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    Promise.all([api.me(), api.journal()])
-      .then(([me, journal]) => {
+    // Only the count is needed here, so only the count is fetched: the journal
+    // is paged and the whole of it is a lot of decryption for a number.
+    Promise.all([api.me(), api.journal(1)])
+      .then(([me, page]) => {
         setProfile(me);
-        setEntries(journal);
+        setEntryCount(page.total);
       })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
@@ -54,27 +57,43 @@ export default function Settings() {
     }
   };
 
-  const exportData = () => {
-    // The user's own copy of their own data, assembled from what the server
-    // sent this screen. Nothing is re-fetched and nothing is sent anywhere.
-    const payload = JSON.stringify({ account: profile, journal: entries }, null, 2);
-    const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'stillpoint-data.json';
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportData = async () => {
+    // The user's own copy of their own data. The whole journal is fetched here
+    // and nowhere else — it is the one place that genuinely needs all of it,
+    // and it goes straight to a file on their machine, not to any service.
+    setExporting(true);
+    try {
+      const journal = await api.wholeJournal();
+      const payload = JSON.stringify({ account: profile, journal }, null, 2);
+      const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'stillpoint-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      setFailed(null);
+    } catch {
+      setFailed('Could not export your data. Check your connection.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const deleteEverything = async () => {
     try {
       // One request per entry, because each delete is authorised on its own.
-      for (const entry of entries) await api.deleteJournalEntry(entry.id);
-      setEntries([]);
+      for (const entry of await api.wholeJournal()) await api.deleteJournalEntry(entry.id);
+      setEntryCount(0);
       setConfirming(false);
       setFailed(null);
     } catch {
-      setEntries(await api.journal().catch(() => entries));
+      // Re-read the count, so what the screen says is what survived.
+      setEntryCount(
+        await api
+          .journal(1)
+          .then((p) => p.total)
+          .catch(() => entryCount),
+      );
       setFailed('Some entries were not deleted. Check your connection and try again.');
     }
   };
@@ -145,10 +164,17 @@ export default function Settings() {
         }}
       />
 
-      <button type="button" className={styles.settingRow} onClick={exportData}>
-        <span>Export my data</span>
+      <button
+        type="button"
+        className={styles.settingRow}
+        onClick={() => {
+          void exportData();
+        }}
+        disabled={exporting}
+      >
+        <span>{exporting ? 'Gathering your data…' : 'Export my data'}</span>
         <span className={styles.settingValue}>
-          {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+          {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
           <span className={styles.chevron}>›</span>
         </span>
       </button>
@@ -159,7 +185,7 @@ export default function Settings() {
         onClick={() => {
           setConfirming(true);
         }}
-        disabled={entries.length === 0}
+        disabled={entryCount === 0}
       >
         <span className={styles.danger}>Delete my journal</span>
         <span className={styles.chevron}>›</span>
@@ -168,7 +194,7 @@ export default function Settings() {
       {confirming ? (
         <div className={styles.notice}>
           <p>
-            This deletes all {entries.length} {entries.length === 1 ? 'entry' : 'entries'} from your
+            This deletes all {entryCount} {entryCount === 1 ? 'entry' : 'entries'} from your
             account. It cannot be undone.
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>

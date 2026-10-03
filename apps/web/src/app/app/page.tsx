@@ -27,8 +27,11 @@ export default function Home() {
     }
 
     api
-      .journal()
-      .then(setEntries)
+      // Only the three most recent are shown, so only three are asked for.
+      .journal(3)
+      .then((page) => {
+        setEntries(page.items);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
           router.push('/welcome');

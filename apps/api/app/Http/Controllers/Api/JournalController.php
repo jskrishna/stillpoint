@@ -6,10 +6,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\JournalEntryResource;
+use App\Http\Resources\Paged;
 use App\Models\JournalEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -21,14 +21,27 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class JournalController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
+    /**
+     * A page of the user's journal, newest first.
+     *
+     * Paged rather than whole: every row here is encrypted and decrypted one
+     * at a time, so "all of them" is unbounded work on the user with the
+     * longest history — the one who has got the most out of the product.
+     */
+    public function index(Request $request): JsonResponse
     {
-        $entries = JournalEntry::query()
-            ->where('user_id', $request->user()->id)
-            ->newestFirst()
-            ->get();
+        $owned = JournalEntry::query()->where('user_id', $request->user()->id);
 
-        return JournalEntryResource::collection($entries);
+        $page = (clone $owned)
+            ->newestFirst()
+            ->cursorPaginate(Paged::limit($request, 25));
+
+        return response()->json(
+            // The total is a count of the user's own rows on an indexed
+            // column, which is cheap, and the settings screen needs it to say
+            // how much "Export my data" will export.
+            Paged::of($page, JournalEntryResource::class, $request, (clone $owned)->count()),
+        );
     }
 
     public function show(Request $request, JournalEntry $entry): JournalEntryResource

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Paged;
 use App\Http\Resources\SafetyFlagResource;
 use App\Models\SafetyFlag;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
  * The safety queue.
@@ -23,16 +24,30 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 final class SafetyFlagController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
+    /**
+     * A page of the queue, most severe first.
+     *
+     * Paged rather than capped. It was capped at 200, which is the worse
+     * failure of the two: a grown queue would simply stop showing flags, and
+     * the ones it stopped showing would be the ones nobody looked at.
+     */
+    public function index(Request $request): JsonResponse
     {
-        $query = SafetyFlag::query()->with('user')->byUrgency();
+        $filtered = SafetyFlag::query();
 
         // Open by default: the queue is work to be done, not a log.
         if ($request->query('status', 'open') !== 'all') {
-            $query->where('status', $request->string('status', 'open')->toString());
+            $filtered->where('status', $request->string('status', 'open')->toString());
         }
 
-        return SafetyFlagResource::collection($query->limit(200)->get());
+        $page = (clone $filtered)
+            ->with('user')
+            ->byUrgency()
+            ->cursorPaginate(Paged::limit($request, 50));
+
+        return response()->json(
+            Paged::of($page, SafetyFlagResource::class, $request, (clone $filtered)->count()),
+        );
     }
 
     public function show(SafetyFlag $flag): SafetyFlagResource

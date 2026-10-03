@@ -20,7 +20,10 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login']);
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+// Throttled as a whole. These are authenticated routes, so the limit is per
+// token rather than per address, and it is generous: someone mid-session is
+// doing something slow and human, not hammering an endpoint.
+Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('me', [AuthController::class, 'me']);
     Route::patch('me', [AuthController::class, 'updateMe']);
@@ -30,6 +33,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('sessions/{session}', [SessionController::class, 'show']);
     // The only way to advance a session, and so the only path safety screening
     // has to cover.
+    //
+    // Deliberately *not* given a `throttle` middleware. It is the expensive
+    // call and the one a language model will sit behind, so it does have a
+    // budget — but the budget is consulted inside the controller, after the
+    // risk screen (see `App\Support\GuideBudget`). Middleware here would
+    // refuse a request before anything had looked at what was said, and that
+    // request can be someone saying they are not safe.
     Route::post('sessions/{session}/turns', [SessionController::class, 'turn']);
     Route::post('sessions/{session}/stop', [SessionController::class, 'stop']);
     Route::post('sessions/{session}/rating', [SessionController::class, 'rate']);
@@ -44,7 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // The admin console. A coach is not an admin: the queue holds what someone said
 // at the moment they were not safe, which is not a coach's to read.
-Route::middleware(['auth:sanctum', EnsureStaff::class])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:120,1', EnsureStaff::class])->prefix('admin')->group(function () {
     Route::get('overview', [AdminOverviewController::class, 'show']);
     Route::get('safety-flags', [SafetyFlagController::class, 'index']);
     Route::get('safety-flags/{flag}', [SafetyFlagController::class, 'show']);
@@ -59,7 +69,7 @@ Route::middleware(['auth:sanctum', EnsureStaff::class])->prefix('admin')->group(
 
 // The coach portal. "You only see sessions your clients choose to share" — the
 // rule lives in App\Domain\CoachView, and every read here goes through it.
-Route::middleware(['auth:sanctum', EnsureCoach::class])->prefix('coach')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:120,1', EnsureCoach::class])->prefix('coach')->group(function () {
     Route::get('clients', [CoachController::class, 'clients']);
     Route::get('clients/{client}', [CoachController::class, 'client']);
     Route::patch('clients/{client}', [CoachController::class, 'update']);

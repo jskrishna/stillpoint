@@ -93,7 +93,7 @@ final class SafetyQueueApiTest extends TestCase
         $this->flag($owner, ['level' => SafetyLevel::Medium, 'raised_at' => now()]);
 
         Sanctum::actingAs($this->staff(Role::Admin));
-        $levels = array_column($this->getJson('/api/admin/safety-flags')->assertOk()->json(), 'level');
+        $levels = array_column($this->getJson('/api/admin/safety-flags')->assertOk()->json('items'), 'level');
 
         // High first even though it is the oldest: severity outranks recency.
         $this->assertSame(['high', 'medium', 'low'], $levels);
@@ -107,11 +107,102 @@ final class SafetyQueueApiTest extends TestCase
 
         Sanctum::actingAs($this->staff(Role::Admin));
 
-        $open = array_column($this->getJson('/api/admin/safety-flags')->json(), 'excerpt');
+        $open = array_column($this->getJson('/api/admin/safety-flags')->json('items'), 'excerpt');
         $this->assertSame(['still open'], $open);
 
-        $all = array_column($this->getJson('/api/admin/safety-flags?status=all')->json(), 'excerpt');
+        $all = array_column($this->getJson('/api/admin/safety-flags?status=all')->json('items'), 'excerpt');
         $this->assertCount(2, $all);
+    }
+
+    /**
+     * The queue was capped at 200 rows with no way to reach the rest.
+     *
+     * That is the worse of the two failures available: a grown queue would
+     * simply stop showing flags, and the ones it stopped showing would be the
+     * ones nobody had looked at.
+     */
+    public function test_the_queue_pages_rather_than_truncating(): void
+    {
+        $owner = User::factory()->create();
+        for ($i = 0; $i < 5; $i++) {
+            $this->flag($owner, ['excerpt' => "flag {$i}", 'raised_at' => now()->subMinutes($i)]);
+        }
+
+        Sanctum::actingAs($this->staff(Role::Admin));
+
+        $seen = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/admin/safety-flags?limit=2'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $page->assertOk();
+            $seen = [...$seen, ...array_column($page->json('items'), 'excerpt')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        // Every flag is reachable, and none is served twice.
+        $this->assertSame(['flag 0', 'flag 1', 'flag 2', 'flag 3', 'flag 4'], $seen);
+        $this->assertSame(5, $this->getJson('/api/admin/safety-flags')->json('total'));
+    }
+
+    /**
+     * Flags raised in the same second must still have a settled order.
+     *
+     * The queue was ordered by a `CASE level ...` expression, which sorts
+     * correctly but is not a column a cursor can be built from — so two pages
+     * overlapped and a reviewer could have seen one flag twice and another
+     * never. Equal timestamps are the case that exposes it.
+     */
+    public function test_paging_is_stable_when_flags_share_a_timestamp(): void
+    {
+        $owner = User::factory()->create();
+        $at = now();
+        $levels = [SafetyLevel::Low, SafetyLevel::High, SafetyLevel::Medium, SafetyLevel::High];
+        foreach ($levels as $i => $level) {
+            $this->flag($owner, ['level' => $level, 'excerpt' => "flag {$i}", 'raised_at' => $at]);
+        }
+
+        Sanctum::actingAs($this->staff(Role::Admin));
+
+        $seen = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/admin/safety-flags?limit=1'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $page->assertOk();
+            $seen = [...$seen, ...array_column($page->json('items'), 'excerpt')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        // Each flag exactly once, and still most severe first.
+        $this->assertCount(4, $seen);
+        $this->assertCount(4, array_unique($seen));
+        $this->assertSame(
+            ['high', 'high', 'medium', 'low'],
+            array_column($this->getJson('/api/admin/safety-flags')->json('items'), 'level'),
+        );
+    }
+
+    public function test_the_severity_column_follows_the_level(): void
+    {
+        $owner = User::factory()->create();
+        $flag = $this->flag($owner, ['level' => SafetyLevel::Low]);
+        $this->assertSame(SafetyLevel::Low->rank(), $flag->refresh()->severity);
+
+        // Kept in step on write, so a caller cannot forget it.
+        $flag->level = SafetyLevel::High;
+        $flag->save();
+        $this->assertSame(SafetyLevel::High->rank(), $flag->refresh()->severity);
+    }
+
+    public function test_the_total_counts_the_filtered_queue_not_every_flag(): void
+    {
+        $owner = User::factory()->create();
+        $this->flag($owner);
+        $this->flag($owner, ['status' => 'reviewed']);
+
+        Sanctum::actingAs($this->staff(Role::Admin));
+
+        $this->assertSame(1, $this->getJson('/api/admin/safety-flags')->json('total'));
+        $this->assertSame(2, $this->getJson('/api/admin/safety-flags?status=all')->json('total'));
     }
 
     public function test_an_admin_sees_the_excerpt_because_the_job_needs_it(): void
@@ -136,7 +227,7 @@ final class SafetyQueueApiTest extends TestCase
 
         $this->assertStringNotContainsString('Asha Rao', $response->content());
         $this->assertStringNotContainsString('asha@example.com', $response->content());
-        $this->assertMatchesRegularExpression('/^u_[0-9a-f]{4}$/', $response->json('0.user'));
+        $this->assertMatchesRegularExpression('/^u_[0-9a-f]{4}$/', $response->json('items.0.user'));
     }
 
     public function test_the_same_user_always_gets_the_same_handle(): void
@@ -146,7 +237,7 @@ final class SafetyQueueApiTest extends TestCase
         $this->flag($owner);
 
         Sanctum::actingAs($this->staff(Role::Admin));
-        $handles = array_unique(array_column($this->getJson('/api/admin/safety-flags')->json(), 'user'));
+        $handles = array_unique(array_column($this->getJson('/api/admin/safety-flags')->json('items'), 'user'));
 
         $this->assertCount(1, $handles);
     }

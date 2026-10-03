@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { openingLine, takeTurn } from './conversation.js';
+import { guideConsulted, openingLine, takeTurn } from './conversation.js';
 import { scriptedGuide, type Guide } from './guide.js';
 import { baselineRiskScreen, noRiskScreen } from './risk.js';
 import { apply, startSession } from './session.js';
@@ -159,5 +159,89 @@ describe('safety comes first', () => {
     expect(after.session.phase).toBe('ended');
     expect(after.session.endReason).toBe('safety_stop');
     expect(after.advanced).toBe(false);
+  });
+});
+
+/** A guide that fails the test if it is consulted at all. */
+const neverCalled: Guide = {
+  respond: () => {
+    throw new Error('the guide must not be consulted here');
+  },
+};
+
+describe('the guide budget', () => {
+  /**
+   * A rate limit must never gate the screen.
+   *
+   * This is not a convenience: a limit that refuses a request before it is
+   * screened can refuse someone saying they are not safe, and then the
+   * helplines never appear. These tests are the ordering, stated.
+   */
+  it('still stops a session for safety when the budget is spent', () => {
+    const result = takeTurn(startSession(), BASELINE, 'I want to kill myself', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      guideAvailable: false,
+    });
+
+    expect(result.stopped).toBe(true);
+    expect(result.throttled).toBe(false);
+    expect(result.session.endReason).toBe('safety_stop');
+    expect(result.flag?.category).toBe('self_harm');
+  });
+
+  it('still records a medium signal when the budget is spent', () => {
+    const result = takeTurn(startSession(), BASELINE, 'he hit me again last night', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      guideAvailable: false,
+    });
+
+    // The turn goes no further, but the flag a reviewer needs is raised.
+    expect(result.throttled).toBe(true);
+    expect(result.flag?.level).toBe('medium');
+    expect(result.session.safetyLevel).toBe('medium');
+  });
+
+  it('withholds the guide rather than advancing, when the budget is spent', () => {
+    const result = takeTurn(startSession(), BASELINE, 'My manager dismissed my work', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      guideAvailable: false,
+    });
+
+    expect(result.throttled).toBe(true);
+    expect(result.advanced).toBe(false);
+    expect(result.say).toBe('');
+    expect(result.session.stepId).toBe('notice');
+  });
+
+  it('does not count a safety stop as the guide having been consulted', () => {
+    const stopped = takeTurn(startSession(), BASELINE, 'I want to kill myself', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+    });
+    const refused = takeTurn(startSession(), BASELINE, 'My manager dismissed my work', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+      guideAvailable: false,
+    });
+
+    // Neither should be charged for: a stop never reaches the guide, and a
+    // refusal is the caller being told to wait, not work done for them.
+    expect(guideConsulted(stopped)).toBe(false);
+    expect(guideConsulted(refused)).toBe(false);
+  });
+
+  it('consults the guide when there is budget', () => {
+    const result = takeTurn(startSession(), BASELINE, 'My manager dismissed my work', {
+      guide: scriptedGuide,
+      risk: baselineRiskScreen,
+      guideAvailable: true,
+    });
+
+    expect(result.throttled).toBe(false);
+    expect(result.advanced).toBe(true);
+    expect(guideConsulted(result)).toBe(true);
   });
 });
