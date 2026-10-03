@@ -212,7 +212,18 @@ export function takeTurn(
 
   return {
     session: next,
-    say: reply.say,
+    // When the step moved on, what the guide says next is the new step's
+    // question. The scripted guide answers an advancing turn with nothing —
+    // acknowledgement copy is not in the designs and inventing it would be
+    // inventing the guide's voice — so without this the guide fell silent for
+    // the rest of the session: five steps where the client was handed an empty
+    // `say` and showed "this step has no question yet", whether or not the
+    // step had copy.
+    //
+    // Through the guide rather than read off the version, so a model that one
+    // day wants to acknowledge the answer *and* ask the next question has one
+    // place to do it.
+    say: reply.advance && next.stepId !== null ? openingLine(next, version, guide) : reply.say,
     advanced: reply.advance,
     risk: assessment,
     stopped: false,

@@ -173,11 +173,30 @@ const answers = [
   'I am not good enough',
   'I forgive myself',
 ];
+// The question the guide asks at each step, collected so the loop can insist
+// there was one. The guide went silent after step 1 for a while — the server
+// answered an advancing turn with an empty `say` — and this check is what was
+// missing: the loop walked all six steps and only ever read the counter, so
+// five blank questions looked exactly like the known missing-copy gap.
+const asked = [];
+
 for (let step = 1; step <= 6; step += 1) {
   const body = await text();
   const label = (body.match(/Step (\d) of (\d)/) ?? []).slice(1).join('/');
   if (step === 1 && label !== '1/6') bad('session starts at step 1 of 6', label);
   if (step === 1) ok(`session starts at step ${label}`);
+
+  // Matched on the class rather than on the text: two of the six questions
+  // have words after the question mark ("Take your time."), so a `?$` filter
+  // silently missed them and made this check look broken when it was not.
+  const question = page.locator('[class*="question"]').first();
+  if ((await question.count()) > 0) {
+    const asked_ = (await question.innerText()).trim();
+    if (asked_ !== '') asked.push(asked_);
+  }
+  if (/no question yet/.test(body)) {
+    bad(`step ${step} asks a question`, 'the screen says the step has no question yet');
+  }
 
   const feelingBtns = page.locator('button', {
     hasText: /^(Angry|Sad|Anxious|Ashamed|Hurt|Lonely)$/,
@@ -195,6 +214,16 @@ for (let step = 1; step <= 6; step += 1) {
   await next.click();
   await page.waitForTimeout(600);
 }
+
+if (asked.length === 6) ok('the guide asked a question at every one of the six steps');
+else
+  bad(
+    'the guide asked a question at every one of the six steps',
+    `${String(asked.length)}: ${asked.join(' | ')}`,
+  );
+
+if (new Set(asked).size === asked.length) ok('and a different one each time');
+else bad('and a different one each time', asked.join(' | '));
 
 const after = await text();
 if (/Did you feel calmer|calmer/i.test(after)) ok('the session reaches the summary');

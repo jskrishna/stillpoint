@@ -7,7 +7,9 @@ namespace Database\Seeders;
 use App\Domain\ClientStatus;
 use App\Domain\Role;
 use App\Models\User;
+use App\Services\ProtocolVersionService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -55,6 +57,8 @@ final class DemoSeeder extends Seeder
             $this->pair($coach, $paired);
         }
 
+        $this->publishStepCopy();
+
         $this->command?->info('Seeded 4 accounts; password: '.$password);
         $this->command?->info("  user   {$user->email}");
         $this->command?->info("  admin  {$admin->email}");
@@ -83,6 +87,38 @@ final class DemoSeeder extends Seeder
         $user->save();
 
         return $user;
+    }
+
+    /**
+     * Publishes the draft step copy, so a demo or a development database has a
+     * guide that speaks at every step.
+     *
+     * In production nothing publishes itself: an admin reads the draft at
+     * `/admin/protocol` and presses the button, which is the point of the
+     * editor. This seeder exists to make a working demo, and a demo where
+     * three of the six steps are silent is not one — and `e2e/flow.mjs` asserts
+     * a question at every step, which it can only do against a published
+     * version.
+     *
+     * Already-published copy is left alone, and so is anything a person has
+     * edited: `stillpoint:draft-step-copy` only fills what is empty.
+     */
+    private function publishStepCopy(): void
+    {
+        $versions = app(ProtocolVersionService::class);
+
+        if ($versions->current()->status === 'live') {
+            $this->command?->info('  protocol already published; left alone');
+
+            return;
+        }
+
+        Artisan::call('stillpoint:draft-step-copy');
+        $published = $versions->publishDraft();
+
+        $this->command?->info($published === null
+            ? '  protocol NOT published — the draft is still incomplete'
+            : "  protocol v{$published->major}.{$published->minor} published (draft copy, unreviewed)");
     }
 
     private function pair(User $coach, User $client): void

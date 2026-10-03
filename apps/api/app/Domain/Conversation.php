@@ -104,7 +104,22 @@ final readonly class Conversation
             ? $next->withStepSatisfied($reply->capture)
             : $next->withGuideTurn();
 
-        return new TurnResult($next, $reply->say, $reply->advance, $assessment, false, $flag);
+        // When the step moved on, what the guide says next is the new step's
+        // question. The scripted guide answers an advancing turn with nothing
+        // — acknowledgement copy is not in the designs and inventing it would
+        // be inventing the guide's voice — so without this the guide fell
+        // silent for the rest of the session: five steps where the client was
+        // handed an empty `say` and showed "this step has no question yet",
+        // whether or not the step had copy.
+        //
+        // Through the guide rather than read off the version, so a model that
+        // one day wants to acknowledge the answer *and* ask the next question
+        // has one place to do it.
+        $say = $reply->advance && $next->stepId !== null
+            ? $this->openingLine($next, $version)
+            : $reply->say;
+
+        return new TurnResult($next, $say, $reply->advance, $assessment, false, $flag);
     }
 
     /** The guide's opening line for the step a session is on. */

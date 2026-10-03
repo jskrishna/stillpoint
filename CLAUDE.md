@@ -185,6 +185,26 @@ an `encrypted` cast writes to, and the arithmetic that made `text` too small.
 **A new `encrypted` cast needs a column wide enough for it**, and that test is
 what says so.
 
+### The guide asks the next question itself
+
+`TurnResult.say` is what the guide says back, and on a turn that advances it is
+**the new step's question**, through `openingLine()` rather than read off the
+version. It used to be `reply.say`, which `ScriptedGuide` leaves empty when it
+advances — acknowledgement copy is not in the designs and inventing it would be
+inventing the guide's voice — so the guide fell silent after the first answer
+and stayed silent for the rest of the session, on every surface. Five steps
+where the client got an empty `say` and rendered "this step has no question
+yet", whether or not the step had copy.
+
+Three of the four reads already did this and one did not, which is how it
+survived: `POST /sessions` and `GET /sessions/current` both pass the opening
+line, `GET /sessions/{id}` passed nothing (so recovering from a 409 left the
+screen blank) and the turn passed `''`. All four carry it now.
+
+`flow.mjs` asserts a question at every one of the six steps and that they
+differ. It did not before — it walked all six and only read the step counter,
+which is exactly why five blank questions went unnoticed.
+
 ### The guide is a stand-in, and so is what it records
 
 `scriptedGuide` / `ScriptedGuide` decide what to say by reading the protocol and
@@ -335,11 +355,33 @@ Two things the designs state and this deliberately does **not** enforce:
 
 ## Do not invent product copy
 
-Only step 4 "Remember" is fully specified in the designs. Unspecified prompt
-copy, completion criteria and turn limits are `null`, and `incompleteSteps()`
-reports them. **Do not fill these with invented text** — the real copy lives in
-the PRD. A `null` is an honest gap; a guess silently becomes the product's
-voice.
+The designs specify step 1's question, step 4 in full and step 5's question.
+Everything else — steps 2, 3 and 6, and every step's completion criterion and
+turn limit but step 4's — is `null` in `BASELINE` /
+`ProtocolVersion::baseline()`, and `incompleteSteps()` reports it. **Do not fill
+those in, in code.** A `null` there is an honest statement about the artifacts;
+a guess in `steps.ts` silently becomes the product's voice and nobody can tell
+afterwards which lines came from the designs.
+
+**But `null` is not shippable either, and pretending otherwise was its own
+mistake.** `ScriptedGuide` asks `main ?? ''`, so three of the six steps said
+nothing at all — and the session screen's honest "this step has no question
+yet" made that look like a documented gap rather than a product that stops
+talking to someone who is upset.
+
+So the copy lives where copy belongs: a **draft protocol version**, written by
+`stillpoint:draft-step-copy`, which an admin reads at `/admin/protocol`, edits
+and publishes. `publishProblems()` refuses anything still incomplete, so
+publishing is a deliberate act by a person. The command fills only what is
+empty and never touches copy somebody wrote; `DemoSeeder` publishes it so a
+demo and the end-to-end checks have a guide that speaks, and production
+publishes nothing by itself.
+
+**That copy was written by Claude, not by a clinician and not from a PRD.** It
+follows the voice of the three questions the designs do give and each step's
+own summary from the marketing site, and it is rows in a table with an editor
+in front of them precisely so the person who owns the product's voice can
+replace it. Do not treat it as settled, and do not copy it into `steps.ts`.
 
 The same goes for pricing: the designs show `[PRICE]/mo` placeholders.
 

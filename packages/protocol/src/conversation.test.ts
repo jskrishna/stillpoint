@@ -346,3 +346,86 @@ describe('an answer to a step that has moved on', () => {
     expect(result.advanced).toBe(true);
   });
 });
+
+describe('what the guide says after an answer', () => {
+  /**
+   * The bug this closes, stated as a test.
+   *
+   * The scripted guide answers an advancing turn with nothing, because
+   * acknowledgement copy is not in the designs and inventing it would be
+   * inventing the guide's voice. So `say` was empty on every turn that moved
+   * the step on, and the client — which renders `say` and shows "this step has
+   * no question yet" when it is empty — went silent for the rest of the
+   * session. Five of the six steps, whether or not the step had copy, on every
+   * surface.
+   */
+  it('asks the new step’s question when the step moves on', () => {
+    const result = takeTurn(startSession(), V, 'My manager called me out in front of everyone', {
+      ...deps,
+      answering: 'notice',
+    });
+
+    expect(result.advanced).toBe(true);
+    expect(result.session.stepId).toBe('responsibility');
+    expect(result.say).toBe('Main question for responsibility?');
+  });
+
+  it('keeps asking the same step’s backup when the answer was too thin', () => {
+    const result = takeTurn(startSession(), V, 'dunno', deps);
+
+    expect(result.advanced).toBe(false);
+    expect(result.say).toBe('Backup one for notice?');
+  });
+
+  it('says nothing once the last step is satisfied, because the session is over', () => {
+    // Step 3 is answered by naming a feeling, not in prose, so a generic
+    // sentence does not satisfy it.
+    const answers = [
+      'My manager called me out in front of everyone',
+      'I told myself I was not good enough',
+      'angry',
+      'Being talked over at school when I was nine',
+      'I am not good enough',
+      'I forgive myself for believing that',
+    ];
+
+    let session = startSession();
+    let say = 'not empty yet';
+    for (const answer of answers) {
+      const result = takeTurn(session, V, answer, deps);
+      expect(result.advanced, answer).toBe(true);
+      session = result.session;
+      say = result.say;
+    }
+
+    expect(session.endReason).toBe('completed');
+    // The turn that finished it has nothing to ask: there is no next step, and
+    // the summary screen takes over from here.
+    expect(say).toBe('');
+  });
+
+  it('says nothing on a safety stop, because the safety screen takes over', () => {
+    const result = takeTurn(startSession(), BASELINE, 'I want to kill myself', {
+      guide: neverCalled,
+      risk: baselineRiskScreen,
+    });
+
+    expect(result.stopped).toBe(true);
+    expect(result.say).toBe('');
+  });
+
+  /**
+   * A step whose copy is still owed reads as silence, which is the honest
+   * answer: the client says so in as many words rather than inventing a
+   * question of its own.
+   */
+  it('says nothing when the step it moved to has no question yet', () => {
+    const result = takeTurn(startSession(), BASELINE, 'My manager called me out', {
+      guide: scriptedGuide,
+      risk: noRiskScreen,
+    });
+
+    expect(result.session.stepId).toBe('responsibility');
+    expect(result.say).toBe('');
+  });
+});

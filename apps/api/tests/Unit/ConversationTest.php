@@ -308,6 +308,72 @@ final class ConversationTest extends TestCase
         $this->assertTrue($r->advanced);
     }
 
+    /**
+     * The bug this closes, stated as a test.
+     *
+     * `ScriptedGuide` answers an advancing turn with nothing, because
+     * acknowledgement copy is not in the designs and inventing it would be
+     * inventing the guide's voice. So `say` was empty on every turn that moved
+     * the step on, and the client — which renders `say` and says "this step
+     * has no question yet" when it is empty — went silent for the rest of the
+     * session. Five of the six steps, on every surface.
+     */
+    public function test_asks_the_new_steps_question_when_the_step_moves_on(): void
+    {
+        $r = $this->quiet()->takeTurn(
+            Session::start(),
+            $this->runnable(),
+            'My manager called me out in front of everyone',
+        );
+
+        $this->assertTrue($r->advanced);
+        $this->assertSame(StepId::Responsibility, $r->session->stepId);
+        $this->assertSame('Main question for responsibility?', $r->say);
+    }
+
+    public function test_says_nothing_once_the_last_step_is_satisfied(): void
+    {
+        $v = $this->runnable();
+        $c = $this->quiet();
+        $answers = [
+            'My manager called me out in front of everyone',
+            'I told myself I was not good enough',
+            // Step 3 is answered by naming a feeling, not in prose.
+            'angry',
+            'Being talked over at school when I was nine',
+            'I am not good enough',
+            'I forgive myself for believing that',
+        ];
+
+        $s = Session::start();
+        $say = 'not empty yet';
+        foreach ($answers as $answer) {
+            $r = $c->takeTurn($s, $v, $answer);
+            $this->assertTrue($r->advanced, $answer);
+            $s = $r->session;
+            $say = $r->say;
+        }
+
+        $this->assertSame(EndReason::Completed, $s->endReason);
+        // Nothing left to ask: the summary screen takes over from here.
+        $this->assertSame('', $say);
+    }
+
+    public function test_says_nothing_when_the_step_it_moved_to_has_no_question_yet(): void
+    {
+        // The baseline, where steps 2, 3 and 6 have no copy. Silence is the
+        // honest answer, and the client says so in as many words rather than
+        // inventing a question of its own.
+        $r = (new Conversation(new ScriptedGuide, new NoRiskScreen))->takeTurn(
+            Session::start(),
+            ProtocolVersion::baseline(),
+            'My manager called me out in front of everyone',
+        );
+
+        $this->assertSame(StepId::Responsibility, $r->session->stepId);
+        $this->assertSame('', $r->say);
+    }
+
     public function test_cannot_be_resumed_after_a_safety_stop(): void
     {
         $v = $this->runnable();

@@ -113,11 +113,22 @@ final class SessionController extends Controller
         ))->response();
     }
 
+    /**
+     * One session, the owner's own.
+     *
+     * Carries the step's question, like `current()` and for the same reason:
+     * this is what a client asks after a conflict, and a response without the
+     * question left the screen with nothing to show.
+     */
     public function show(Request $request, GuidedSession $session): SessionResource
     {
         $this->authorizeOwnership($request, $session);
 
-        return new SessionResource($session, $this->versions->forSession($session));
+        return new SessionResource(
+            $session,
+            $this->versions->forSession($session),
+            $this->sessions->openingLine($session),
+        );
     }
 
     /**
