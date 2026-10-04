@@ -56,7 +56,14 @@ describe('a privacy law in the product’s own copy', () => {
     { cwd: at('.'), encoding: 'utf8' },
   )
     .split('\n')
-    .filter((f) => /\.(ts|tsx|php)$/.test(f));
+    .filter((f) => /\.(ts|tsx|php)$/.test(f))
+    // Tests are not copy: nothing in one is shown to anybody, and the first
+    // version of this file **failed on a clean tree** because it reads itself
+    // — the line holding the pattern is not a comment. It passed while the
+    // file was untracked, since `git ls-files` does not list those, and went
+    // red the moment it was committed. `verify:clean` caught it, which is what
+    // that command is for.
+    .filter((f) => !/\.test\.(ts|tsx)$|Test\.php$/.test(f));
 
   it('has files to look at', () => {
     // A source-reading check whose list comes back empty stops checking in

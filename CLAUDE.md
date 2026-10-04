@@ -125,7 +125,15 @@ deliberately not a ban: those three comments are where the reasoning for an
 unbound listener and an unread consent item lives, so a second case asserts
 they are still there. Checked both ways — a `PIPEDA` in the consent screen's
 heading goes red naming the file and the line, and removing the names from the
-two comments turns the other case red. Whether the consent screen should name the law is a legal
+two comments turns the other case red.
+
+**It excludes test files, because the first version read itself.** The line
+holding the pattern is not a comment, so the check matched its own source — and
+it passed anyway while the file was untracked, since `git ls-files` does not
+list those, then went red the moment it was committed. `verify:clean` is what
+caught it, on a clean tree, which is the failure that command exists for
+arriving in a check written two commits earlier. Nothing in a test is shown to
+anybody, so excluding them costs the rule nothing. Whether the consent screen should name the law is a legal
 and product decision and so is not something to invent here, which is the rule
 about product copy applying to the one kind of copy where guessing is worst. It
 is in `DECISIONS.md`; what is fixed here is the sentence that implied it was
