@@ -73,8 +73,14 @@ final readonly class CoachService
             'nextCallAt' => $pivot->next_call_at?->toIso8601String(),
             'coachNotes' => $pivot->coach_notes,
             ...self::presentSummary(CoachView::summarise($journal)),
+            // `presented` is a closure, called only for the entries
+            // `sharedWith()` kept — so a private entry's title and note are
+            // never decrypted. `CoachView` still receives the whole journal
+            // and shares it down itself, which is the property that makes a
+            // forgotten `where` impossible; what changed is only when the
+            // text is read, not who decides.
             'sharedSessions' => array_map(
-                fn (array $e) => $e['presented'],
+                fn (array $e) => ($e['presented'])(),
                 CoachView::sharedWith($journal),
             ),
             'attention' => array_map(
@@ -110,6 +116,28 @@ final readonly class CoachService
             'recurringBelief' => $summary['recurringBelief'],
         ];
     }
+
+    /**
+     * Exactly what a coach's client view reads of a journal row.
+     *
+     * `forgiveness` and `memory` are absent because nothing in this path reads
+     * them, and they are the client's own words. Adding a field to `presented`
+     * means adding its column here, and
+     * `CoachReadsOnlyWhatItNeedsTest` is what says so.
+     */
+    private const JOURNAL_COLUMNS = [
+        'id',
+        'shared_with_coach',
+        'occurred_at',
+        'belief',
+        'title',
+        'note',
+        'feelings',
+        'kind',
+        'duration_minutes',
+        'calmer_rating',
+        'reached_final_step',
+    ];
 
     /**
      * Why a client might need their coach, without saying what they said.
@@ -164,18 +192,52 @@ final readonly class CoachService
      * same row, so an entry cannot be summarised as shared and rendered as
      * something else.
      *
+     * **It names its columns, and `presented` is a closure.** Measured: with
+     * every column fetched and `presented` built eagerly, a coach's request
+     * decrypted a **private** entry's title — proved by writing a ciphertext
+     * no key can read into one and watching `CoachService::client()` throw
+     * `DecryptException`. Nothing leaked, because `CoachView` filters before
+     * the response is built; but `CoachAttention` a few lines up states the
+     * standard this fell short of — a coach's request "does not read it into
+     * memory at all, rather than reading it and not using it". Three encrypted
+     * columns of a private entry were being decrypted (`title`, `belief`,
+     * `note`) and two more fetched and never read (`forgiveness`, `memory`).
+     *
+     * `belief` is still read for every entry, and that is the one trade here
+     * rather than an oversight. `CoachView::summarise()` filters to the shared
+     * set itself and then computes the recurring belief from it, and the
+     * property worth keeping is that it would be correct even if this method
+     * handed it everything. Nulling a private entry's belief here would make
+     * that filter unnecessary, which is exactly the "forgotten `where` is
+     * silent" failure `CoachView` exists to prevent — so one column is
+     * decrypted and never shown, deliberately, to keep the rule enforceable in
+     * one place. Making it lazy instead means changing a contract
+     * `parity/cases.json` pins against the TypeScript port, which takes plain
+     * strings.
+     *
+     * **And it is still unbounded**: a client's whole journal, no window and
+     * no page, because the sharing rule needs all of it. Measured at 2,000
+     * entries — 470 ms and 84 MB — of which 200 were shared. Paging a coach's
+     * view is a design decision, not a refactor.
+     *
      * @return list<array<string, mixed>>
      */
     private function journalOf(User $client): array
     {
         $entries = [];
 
-        foreach (JournalEntry::query()->where('user_id', $client->id)->newestFirst()->get() as $entry) {
+        $rows = JournalEntry::query()
+            ->select(self::JOURNAL_COLUMNS)
+            ->where('user_id', $client->id)
+            ->newestFirst()
+            ->get();
+
+        foreach ($rows as $entry) {
             $entries[] = [
                 'sharedWithCoach' => (bool) $entry->shared_with_coach,
                 'occurredAt' => $entry->occurred_at->toDateTimeImmutable(),
                 'belief' => $entry->belief,
-                'presented' => [
+                'presented' => fn (): array => [
                     'id' => $entry->id,
                     'title' => $entry->title,
                     'summary' => $entry->listSummary(),

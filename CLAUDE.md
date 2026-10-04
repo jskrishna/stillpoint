@@ -2082,6 +2082,45 @@ rule and a habit. It is asserted on the SQL, because there is nothing in the
 response to see it by: adding a field to `CoachAttention` and reaching for
 `$session->data` would otherwise break no test.
 
+**And the client view read a private entry's words, which is the same rule
+one step further in.** `journalOf()` built the rendered `presented` block for
+every entry _before_ `CoachView` filtered, so a coach opening a client
+decrypted the **title** and **note** of entries that client had kept private,
+and fetched `forgiveness` and `memory` without reading either. Nothing leaked —
+the filter runs before the response is built, and the response was correct
+throughout. What was wrong is that the plaintext existed in the process at all,
+which is precisely the standard `CoachAttention` states three paragraphs up.
+
+Proved by ciphertext rather than by reading the code: a payload no configured
+key can read, written into one private entry, made `CoachService::client()`
+throw `DecryptException`. That is also a second consequence worth noting — one
+unreadable private row broke the coach's whole view of that client, and
+`stillpoint:rotate-key` leaves a row that decrypts under no key **byte-for-byte
+as it is**, so an unreadable row is a state this product can really be in.
+
+`presented` is a closure now, called only for the entries `sharedWith()` kept,
+and the query names its columns. 470 ms and 84 MB at 2,000 entries (200 of them
+shared) became 158 ms and 28 MB. `CoachReadsOnlyWhatItNeedsTest` has a
+**positive control** — a shared entry's title must still be read — because
+without it the two cases would pass just as well against a method that read
+nothing at all.
+
+`belief` is still read for every entry, and that is the one trade rather than
+an oversight. `CoachView::summarise()` filters to the shared set itself and
+then computes the recurring belief from it, and the property worth keeping is
+that it stays correct **even when handed everything**. Nulling a private
+entry's belief in the caller would make that filter unnecessary, which is
+exactly the "a forgotten `where` is silent" failure `CoachView` exists to
+prevent. So one column is decrypted and never shown, deliberately, and there is
+a test pinning that it is — so the next person does not finish the job and
+quietly remove the reason the rule lives in one place. Making it lazy instead
+means changing a contract `parity/cases.json` pins against the TypeScript port,
+which takes plain strings.
+
+**It is still unbounded**, like insights and for a better reason: the sharing
+rule needs the whole journal, so there is no window and no page. Paging a
+coach's view is a design decision, not a refactor.
+
 Both `openDraft()` and `publishDraft()` lock `protocol_versions` in id order
 inside their transaction — the same lock in the same order, so they cannot
 deadlock against each other. Publishing is the one where it prevents a bad
