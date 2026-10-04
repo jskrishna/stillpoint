@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import {
   BASELINE_RULES,
   COUNTRIES,
+  DEFAULT_COUNTRY,
   baselineRiskScreen,
   helplinesFor,
 } from '../../packages/protocol/dist/index.js';
@@ -59,7 +60,15 @@ w();
 w('## What we are asking for');
 w();
 w('Four answers, in [Questions](#questions-we-need-answered) at the end. You do');
-w('not need to read any code: everything the screen does is in this document.');
+w('not need to read any code: everything the screen does is in this document,');
+w('including every phrase it looks for and the grade each one carries.');
+w();
+w('It is about twenty minutes of reading. You do not need to use the product');
+w('to answer the four questions — we can walk you through it if that helps,');
+w('but this document is written so that you do not have to.');
+w();
+w('**We would rather be told this is inadequate than ship it believing');
+w('otherwise.** Nothing here is a request for approval.');
 w();
 w('## What the product is');
 w();
@@ -67,7 +76,19 @@ w('Stillpoint is a guide that walks an adult through six steps when they are');
 w('upset: Notice → Responsibility → Feel → Remember → Inquire → Forgive. It is');
 w('not therapy and does not present itself as therapy. The person types their');
 w('answers; the guide speaks its questions aloud and asks nothing else of them.');
-w('The product is India-first.');
+// Built from `DEFAULT_COUNTRY` and `COUNTRIES` rather than written out. This
+// line said "The product is India-first" for a while after it was not — in the
+// one document whose whole purpose is to be handed to a clinician in the first
+// market, who would have read it and concluded the product was for somewhere
+// else. The same mistake as the consent screens keeping their own copy of the
+// crisis numbers, in prose instead of code.
+w(
+  `${COUNTRY_NAME[DEFAULT_COUNTRY] ?? DEFAULT_COUNTRY} is the first market, and ` +
+    `a new account is assumed to be there. ` +
+    `${COUNTRIES.filter((c) => c !== DEFAULT_COUNTRY)
+      .map((c) => COUNTRY_NAME[c] ?? c)
+      .join(' and ')} is covered as well.`,
+);
 w();
 w('## What the screen is, and what it is not');
 w();
@@ -108,8 +129,8 @@ for (const country of COUNTRIES) {
   w();
 }
 w('A country this product has no numbers for is shown **none**, rather than a');
-w('plausible-looking number from somewhere else. Canada is the first market and');
-w('is what a new account is assumed to be in; India is covered as well.');
+w('plausible-looking number from somewhere else. A wrong crisis number is worse');
+w('than none, and that is the whole reason this list is short.');
 w();
 w('The person is **never** told which rule they tripped, the grade, or the');
 w('phrase that matched. A medium or low flag is invisible to them.');

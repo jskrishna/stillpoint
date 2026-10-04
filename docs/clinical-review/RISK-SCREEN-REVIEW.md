@@ -1,12 +1,20 @@
 # Stillpoint — risk screen, for clinical review
 
-Generated from `packages/protocol/src/risk.ts` at commit `9f3895c`.
+Generated from `packages/protocol/src/risk.ts` at commit `b27a85e`.
 Regenerate with `pnpm run clinical:review` after any change to the screen.
 
 ## What we are asking for
 
 Four answers, in [Questions](#questions-we-need-answered) at the end. You do
-not need to read any code: everything the screen does is in this document.
+not need to read any code: everything the screen does is in this document,
+including every phrase it looks for and the grade each one carries.
+
+It is about twenty minutes of reading. You do not need to use the product
+to answer the four questions — we can walk you through it if that helps,
+but this document is written so that you do not have to.
+
+**We would rather be told this is inadequate than ship it believing
+otherwise.** Nothing here is a request for approval.
 
 ## What the product is
 
@@ -14,7 +22,7 @@ Stillpoint is a guide that walks an adult through six steps when they are
 upset: Notice → Responsibility → Feel → Remember → Inquire → Forgive. It is
 not therapy and does not present itself as therapy. The person types their
 answers; the guide speaks its questions aloud and asks nothing else of them.
-The product is India-first.
+Canada is the first market, and a new account is assumed to be there. India is covered as well.
 
 ## What the screen is, and what it is not
 
@@ -58,8 +66,8 @@ their country:
 - **112** — Emergency. If you are in danger now.
 
 A country this product has no numbers for is shown **none**, rather than a
-plausible-looking number from somewhere else. Canada is the first market and
-is what a new account is assumed to be in; India is covered as well.
+plausible-looking number from somewhere else. A wrong crisis number is worse
+than none, and that is the whole reason this list is short.
 
 The person is **never** told which rule they tripped, the grade, or the
 phrase that matched. A medium or low flag is invisible to them.
