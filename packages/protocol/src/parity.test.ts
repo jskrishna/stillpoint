@@ -27,6 +27,7 @@ import type { FeelingId } from './feelings.js';
 import type { JournalEntry } from './journal.js';
 import type { CalmerRating, SessionKind } from './session.js';
 import { baselineRiskScreen } from './risk.js';
+import { COUNTRIES, DEFAULT_COUNTRY, helplinesFor } from './safety.js';
 import { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
 import type { StepId } from './steps.js';
 
@@ -73,6 +74,21 @@ interface Limits {
   readonly keptFromAnEmojiAnswer: number;
 }
 
+interface HelplineCases {
+  readonly countries: readonly string[];
+  readonly defaultCountry: string;
+  readonly forCountry: readonly {
+    readonly country: string;
+    readonly helplines: readonly {
+      readonly name: string;
+      readonly number: string;
+      readonly detail: string;
+      readonly country: string;
+      readonly kind: string;
+    }[];
+  }[];
+}
+
 interface InsightsCase {
   readonly name: string;
   readonly windowDays: number;
@@ -105,6 +121,7 @@ interface SharingCase {
 
 interface Cases {
   readonly risk: readonly RiskCase[];
+  readonly helplines: HelplineCases;
   readonly insights: readonly InsightsCase[];
   readonly sharing: readonly SharingCase[];
   readonly extraction: readonly ExtractionCase[];
@@ -145,6 +162,29 @@ describe('extraction matches the shared cases', () => {
     it(`reads ${c.stepId}: ${JSON.stringify(c.utterance)}`, () => {
       expect(isSubstantiveAnswer(c.stepId, c.utterance)).toBe(c.substantive);
       expect(literalExtraction(c.stepId, c.utterance) ?? null).toEqual(c.capture);
+    });
+  }
+});
+
+describe('the crisis numbers match the shared cases', () => {
+  it('knows the same countries, and assumes the same one', () => {
+    expect([...COUNTRIES]).toEqual(cases.helplines.countries);
+    expect(DEFAULT_COUNTRY).toBe(cases.helplines.defaultCountry);
+  });
+
+  for (const c of cases.helplines.forCountry) {
+    it(`${c.country === '' ? 'an empty country' : c.country} gets ${
+      c.helplines.length === 0 ? 'no numbers' : c.helplines.map((h) => h.number).join(', ')
+    }`, () => {
+      expect(
+        helplinesFor(c.country).map((h) => ({
+          name: h.name,
+          number: h.number,
+          detail: h.detail,
+          country: h.country,
+          kind: h.kind,
+        })),
+      ).toEqual(c.helplines);
     });
   }
 });

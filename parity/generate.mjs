@@ -25,6 +25,9 @@ import { format } from 'prettier';
 // side. Run `pnpm run build:packages` first, which `parity:generate` does.
 import {
   baselineRiskScreen,
+  COUNTRIES,
+  DEFAULT_COUNTRY,
+  helplinesFor,
   insights,
   isSubstantiveAnswer,
   literalExtraction,
@@ -221,6 +224,28 @@ const journalEntry = (e) => ({
   ...(e.belief === undefined ? {} : { belief: e.belief }),
   ...(e.calmer === undefined || e.calmer === null ? {} : { calmerRating: e.calmer }),
 });
+
+/**
+ * Countries, including the ones this product knows nothing about.
+ *
+ * The crisis numbers themselves live in both languages — `helplinesFor()` and
+ * `App\Domain\Helpline::forCountry()` — each with its own tests, and nothing
+ * compared them. Of everything in this repository that could drift, this is
+ * the one where drift means somebody in crisis dialling a number that does not
+ * answer where they are.
+ *
+ * It got sharper rather than quieter: the session screen now reads the
+ * TypeScript list itself when a turn never reaches the server, so a
+ * divergence would mean a dropped request showing different numbers from a
+ * delivered one, to the same person, in the same minute.
+ *
+ * The unknown ones are cases rather than an afterthought. An empty list is the
+ * deliberate answer — a plausible-looking wrong number is worse than none —
+ * and `'ca'` is in here because neither language lowercases: if a country ever
+ * reaches the column in the wrong case, both must agree that the answer is no
+ * numbers rather than one of them quietly working.
+ */
+const COUNTRY_CASES = [...COUNTRIES, 'US', 'GB', 'ca', 'IND', ''];
 
 /**
  * Journals the user's own insights are computed from.
@@ -423,6 +448,20 @@ const cases = {
       left: fullSessionsLeft(plan, used),
     };
   }),
+  helplines: {
+    countries: [...COUNTRIES],
+    defaultCountry: DEFAULT_COUNTRY,
+    forCountry: COUNTRY_CASES.map((country) => ({
+      country,
+      helplines: helplinesFor(country).map((h) => ({
+        name: h.name,
+        number: h.number,
+        detail: h.detail,
+        country: h.country,
+        kind: h.kind,
+      })),
+    })),
+  },
   insights: INSIGHT_JOURNALS.map(({ name, window, entries }) => {
     const result = insights(
       entries.map((e, i) =>

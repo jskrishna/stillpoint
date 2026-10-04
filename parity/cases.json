@@ -791,6 +791,77 @@
       "left": null
     }
   ],
+  "helplines": {
+    "countries": ["CA", "IN"],
+    "defaultCountry": "CA",
+    "forCountry": [
+      {
+        "country": "CA",
+        "helplines": [
+          {
+            "name": "Suicide Crisis Helpline",
+            "number": "988",
+            "detail": "Call or text · 24 hours · Canada",
+            "country": "CA",
+            "kind": "helpline"
+          },
+          {
+            "name": "Québec — 1-866-APPELLE",
+            "number": "1-866-277-3553",
+            "detail": "Call · 24 hours · Québec",
+            "country": "CA",
+            "kind": "helpline"
+          },
+          {
+            "name": "Emergency",
+            "number": "911",
+            "detail": "If you are in danger now",
+            "country": "CA",
+            "kind": "emergency"
+          }
+        ]
+      },
+      {
+        "country": "IN",
+        "helplines": [
+          {
+            "name": "Tele-MANAS helpline",
+            "number": "14416",
+            "detail": "Free · 24 hours · India",
+            "country": "IN",
+            "kind": "helpline"
+          },
+          {
+            "name": "Emergency",
+            "number": "112",
+            "detail": "If you are in danger now",
+            "country": "IN",
+            "kind": "emergency"
+          }
+        ]
+      },
+      {
+        "country": "US",
+        "helplines": []
+      },
+      {
+        "country": "GB",
+        "helplines": []
+      },
+      {
+        "country": "ca",
+        "helplines": []
+      },
+      {
+        "country": "IND",
+        "helplines": []
+      },
+      {
+        "country": "",
+        "helplines": []
+      }
+    ]
+  },
   "insights": [
     {
       "name": "an empty journal",

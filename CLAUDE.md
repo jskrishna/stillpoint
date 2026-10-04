@@ -76,6 +76,27 @@ numbers; both were checked by reverting the screens and rebuilding. Note what
 this was: the list above says the helplines "have been moved already", and they
 had been — in the domain. Three call sites had their own copy of the answer.
 
+**The numbers are compared across both languages now**, which they were not.
+`helplinesFor()` and `Helpline::forCountry()` each had their own tests and
+nothing checked they said the same thing — of everything here that could
+drift, the one where drift means somebody in crisis dialling a number that
+does not answer where they are. It got sharper rather than quieter when the
+session screen started reading the TypeScript list itself on a turn that never
+reached the server: a divergence would show one person two different sets of
+numbers in the same minute, depending on whether their request arrived.
+`parity/cases.json` carries every country, every field and the order, and the
+unknown ones as cases rather than an afterthought. Checked by giving Canada
+112: exactly the `CA` case goes red.
+
+`'ca'` is in that fixture on purpose. Neither language lowercases, so a
+country stored in the wrong case gets the empty list that is the right answer
+for a country we do not serve — and a Canadian would be looking at a pause
+screen with nothing on it. **Nothing writes `users.country` today**: no route
+accepts one, the profile update whitelists three unrelated fields, and the
+column default is the only value it ever has. The day a route does accept a
+country it has to validate against `COUNTRIES` / `isCountryCode()`, and the
+reason is that paragraph rather than tidiness.
+
 `users.country` defaults to `CA`. It covered India only until Canada became the
 first market — so a Canadian who said they were not safe had their session
 stopped, saw the pause screen, and had nothing to call on it. The test that

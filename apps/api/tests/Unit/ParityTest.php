@@ -8,6 +8,7 @@ use App\Domain\CalmerRating;
 use App\Domain\CoachSharing;
 use App\Domain\CoachView;
 use App\Domain\FeelingId;
+use App\Domain\Helpline;
 use App\Domain\Insights;
 use App\Domain\LiteralExtraction;
 use App\Domain\PhraseRiskScreen;
@@ -59,6 +60,18 @@ final class ParityTest extends TestCase
     }
 
     /** @return array<string, array{array<string, mixed>}> */
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function helplineCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['helplines']['forCountry'] as $case) {
+            $where = $case['country'] === '' ? 'an empty country' : $case['country'];
+            $out[$where] = [$case];
+        }
+
+        return $out;
+    }
+
     /** @return array<string, array{array<string, mixed>}> */
     public static function insightsCases(): array
     {
@@ -168,6 +181,40 @@ final class ParityTest extends TestCase
             'limit' => $decision['allowed'] ? null : ($decision['limit'] ?? null),
             'left' => $plan->fullSessionsLeft($case['used']),
         ], "Plan parity broke on: {$case['plan']} / {$case['kind']} after {$case['used']}");
+    }
+
+    /**
+     * The crisis numbers themselves.
+     *
+     * Of everything in this repository that could drift between the two
+     * languages, this is the one where drift means somebody in crisis dialling
+     * a number that does not answer where they are. Each side had its own
+     * tests and nothing compared them — and the session screen now reads the
+     * TypeScript list itself when a turn never reaches the server, so a
+     * divergence would show one person two different sets of numbers in the
+     * same minute depending on whether their request arrived.
+     */
+    public function test_the_known_countries_agree(): void
+    {
+        $this->assertSame(self::cases()['helplines']['countries'], Helpline::COUNTRIES);
+        $this->assertSame(self::cases()['helplines']['defaultCountry'], Helpline::DEFAULT_COUNTRY);
+    }
+
+    /** @param array<string, mixed> $case */
+    #[DataProvider('helplineCases')]
+    public function test_the_crisis_numbers_agree(array $case): void
+    {
+        $this->assertSame(
+            $case['helplines'],
+            array_map(fn (Helpline $h) => [
+                'name' => $h->name,
+                'number' => $h->number,
+                'detail' => $h->detail,
+                'country' => $h->country,
+                'kind' => $h->kind,
+            ], Helpline::forCountry($case['country'])),
+            "Helpline parity broke on: {$case['country']}",
+        );
     }
 
     /**
