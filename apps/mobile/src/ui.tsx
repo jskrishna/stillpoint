@@ -113,7 +113,25 @@ export function Field({
   multiline?: boolean;
   autoFocus?: boolean;
   keyboard?: 'default' | 'email-address';
-  autoComplete?: 'email' | 'password' | 'new-password' | 'name';
+  /**
+   * The autofill hint, and **`'password'` is deliberately not one of the
+   * options.**
+   *
+   * React Native's own types list `current-password` and `new-password` under
+   * "work across platforms" and `password` under "Android only", so
+   * `autoComplete="password"` was a hint iOS drops: somebody with the account's
+   * password in iCloud Keychain was offered nothing on the screen that asks for
+   * it, on a product whose rule is twelve characters — which is exactly the
+   * length people keep in a manager rather than in their head. The web app has
+   * said `current-password` all along, so the two surfaces disagreed about one
+   * field.
+   *
+   * It is narrowed here rather than corrected at the two call sites because the
+   * value that works everywhere and the value that is Android-only differ by a
+   * word, and the wrong one fails silently on the platform nobody here can
+   * test on.
+   */
+  autoComplete?: 'email' | 'current-password' | 'new-password' | 'name';
 }) {
   const { c, s } = useTheme();
 

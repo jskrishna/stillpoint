@@ -363,7 +363,7 @@ export default function Settings() {
             value={erasePassword}
             onChange={setErasePassword}
             secure
-            autoComplete="password"
+            autoComplete="current-password"
           />
           <Field
             label={`Type ${api.DELETE_CONFIRMATION} to confirm`}

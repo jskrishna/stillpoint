@@ -90,7 +90,7 @@ export default function Welcome() {
         value={password}
         onChange={setPassword}
         secure
-        autoComplete={creating ? 'new-password' : 'password'}
+        autoComplete={creating ? 'new-password' : 'current-password'}
       />
 
       {error === null ? null : (

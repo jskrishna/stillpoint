@@ -114,7 +114,41 @@ await page.waitForTimeout(2500);
 if ((await body()).includes('Welcome to Stillpoint')) ok('the app boots');
 else bad('the app boots', (await body()).slice(0, 300));
 
+/*
+ * The autofill hint on the password field, in both of this screen's modes.
+ *
+ * React Native Web passes `autoComplete` straight through to the DOM, so the
+ * attribute here is the same string the native platforms are handed — which
+ * makes this the one place the value is visible without a phone.
+ *
+ * It said `password`, which React Native's own types list under "Android
+ * only": `current-password` and `new-password` are the two that work
+ * everywhere. So iOS dropped the hint and offered nothing from the keychain,
+ * on the screen that asks for a password the product requires to be twelve
+ * characters — the length people keep in a manager rather than in their head.
+ * The same field in `apps/web` has said `current-password` all along, so the
+ * two surfaces disagreed about one attribute.
+ *
+ * Asserted before the mode is toggled, because sign-in is the mode with the
+ * wrong value in it; register mode's `new-password` was already right and is
+ * checked below so a later edit cannot swap them.
+ */
+const hintOn = async (label) => page.getByLabel(label).first().getAttribute('autocomplete');
+
+const signInHint = await hintOn('Password');
+if (signInHint === 'current-password') ok(`signing in asks for ${signInHint}`);
+else
+  bad(
+    'signing in asks for current-password',
+    `the password field's autocomplete is ${JSON.stringify(signInHint)} — "password" is Android-only, so iOS offers nothing`,
+  );
+
 await press('Create an account instead');
+
+const registerHint = await hintOn('Password');
+if (registerHint === 'new-password') ok(`registering asks for ${registerHint}`);
+else bad('registering asks for new-password', `it is ${JSON.stringify(registerHint)}`);
+
 const email = `mobile+${String(Date.now())}@example.com`;
 await page.getByLabel('Name').fill('Mobile Tester');
 await page.getByLabel('Email').fill(email);

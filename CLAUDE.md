@@ -1621,6 +1621,36 @@ The entry screen is **not** inside the tabs layout, so there is no tab bar on
 it — `← Journal` is what it has instead — and the export is served by a plain
 file server, so reloading a client-side route asks for a file that is not
 there. Both scripts navigate through the app's own controls for those reasons.
+
+**And "navigate through the controls" is not a style preference — a direct URL
+into that export measures nothing, twice over.** Measured while auditing the
+phone's screens: `/settings` is a 404 whose own error page carries a `<title>`,
+so axe passes it having looked at the file server; `/(tabs)/settings.html` is
+served, and then expo-router matches no route for that path and renders
+**"Unmatched Route"**, which also passes. A run over nine screens that way
+came back with one tidy finding on all nine, and every one of those nine
+measurements was of a page the app does not have. Only `/` and `/welcome/` are
+reachable by URL. The one real finding in that sweep came from reading the
+source and React Native's own types instead.
+
+**That finding: the phone asked iOS for an autofill hint iOS does not have.**
+The password field's `autoComplete` was `'password'`, which React Native's own
+types list under "Android only" — `current-password` and `new-password` are the
+two that work across platforms. So somebody with the account's password in
+iCloud Keychain was offered nothing on the screen that asks for it, on a
+product whose rule is twelve characters, which is the length people keep in a
+manager rather than in their head. The same field in `apps/web` has said
+`current-password` since it was written, so the two surfaces disagreed about
+one attribute and the one that was wrong was the one nobody here can test.
+
+`Field`'s prop type no longer admits `'password'` at all, rather than the two
+call sites being corrected: the value that works everywhere and the
+Android-only one differ by a word, and the wrong one fails silently on the
+platform with no device on CI. React Native Web passes `autoComplete` straight
+through to the DOM, so `mobile.mjs` can read the attribute the native
+platforms are handed — it asserts `current-password` before the screen is
+toggled into register mode and `new-password` after, so a later edit cannot
+swap them. Checked by putting `'password'` back: red by name, not by timeout.
 `flow.mjs` is the web app's: register, consent, a full session, a reply lost on
 the way back, journal, insights, settings, the safety stop, sign-out and a
 forgotten password reset. It
