@@ -26,6 +26,17 @@ languages. It cannot read tone, context, metaphor or irony. It misses whole
 languages silently — `quiero morirme` is "I want to kill myself" and the screen
 reports nothing at all, with confidence.
 
+And **which answer somebody gets depends on their keyboard**, which is the
+version of that to put in front of a reviewer: "ਮੈਂ ਮਰਨਾ ਚਾਹੁੰਦਾ ਹਾਂ" in Gurmukhi is
+answered "I could not read this", and `main marna chahunda han` — the same
+words, typed on a Latin keyboard, which is how a great many people type on a
+phone — comes back as nothing found. The pack prints that table from the screen
+itself, for Punjabi, Mandarin and Russian, with Hindi beside them as the one
+language it gets right both ways and therefore as the price of getting any of
+them right: somebody wrote out the Hinglish spellings by hand. Punjabi,
+Mandarin, Cantonese, Arabic and Tagalog all have large communities in Canada,
+which is the first market.
+
 It was built to be a backstop so the obvious cases cannot be missed while a
 real classifier is chosen. It has been the only thing there for a while.
 
@@ -314,12 +325,26 @@ honest about both halves:
   live regions are verified and the spoken announcement is item 6.
 - No third-party origin is contacted from any screen, asserted by a real
   browser.
-- 657 TypeScript tests, 585 PHP tests, a cross-language parity fixture both
-  suites assert against, and seven end-to-end scripts — `pnpm run e2e`. Every one
-  of the phone's eleven screens is rendered by one of them, and every one of
-  the web app's twenty routes is audited by `a11y.mjs`; both of those sentences
-  were false until recently, and a count in a list like this is exactly the
-  kind nothing checks.
+- A cross-language parity fixture both suites assert against, and seven
+  end-to-end scripts — `pnpm run e2e`. Every one of the phone's eleven screens
+  is rendered by one of them, and every one of the web app's twenty routes is
+  audited by `a11y.mjs`; both of those sentences were false until recently.
+
+  The test counts used to be written out here, and they went stale in the one
+  bullet that warns "a count in a list like this is exactly the kind nothing
+  checks" — which is the joke this document keeps telling at its own expense.
+  So they are commands instead, and each prints its own number:
+
+  ```bash
+  pnpm run test            # the TypeScript suites
+  cd apps/api && ./vendor/bin/phpunit
+  find apps/mobile/src/app -name '*.tsx' ! -name '_layout.tsx' | wc -l   # 11
+  find apps/web/src/app -name page.tsx | wc -l                           # 20
+  ls e2e/*.mjs | grep -vE 'browser|report|run' | wc -l                   # 7
+  ```
+
+  The three with a number beside them are the claims above, and they are
+  checkable in a second rather than believable.
 
 A green build means "this will start". It does not mean "this is ready", and
 items 1 to 3 are why.
