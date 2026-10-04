@@ -190,31 +190,49 @@ final class GrantingAPlanTest extends TestCase
         $this->assertNull(Plan::Plus->fullSessionsPerWeek());
     }
 
+    /**
+     * `created_at` is not unique, so the ordering ends in `id`.
+     *
+     * This test used to read two pages and assert the second did not repeat
+     * the first, with a comment saying a tie with no tiebreaker makes a page
+     * repeat a row — and it **passed with the tiebreaker removed**. Two pages
+     * of two out of five rows is not where an unstable sort shows itself;
+     * walking to exhaustion and counting is. Measured after taking
+     * `orderByDesc('id')` out: the old shape stayed green, this one sees 1 row
+     * of 5.
+     *
+     * That is the hazard being written down and not covered, which is the
+     * failure the parity fixture's own notes describe. A comment is not a case.
+     */
     public function test_the_trail_pages_and_never_repeats_a_row(): void
     {
-        // `created_at` is not unique, so the ordering ends in `id`. A tie with
-        // no tiebreaker makes a page repeat a row.
         $admin = User::factory()->admin()->create();
         Sanctum::actingAs($admin);
 
+        // One `now()` for all five, because that is what makes `created_at` a
+        // tie — and what a script granting plans in a loop does anyway.
+        $this->travelTo(now());
         foreach (range(1, 5) as $n) {
             $user = User::factory()->create(['email' => "p{$n}@example.com"]);
             $this->patchJson("/api/admin/users/{$user->id}/plan", ['plan' => 'plus'])
                 ->assertSuccessful();
         }
 
-        $first = $this->getJson('/api/admin/plan-changes?limit=2')->assertSuccessful()->json();
-        $this->assertCount(2, $first['items']);
+        $seen = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/admin/plan-changes?limit=1'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $page->assertSuccessful();
+            $seen = [...$seen, ...array_column($page->json('items'), 'id')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        // Every row exactly once. A repeat and an omission are the same bug.
+        $this->assertCount(5, $seen);
+        $this->assertCount(5, array_unique($seen));
+
+        $first = $this->getJson('/api/admin/plan-changes')->assertSuccessful()->json();
         $this->assertSame(5, $first['total']);
-        $this->assertNotNull($first['nextCursor']);
-
-        $second = $this->getJson('/api/admin/plan-changes?limit=2&cursor='.$first['nextCursor'])
-            ->assertSuccessful()->json();
-
-        $ids = array_column($first['items'], 'id');
-        foreach ($second['items'] as $row) {
-            $this->assertNotContains($row['id'], $ids);
-        }
         $this->assertSame('free', $first['items'][0]['fromPlan']);
         $this->assertSame('plus', $first['items'][0]['toPlan']);
     }

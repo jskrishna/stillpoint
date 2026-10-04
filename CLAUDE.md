@@ -1578,9 +1578,11 @@ flattering the numbers.
 
 ## The API pages, and is bounded
 
-Four endpoints are paged, and they are the only ones with an envelope:
-`GET /journal`, `GET /admin/safety-flags`, `GET /admin/users` and
-`GET /admin/role-changes`. Everything else is a bare resource or a bare array.
+Five endpoints are paged, and they are the only ones with an envelope:
+`GET /journal`, `GET /admin/safety-flags`, `GET /admin/users`,
+`GET /admin/role-changes` and `GET /admin/plan-changes`. Everything else is a
+bare resource or a bare array. This paragraph said four for as long as the plan
+trail existed, which is the drift it is itself a list to prevent.
 
 ```json
 { "items": [...], "nextCursor": "..." | null, "total": 42 }
@@ -1593,7 +1595,24 @@ requests. For the queue that would mean a reviewer never seeing a flag.
 A cursor is built from the ordering columns, so **every one of those orderings
 ends in `id`** — `occurred_at`, `raised_at`, a name and `created_at` are none of
 them unique, and a tie with no tiebreaker makes a page repeat a row. Check that
-when adding a paged list; it is the whole reason the rule is written down. The
+when adding a paged list; it is the whole reason the rule is written down.
+
+**And it is asserted on all five now, which it was not.** The journal and the
+queue had tie tests; the accounts list, the role trail and the plan trail did
+not, and `name` is the least unique column of the four — two people called Asha
+Verma is a Tuesday, not a contrived case. Measured by taking each tiebreaker
+out one at a time: an admin paging accounts one at a time sees **2 of 5** and
+the paging stops, and the role trail shows **1 of 4** grants. On the trail of
+who was given the safety queue, three grants simply invisible.
+
+The plan trail is the one worth noting, because it had a test and the test did
+not cover it. It read two pages and asserted the second did not repeat the
+first, under a comment saying that a tie with no tiebreaker makes a page repeat
+a row — and it **passed with the tiebreaker removed**. Two pages of two out of
+five rows is not where an unstable sort shows itself; walking to exhaustion and
+counting is. All five walk to exhaustion and assert the count and the
+uniqueness, because a repeat and an omission are the same bug. A comment is not
+a case. The
 queue's severity is a stored `severity` column for the same reason: it used to
 be a `CASE level ...` expression, which sorts correctly
 but is not a column a cursor can read, and two pages overlapped. The rank itself

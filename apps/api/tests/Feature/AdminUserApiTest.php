@@ -240,6 +240,77 @@ final class AdminUserApiTest extends TestCase
         $this->assertSame('admin@example.com', $trail->json('items.0.changedByEmail'));
     }
 
+    /**
+     * Two accounts with the same name must still have a settled order.
+     *
+     * `CLAUDE.md` says every paged ordering ends in `id` because "a tie with
+     * no tiebreaker makes a page repeat a row", and this list is ordered by
+     * `name` — which is the least unique column of the four. Two people called
+     * Asha Verma is not a contrived case the way two flags in the same second
+     * is; it is a Tuesday. The rule was right here and nothing asserted it, so
+     * dropping the `orderBy('id')` would have been silent: an admin paging
+     * accounts would see one twice and another never.
+     *
+     * Checked by removing that line — this goes red and nothing else does.
+     */
+    public function test_paging_accounts_is_stable_when_names_collide(): void
+    {
+        $admin = User::factory()->admin()->create(['name' => 'Admin', 'email' => 'admin@example.com']);
+        for ($i = 0; $i < 4; $i++) {
+            User::factory()->create(['name' => 'Asha Verma', 'email' => "asha{$i}@example.com"]);
+        }
+
+        Sanctum::actingAs($admin);
+
+        $seen = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/admin/users?limit=1'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $page->assertOk();
+            $seen = [...$seen, ...array_column($page->json('items'), 'id')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        // Five accounts, each exactly once. A repeat and an omission are the
+        // same bug and this catches both: the count and the uniqueness.
+        $this->assertCount(5, $seen);
+        $this->assertCount(5, array_unique($seen));
+    }
+
+    /**
+     * And two role changes in the same second.
+     *
+     * This trail is ordered by `created_at` descending, and two grants made
+     * back to back land on the same second routinely — the test above this one
+     * makes two. It is the trail of who was given the safety queue, so a row
+     * that pages out of sight is a grant nobody can see was made.
+     */
+    public function test_paging_the_role_trail_is_stable_when_changes_share_a_second(): void
+    {
+        $admin = User::factory()->admin()->create(['email' => 'admin@example.com']);
+        $users = User::factory()->count(4)->create();
+
+        Sanctum::actingAs($admin);
+        // One `now()` for all four, which is what a script or a quick hand does
+        // anyway — and what `created_at` cannot tell apart.
+        $this->travelTo(now());
+        foreach ($users as $user) {
+            $this->patchJson("/api/admin/users/{$user->id}", ['role' => 'coach'])->assertOk();
+        }
+
+        $seen = [];
+        $cursor = null;
+        do {
+            $page = $this->getJson('/api/admin/role-changes?limit=1'.($cursor === null ? '' : "&cursor={$cursor}"));
+            $page->assertOk();
+            $seen = [...$seen, ...array_column($page->json('items'), 'id')];
+            $cursor = $page->json('nextCursor');
+        } while ($cursor !== null);
+
+        $this->assertCount(4, $seen);
+        $this->assertCount(4, array_unique($seen));
+    }
+
     public function test_the_trail_is_admin_only(): void
     {
         Sanctum::actingAs(User::factory()->coach()->create());
