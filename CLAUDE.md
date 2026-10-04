@@ -911,6 +911,60 @@ remember it has a gap behind the next caller. A safety flag's excerpt is
 deliberately untouched — that is the queue's, and a safety-stopped session never
 had an entry to delete.
 
+## A screen must not report an absence it only failed to read
+
+This is a class rather than one bug, and it was found by one: the console's
+role trail printed "No role has been changed yet." when the request that
+answers that had failed. Audited across both client surfaces afterwards, and
+the distinction that came out of it is the one to apply to the next screen.
+
+**A false sentence is the bug. Missing information is not.** Three screens made
+a definite statement out of a failed request, and all three are fixed:
+
+- **"Nobody. A coach can only read a session after you have shared it with
+  them."** — the phone's settings screen set the coach list to empty when
+  `GET /me/coaches` failed. This is the screen that answers "who can read my
+  sessions". Measured against the running app with the demo client, who is
+  paired: with the request answering it listed Meera and offered "Stop
+  sharing"; with it failing it said nobody could see anything, and the only
+  control for revoking it was gone with the list. A sharing rule the sharer
+  cannot inspect is a promise about somebody else's behaviour; one that answers
+  wrongly, in the reassuring direction, is worse than one that admits it does
+  not know. The web's settings screen was already right, by accident of
+  structure — the coach read shares a `Promise.all` with the profile, so it
+  fails closed and the screen blanks.
+- **The home screen's "Start talking" with no warning**, on _both_ surfaces,
+  when `GET /sessions/current` failed. `null` is that screen's word for
+  "nothing is open", and `POST /sessions` ends whatever is, as `user_stopped` —
+  so a dropped request turned the next tap into the session they were part-way
+  through closed, and on a free plan one of three spent to do it, with nothing
+  having said so. The same line and the same bug in both files, which is what
+  the one-client rule exists to prevent and did not; the replacement wording is
+  identical in both for that reason. It is never withheld: somebody who is
+  upset is not told to come back because the network is poor, so the start
+  buttons stay and the cost is stated instead of assumed away.
+- **"We don't recognise this link. Ask your coach to send you a new
+  invitation."** — the invite screen said that for every failure, not only for
+  "there is no such invitation". Only 404 and 410 mean that now; anything else
+  says it could not check. That route is in the `guessable` rate limiter, so a
+  429 was a real way to reach it, and whoever holds the link has no account and
+  no other way in. Note the ordering trap, which cost a run: the catch leaves
+  `invitation` undefined because `null` means "unrecognised", so the new branch
+  has to sit **above** the loading branch or the screen says "Loading…" for
+  ever.
+
+**Left alone, deliberately:** the admin nav's open-flag badge (hidden rather
+than shown as `0`), the coach's waiting-to-be-accepted list (renders nothing),
+the home screens' allowance line, and the session screen falling back to a
+typed session when the voice preference cannot be read. None of them asserts
+anything; they show less. Fixing those would mean inventing a visual the design
+set does not have, which is the same mistake as inventing step copy.
+
+`e2e/flow.mjs`, `e2e/mobile.mjs`, `e2e/coach.mjs` and `e2e/admin.mjs` each
+block the one request and assert the screen says it could not tell — and, in
+the same place, that it does not say the reassuring thing. All four were
+checked by taking the fix out and rebuilding.
+
 ## A forgotten password is not a lost journal
 
 `auth/forgot-password` and `auth/reset-password` use Laravel's password broker.

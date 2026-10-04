@@ -281,6 +281,30 @@ if (!coachSignedIn) {
   if (/only.*when you choose to share/is.test(offered)) ok('it states what a coach will see');
   else bad('it states what a coach will see');
 
+  // A link that could not be checked is not a link that is wrong. Any failure
+  // used to land on "We don't recognise this link. Ask your coach to send you
+  // a new invitation." — a definite statement about a perfectly good link,
+  // which sends somebody to ask their coach to reissue it for nothing. This
+  // route is in the `guessable` rate limiter, so a 429 is a real way to get
+  // there, and whoever holds the link has no account and no other way in.
+  await client.route('**/invites/*', (route) => route.abort());
+  await client.goto(link, { waitUntil: 'domcontentloaded' });
+  const couldNot = await client
+    .waitForFunction(() => /Could not check this link/.test(document.body.innerText), null, {
+      timeout: 15000,
+    })
+    .then(
+      () => true,
+      () => false,
+    );
+  const unchecked = await client.locator('body').innerText();
+  await client.unroute('**/invites/*');
+
+  if (couldNot) ok('a link that could not be checked says so');
+  else bad('a link that could not be checked says so', unchecked.slice(0, 400));
+  if (!/don’t recognise this link/.test(unchecked)) ok('and is not called unrecognised');
+  else bad('and is not called unrecognised', 'it told them the link is wrong');
+
   await client.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
   await client.getByRole('button', { name: 'Create an account instead' }).click();
   await client.getByLabel('Name').fill('Newly Invited');

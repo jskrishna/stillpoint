@@ -20,14 +20,39 @@ export default function AcceptInvite({ token }: { token: string }) {
   const [accepted, setAccepted] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * The server's own reason for not showing an invitation, when it is not
+   * "there is no such invitation". Those are different answers and this screen
+   * used to give the first one for both.
+   */
+  const [unreachable, setUnreachable] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     api
       .invitation(token)
-      .then(setInvitation)
-      .catch(() => {
-        setInvitation(null);
+      .then((found) => {
+        setInvitation(found);
+        setUnreachable(null);
+      })
+      .catch((e: unknown) => {
+        // Only the server saying there is no such invitation means there is no
+        // such invitation. Anything else — a dropped request, a 5xx, a 429 —
+        // used to land on "We don't recognise this link. Ask your coach to
+        // send you a new invitation.", which is a definite statement about a
+        // link that may be perfectly good, and it sends somebody to ask their
+        // coach to reissue it for nothing. This route is in the `guessable`
+        // rate limiter, so a 429 is a real way to reach it.
+        const gone = e instanceof ApiError && (e.status === 404 || e.status === 410);
+        if (gone) {
+          setInvitation(null);
+          return;
+        }
+        setUnreachable(
+          e instanceof ApiError && e.message !== ''
+            ? e.message
+            : 'Could not check this link. Check your connection and try again.',
+        );
       });
   }, [token]);
 
@@ -53,6 +78,35 @@ export default function AcceptInvite({ token }: { token: string }) {
       setBusy(false);
     }
   };
+
+  // Above the loading branch on purpose. The catch sets this and leaves
+  // `invitation` undefined — null is reserved for "there is no such
+  // invitation" — so ordered the other way round, a link that could not be
+  // checked said "Loading…" for ever instead of saying so.
+  if (unreachable !== null) {
+    return (
+      <div className={styles.screen}>
+        <h1 className={styles.title}>Could not check this link</h1>
+        <p className={styles.lead} role="alert">
+          {unreachable} This does not mean the link is wrong.
+        </p>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={styles.button}
+            onClick={() => {
+              window.location.reload();
+            }}
+          >
+            Try again
+          </button>
+          <Link href="/welcome" className={`${styles.button} ${styles.secondary}`}>
+            Go to Stillpoint
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (invitation === undefined) {
     return (

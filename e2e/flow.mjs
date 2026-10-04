@@ -286,6 +286,45 @@ else bad('and says which step it was on', athome.slice(0, 300));
 if (/uses another full session/.test(athome)) ok('and says what starting fresh costs');
 else bad('and says what starting fresh costs');
 
+// And when the screen could not find out, it must not answer as though
+// nothing were open. `POST /sessions` ends whatever is, as `user_stopped`, so
+// the branch with no offer to resume and no warning is the one that closes a
+// session somebody was part-way through and spends one of three to do it — and
+// a dropped `GET /sessions/current` set `open` to null, which is this screen's
+// word for "nothing is open", and landed exactly there. On mobile data that is
+// not an edge case. The phone app had the same line and the same bug.
+await leftOff.route('**/sessions/current', (route) => route.abort());
+await leftOff.goto(`${WEB}/app`, { waitUntil: 'domcontentloaded' });
+const askedAnyway = await leftOff
+  .waitForFunction(
+    () => /Could not check whether you left a session open/.test(document.body.innerText),
+    null,
+    { timeout: 15000 },
+  )
+  .then(
+    () => true,
+    () => false,
+  );
+const blindHome = await leftOff.locator('body').innerText();
+await leftOff.unroute('**/sessions/current');
+
+if (askedAnyway) ok('a home screen that could not ask says so');
+else bad('a home screen that could not ask says so', blindHome.slice(0, 400));
+if (/uses another full session/.test(blindHome)) ok('and still says what starting would cost');
+else bad('and still says what starting would cost', blindHome.slice(0, 400));
+// Never withheld. Somebody who is upset is not told to come back because the
+// network was poor; what changes is that the cost is stated.
+if (/Start talking/.test(blindHome)) ok('and still lets them start');
+else bad('and still lets them start', blindHome.slice(0, 400));
+
+// Back to a screen that can ask, for the rest of this section.
+await leftOff.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
+await leftOff.waitForFunction(
+  () => document.body.innerText.includes('Carry on where you left off'),
+  null,
+  { timeout: 15000 },
+);
+
 const spentBefore = await leftOff.evaluate(async () => {
   const token = window.localStorage.getItem('stillpoint.token.v1');
   const me = await fetch('http://localhost:8000/api/me', {

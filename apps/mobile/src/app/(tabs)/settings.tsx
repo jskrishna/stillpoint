@@ -34,6 +34,8 @@ export default function Settings() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [coaches, setCoaches] = useState<readonly ApiMyCoach[]>([]);
+  /** Whether this screen could not find out, which is not the same as nobody. */
+  const [coachesUnknown, setCoachesUnknown] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [now] = useState(() => new Date());
 
@@ -63,9 +65,25 @@ export default function Settings() {
 
       void api
         .myCoaches()
-        .then(setCoaches)
+        .then((mine) => {
+          setCoaches(mine);
+          setCoachesUnknown(false);
+        })
         .catch(() => {
-          setCoaches([]);
+          // Not `setCoaches([])`. An empty list is this screen's word for
+          // "Nobody. A coach can only read a session after you have shared it
+          // with them." — which it printed to somebody whose coach was reading
+          // two of their sessions, because the request that would have said so
+          // failed. Measured against the running app: with the request
+          // answering the screen listed Meera and offered "Stop sharing"; with
+          // it failing it said nobody could see anything, and the only control
+          // for revoking it was gone with the list.
+          //
+          // This is the screen that answers "who can read my sessions". A
+          // sharing rule the sharer cannot inspect is a promise about somebody
+          // else's behaviour; one that answers wrongly, in the reassuring
+          // direction, is worse than one that admits it does not know.
+          setCoachesUnknown(true);
         });
     }, [router]),
   );
@@ -165,7 +183,12 @@ export default function Settings() {
             void api
               .endCoaching(coach.id)
               .then(() => api.myCoaches())
-              .then(setCoaches)
+              .then((mine) => {
+                setCoaches(mine);
+                // Or a list read successfully here would stay hidden behind an
+                // earlier failure's message.
+                setCoachesUnknown(false);
+              })
               .catch((e: unknown) => {
                 setProblem(describe(e));
               });
@@ -254,7 +277,12 @@ export default function Settings() {
       </Group>
 
       <Group label="Who can see your sessions">
-        {coaches.length === 0 ? (
+        {coachesUnknown ? (
+          <Text style={s.caption}>
+            Could not check who can see your sessions. This does not mean nobody can — open this
+            screen again to try.
+          </Text>
+        ) : coaches.length === 0 ? (
           <Text style={s.caption}>
             Nobody. A coach can only read a session after you have shared it with them.
           </Text>

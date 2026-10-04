@@ -16,6 +16,11 @@ export default function Today() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [open, setOpen] = useState<ApiSession | null>(null);
+  /**
+   * Whether this screen could not find out, which is not the same as there
+   * being nothing open — and the difference costs a session.
+   */
+  const [openUnknown, setOpenUnknown] = useState(false);
   const [entries, setEntries] = useState<readonly ApiJournalEntry[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
@@ -46,9 +51,22 @@ export default function Today() {
       // between spending one of three and spending two.
       void api
         .currentSession()
-        .then(setOpen)
+        .then((current) => {
+          setOpen(current);
+          setOpenUnknown(false);
+        })
         .catch(() => {
-          setOpen(null);
+          // Not `setOpen(null)`. Null is this screen's word for "nothing is
+          // open", which is the branch with no offer to resume and no warning
+          // — and `POST /sessions` ends whatever *is* open as `user_stopped`.
+          // So a dropped request turned the next tap into: the session they
+          // were part-way through closed, and on a free plan one of three
+          // spent to do it, with nothing on the screen having said so. A
+          // failed read is not evidence that there is nothing to carry on
+          // from. The web app had the same line and the same bug; the words
+          // below are the same words, because two surfaces disagreeing about
+          // what a session costs is the next failure after this one.
+          setOpenUnknown(true);
         });
 
       void api
@@ -110,6 +128,18 @@ export default function Today() {
               router.push('/session?kind=quick');
             }}
           />
+          {/*
+            Never withheld: somebody who is upset is not told to come back when
+            the signal is poor, which on a phone is most of the time this
+            happens. What the failure changes is that the cost is stated rather
+            than assumed away.
+          */}
+          {openUnknown ? (
+            <Text style={s.caption}>
+              Could not check whether you left a session open. Starting something new closes
+              anything that is, and uses another full session.
+            </Text>
+          ) : null}
         </>
       ) : (
         <>

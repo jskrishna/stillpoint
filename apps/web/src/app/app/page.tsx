@@ -21,6 +21,11 @@ export default function Home() {
   const [failed, setFailed] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [open, setOpen] = useState<ApiSession | null>(null);
+  /**
+   * Whether this screen could not find out, which is not the same as there
+   * being nothing open — and the difference costs a session.
+   */
+  const [openUnknown, setOpenUnknown] = useState(false);
   const router = useRouter();
 
   // Fetched after mount with the user's token, which the server has no access
@@ -47,9 +52,19 @@ export default function Home() {
     // between spending one of three and spending two.
     api
       .currentSession()
-      .then(setOpen)
+      .then((current) => {
+        setOpen(current);
+        setOpenUnknown(false);
+      })
       .catch(() => {
-        setOpen(null);
+        // Not `setOpen(null)`. Null is this screen's word for "nothing is
+        // open", which is the branch with no offer to resume and no warning —
+        // and `POST /sessions` ends whatever *is* open as `user_stopped`. So a
+        // dropped request turned the next tap into: the session they were
+        // part-way through closed, and on a free plan one of three spent to do
+        // it, with nothing on the screen having said so. A failed read is not
+        // evidence that there is nothing to carry on from.
+        setOpenUnknown(true);
       });
 
     api
@@ -93,6 +108,18 @@ export default function Home() {
           <Link href="/session?kind=quick" className={styles.quietCta}>
             Or a quick session
           </Link>
+
+          {/*
+            Never withheld: somebody who is upset is not told to come back when
+            the network is poor. What the failure changes is that the cost is
+            stated rather than assumed away.
+          */}
+          {openUnknown ? (
+            <p className={styles.allowance} role="alert">
+              Could not check whether you left a session open. Starting something new closes
+              anything that is, and uses another full session.
+            </p>
+          ) : null}
         </>
       ) : (
         <>

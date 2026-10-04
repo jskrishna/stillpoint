@@ -285,6 +285,57 @@ if (serverSays.entries === 1) ok('the safety-stopped session left no journal row
 else bad('the safety-stopped session left no journal row', String(serverSays.entries));
 
 // ---------------------------------------------------------------------------
+console.log('\n5b. Who can see your sessions, and when the app cannot tell');
+
+// Back in through the app's own entry point first: the safety stop above
+// leaves it on the session screen, which is outside the tab layout, so there
+// is no tab bar to tap — and the static export is served by a plain file
+// server, so `/settings` is a 404 rather than `settings.html`.
+await page.goto(APP, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+await page.getByRole('tab', { name: 'Settings' }).click();
+await page.waitForTimeout(3000);
+
+const settings = await body();
+if (/Nobody\. A coach can only read a session/.test(settings))
+  ok('with the request answering, the screen says nobody can');
+else bad('with the request answering, the screen says nobody can', settings.slice(-500));
+
+// This is the screen that answers "who can read my sessions", and it set the
+// list to empty when the request failed — so it printed that reassuring
+// sentence to somebody whose coach was reading two of their shared sessions,
+// and took away the "Stop sharing" button with the list. Measured against the
+// running app with the demo client, who is paired: with the request answering
+// it listed Meera and offered to stop; with it failing it said nobody could
+// see anything at all.
+//
+// A sharing rule the sharer cannot inspect is a promise about somebody else's
+// behaviour. One that answers wrongly, in the reassuring direction, is worse
+// than one that admits it does not know.
+await page.route('**/me/coaches', (route) => route.abort());
+await page.getByRole('tab', { name: 'Journal' }).click();
+await page.waitForTimeout(1200);
+await page.getByRole('tab', { name: 'Settings' }).click();
+const admitted = await page
+  .waitForFunction(
+    () => /Could not check who can see your sessions/.test(document.body.innerText),
+    null,
+    { timeout: 15000 },
+  )
+  .then(
+    () => true,
+    () => false,
+  );
+const blindSettings = await body();
+await page.unroute('**/me/coaches');
+
+if (admitted) ok('with it failing, the screen says it could not check');
+else bad('with it failing, the screen says it could not check', blindSettings.slice(-500));
+if (!/Nobody\. A coach can only read a session/.test(blindSettings))
+  ok('and does not say nobody can');
+else bad('and does not say nobody can', 'it told them nobody can see their sessions');
+
+// ---------------------------------------------------------------------------
 console.log('\n6. Where the app went, and whether anything threw');
 
 if (elsewhere.size === 0) ok('nothing left this origin');
