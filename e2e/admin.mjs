@@ -242,7 +242,14 @@ if (!signedIn) {
     await admin.locator('button', { hasText: 'Open only' }).click();
     await admin.waitForTimeout(1800);
 
-    await admin.route('**/admin/safety-flags*', async (route) => {
+    // Keyed on the **API's** URL, not `**/admin/safety-flags*`. A bare glob
+    // also matches this app's own `/admin/safety` page and the `_rsc`
+    // requests Next.js makes for it, so the handler was delaying navigations
+    // by 2.5s — and a page request still intercepted when the handler is
+    // removed is left unhandled, which the browser reports as a bare
+    // "Failed to fetch". That is what took this script out in CI, several
+    // sections after the block that installed it.
+    await admin.route(`${API}/admin/safety-flags*`, async (route) => {
       if (new URL(route.request().url()).search.includes('status=all'))
         await new Promise((r) => setTimeout(r, 2500));
       await route.continue();
@@ -251,7 +258,7 @@ if (!signedIn) {
     await admin.waitForTimeout(200);
     await admin.locator('button', { hasText: 'Open only' }).click();
     await admin.waitForTimeout(4000);
-    await admin.unroute('**/admin/safety-flags*');
+    await admin.unroute(`${API}/admin/safety-flags*`);
 
     const offering = await admin
       .locator('button', { hasText: /Include reviewed|Open only/ })
@@ -323,7 +330,9 @@ if (!signedIn) {
   // 1 admin`, every row of it — every account in the product, under a search
   // that matches none of them. The earlier query's answer is held back so it
   // lands second, which is the order a slow network produces by itself.
-  await admin.route('**/admin/users*', async (route) => {
+  // The API's URL, for the reason above: `**/admin/users*` also matches the
+  // page this check is standing on.
+  await admin.route(`${API}/admin/users*`, async (route) => {
     if (!new URL(route.request().url()).search.includes('q=zzzz-nobody'))
       await new Promise((r) => setTimeout(r, 2500));
     await route.continue();
@@ -332,7 +341,7 @@ if (!signedIn) {
   await admin.waitForTimeout(600); // long enough for the debounce to fire it
   await admin.getByLabel('Search accounts').fill('zzzz-nobody');
   await admin.waitForTimeout(4000);
-  await admin.unroute('**/admin/users*');
+  await admin.unroute(`${API}/admin/users*`);
 
   const searched = await admin.locator('body').innerText();
   const countLine = /\d+ accounts? · \d+ admins?/.exec(searched)?.[0] ?? 'no count line';
@@ -433,26 +442,39 @@ if (!signedIn) {
   await found.locator('select[aria-label^="Plan for"]').selectOption('plus');
 
   const planned = await (async () => {
+    let why;
     for (let i = 0; i < 30; i++) {
-      const read = await admin.evaluate(
-        async ([api, address]) => {
-          const token = window.localStorage.getItem('stillpoint.token.v1');
-          const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
-          const users = await fetch(`${api}/admin/users?q=${encodeURIComponent(address)}`, {
-            headers,
-          }).then((r) => r.json());
-          const trail = await fetch(`${api}/admin/plan-changes?limit=50`, { headers }).then((r) =>
-            r.json(),
-          );
-          const mine = (trail.items ?? []).filter((c) => c.userEmail === address);
-          return { plan: users.items?.[0]?.plan ?? null, change: mine[0] ?? null };
-        },
-        [API, mail],
-      );
+      // Caught, because an uncaught `page.evaluate` ends the script: a browser
+      // `fetch` that fails at the network level reports a bare "Failed to
+      // fetch" with no status, and this loop used to turn that into an
+      // uncaught throw that skipped sections 4 to 6 entirely. A named failure
+      // after thirty tries says what did not happen; a stack trace from
+      // inside an eval says where the script stopped.
+      const read = await admin
+        .evaluate(
+          async ([api, address]) => {
+            const token = window.localStorage.getItem('stillpoint.token.v1');
+            const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+            const users = await fetch(`${api}/admin/users?q=${encodeURIComponent(address)}`, {
+              headers,
+            }).then((r) => r.json());
+            const trail = await fetch(`${api}/admin/plan-changes?limit=50`, { headers }).then((r) =>
+              r.json(),
+            );
+            const mine = (trail.items ?? []).filter((c) => c.userEmail === address);
+            return { plan: users.items?.[0]?.plan ?? null, change: mine[0] ?? null };
+          },
+          [API, mail],
+        )
+        .catch((e) => ({ plan: null, change: null, why: String(e).slice(0, 140) }));
       if (read.plan === 'plus' && read.change !== null) return read;
+      why = read.why ?? why;
       await admin.waitForTimeout(500);
     }
-    return { plan: null, change: null };
+    // The last reason the read failed, if it ever did, rather than a bare null
+    // pair: "Failed to fetch" and "the grant never landed" need different
+    // next steps.
+    return { plan: null, change: null, ...(why === undefined ? {} : { why }) };
   })();
 
   if (planned.plan === 'plus') ok('an admin can grant a paid plan');
@@ -539,7 +561,7 @@ if (!signedIn) {
   // wrong says nobody has been granted the safety queue. It is the same shape
   // as the risk screen reporting `none` for text it could not read, and it was
   // found the same way: by a check believing it.
-  await admin.route('**/admin/role-changes*', (route) => route.abort());
+  await admin.route(`${API}/admin/role-changes*`, (route) => route.abort());
   await admin.reload({ waitUntil: 'domcontentloaded' });
 
   // Waits for the screen to have been told, not for the screen to exist. The
@@ -558,7 +580,7 @@ if (!signedIn) {
       () => false,
     );
   const blind = await admin.locator('body').innerText();
-  await admin.unroute('**/admin/role-changes*');
+  await admin.unroute(`${API}/admin/role-changes*`);
 
   if (saidSo) ok('an unreadable trail says so');
   else bad('an unreadable trail says so', blind.slice(-400));
