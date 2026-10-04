@@ -6,6 +6,14 @@
  *     pnpm run e2e --no-build   # servers and scripts only, nothing rebuilt
  *     pnpm run e2e --keep       # leave the servers up afterwards
  *
+ * And the same machinery with no checks, for showing somebody the product:
+ *
+ *     pnpm run demo             # seeded stack up, accounts printed, stays up
+ *
+ * That one exists because the first item in `LAUNCH.md` is a clinician reading
+ * the risk screen, and to ask anybody that you have to be able to put the
+ * product in front of them. It was six manual steps and knowing four logins.
+ *
  * Six manual steps across three servers is why this suite got skipped, and
  * skipping it is expensive: it is the only thing that executes `apps/mobile`
  * at all, and the only thing that runs the safety stop against a real server
@@ -146,7 +154,7 @@ async function build() {
   }
 
   const mobileBuilt = existsSync(join(root, 'apps/mobile/dist/index.html'));
-  const needsMobile = scripts.includes('mobile');
+  const needsMobile = scripts.includes('mobile') || flags.has('--demo');
   if (needsMobile && (!mobileBuilt || !flags.has('--no-build'))) {
     log('building the mobile app’s web export');
     if ((await run('pnpm', ['--filter', '@stillpoint/mobile', 'run', 'build'])) !== 0) return false;
@@ -211,7 +219,7 @@ async function main() {
     { name: 'the web app', url: 'http://127.0.0.1:3000/welcome', expect: [200], process: web },
   ];
 
-  if (scripts.includes('mobile')) {
+  if (scripts.includes('mobile') || flags.has('--demo')) {
     const mobile = start('the mobile export', 'python3', [
       '-m',
       'http.server',
@@ -233,6 +241,44 @@ async function main() {
   if (!(await waitForServers(servers))) {
     shutDown();
     return 1;
+  }
+
+  if (flags.has('--demo')) {
+    const password = process.env.SEED_PASSWORD ?? 'correct-horse-battery-staple';
+    console.log('');
+    console.log('  \x1b[1mStillpoint is up.\x1b[0m');
+    console.log('');
+    console.log('    the app and the marketing site   http://localhost:3000');
+    console.log('    the admin console                http://localhost:3000/admin');
+    console.log('    the coach portal                 http://localhost:3000/coach');
+    console.log('    the phone app, at phone width    http://localhost:4000');
+    console.log('    the API                          http://localhost:8000/api');
+    console.log('');
+    console.log(`  Four accounts, all with the password \x1b[1m${password}\x1b[0m:`);
+    console.log('');
+    console.log('    you@stillpoint.test      an ordinary account, with a journal');
+    console.log('    admin@stillpoint.test    the console, including the safety queue');
+    console.log('    coach@stillpoint.test    the coach portal, with two clients');
+    console.log('    client@stillpoint.test   a client of that coach');
+    console.log('');
+    if (flags.has('--no-build')) {
+      // Say what was actually done. `--no-build` skips the reseed, so whether
+      // the guide speaks at every step depends on whatever is in the database
+      // already — and claiming otherwise is the kind of sentence this codebase
+      // keeps finding and fixing.
+      console.log('  \x1b[2m--no-build: nothing was reseeded, so the step copy is whatever');
+      console.log('  this database already had. Drop the flag to reseed.\x1b[0m');
+    } else {
+      console.log('  The step copy is published, so the guide speaks at all six steps.');
+      console.log('  A real deployment publishes nothing by itself — LAUNCH.md item 4.');
+    }
+    console.log('');
+    console.log('  \x1b[2mCtrl-C to stop.\x1b[0m');
+    console.log('');
+    // Nothing to do but hold the servers open; Ctrl-C is handled above.
+    await new Promise(() => {
+      /* until interrupted */
+    });
   }
 
   // Every script runs whatever any one of them does: a failure in the safety

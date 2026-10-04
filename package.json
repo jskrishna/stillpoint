@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "node e2e/run.mjs",
+    "demo": "node e2e/run.mjs --demo",
     "check": "pnpm run build:packages && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "build:packages": "pnpm --filter './packages/*' run build",
     "parity:generate": "pnpm run build:packages && node parity/generate.mjs",

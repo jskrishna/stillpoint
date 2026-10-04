@@ -29,7 +29,13 @@ reports nothing at all, with confidence.
 It was built to be a backstop so the obvious cases cannot be missed while a
 real classifier is chosen. It has been the only thing there for a while.
 
-**What to do.** `docs/clinical-review/RISK-SCREEN-REVIEW.md` is generated from
+**What to do.** First, be able to show them the thing: **`pnpm run demo`**
+brings up a seeded stack and prints the four accounts and the five URLs,
+including the console's safety queue, where they can see what a reviewer would
+actually read. Asking somebody to judge a crisis screen from a document is
+harder than asking them to use it for ten minutes.
+
+Then `docs/clinical-review/RISK-SCREEN-REVIEW.md`, which is generated from
 the code (`pnpm run clinical:review`), so it cannot drift from what actually
 runs. It lists every phrase, every grade, the worked examples, and the four
 questions a reviewer needs to answer. Give it to someone qualified — a

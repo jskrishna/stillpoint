@@ -72,6 +72,19 @@ sharing rule and a failure in the safety stop are different lines in the log
 rather than one red job. This is the local convenience; the workflow is the
 contract.
 
+## Or just show somebody
+
+```bash
+pnpm run demo
+```
+
+The same machinery with no checks: a seeded stack, the four accounts and the
+five URLs printed, and it stays up until Ctrl-C. It is here rather than in its
+own script because duplicating the server orchestration is how two versions of
+it start disagreeing — and it is in `LAUNCH.md` because the first thing on that
+list is asking a clinician to read the risk screen, which is easier if you can
+hand them the console.
+
 ## Or by hand
 
 ```bash

@@ -47,6 +47,9 @@ reached step 6, the feelings chosen most, and the belief that keeps coming back.
 | **Admin console** | `apps/web/src/app/admin` | Built: overview, safety queue, step-prompt editor, users and roles.            |
 | **Coach portal**  | `apps/web/src/app/coach` | Built: client list and detail, shared sessions only.                           |
 
+**`pnpm run demo`** brings the whole thing up, seeded, and prints the accounts
+and URLs. **`pnpm run e2e`** runs the six end-to-end checks against it.
+
 **[`LAUNCH.md`](LAUNCH.md) is what stands between this and a stranger
 finishing a session safely**, in order, with what each item actually needs. The
 first three are a clinician reading the risk screen, a mail provider, and
