@@ -263,9 +263,24 @@ if (!signedIn) {
   else bad('the accounts screen carries no session text');
 
   await found.locator('select').selectOption('coach');
-  await admin.waitForTimeout(1800);
-  if ((await admin.locator('body').innerText()).includes('User → Coach'))
-    ok('the change is recorded in the trail, with who made it');
+
+  // Waits for the trail to say it, rather than for a duration. This was
+  // `waitForTimeout(1800)` and it went red in CI, where the API runs against
+  // MySQL behind several workers and a round trip takes longer than it does
+  // here — the screen was simply still waiting, and the check read that as
+  // "the change was not recorded". A fixed sleep asserts the speed of the
+  // machine; this asserts the thing the test is about, and still fails if the
+  // change genuinely never records.
+  const recorded = await admin
+    .waitForFunction(() => document.body.innerText.includes('User → Coach'), null, {
+      timeout: 15000,
+    })
+    .then(
+      () => true,
+      () => false,
+    );
+
+  if (recorded) ok('the change is recorded in the trail, with who made it');
   else
     bad(
       'the change is recorded in the trail',
