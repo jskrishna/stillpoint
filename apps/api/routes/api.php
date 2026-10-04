@@ -37,9 +37,42 @@ Route::middleware('throttle:guessable')->group(function () {
     Route::get('invites/{token}', [CoachInviteController::class, 'show']);
 });
 
+/*
+ * Taking a turn, and the one authenticated route with no rate limit on it.
+ *
+ * It sits outside the group below rather than inside it, and that placement is
+ * the rule rather than tidiness: **nothing may refuse this request before the
+ * risk screen has read it**, and a rate limit is exactly such a refusal. The
+ * request it can refuse is someone saying they are not safe, and then the
+ * helplines never appear.
+ *
+ * It used to be inside that group, with a comment here saying it was
+ * "deliberately not given a `throttle` middleware" — true of this line and
+ * false of the route, because a group's middleware is the route's. Measured
+ * before this moved: 120 ordinary reads of `GET /me` spent the shared budget,
+ * and the next turn — "I want to kill myself" — answered **429 with no flag
+ * raised and the session still open**. The screen never ran. That is the
+ * precise failure the ordering exists to prevent, arriving through the
+ * allowance rather than through this route.
+ *
+ * `throttle:120,1` keys on the **user id**, not the token, so it was never a
+ * per-device budget either: the web app, the phone and the desktop shell share
+ * one, and reads on any other route in that group spend it.
+ *
+ * What limits this route instead is `App\Support\GuideBudget`, consulted in
+ * the controller **after** the screen, which withholds the guide — the
+ * expensive call, the one a language model sits behind — and nothing else. The
+ * screen still runs, a flag is still raised, a stop still stops.
+ */
+Route::middleware('auth:sanctum')
+    ->post('sessions/{session}/turns', [SessionController::class, 'turn']);
+
 // Throttled as a whole. These are authenticated routes, so the limit is per
-// token rather than per address, and it is generous: someone mid-session is
-// doing something slow and human, not hammering an endpoint.
+// account rather than per address — `ThrottleRequests` keys on the user id, so
+// it is shared across every device somebody is signed in on — and it is
+// generous: someone mid-session is doing something slow and human, not
+// hammering an endpoint. The turns route is deliberately not among them; see
+// above.
 Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout']);
     Route::get('me', [AuthController::class, 'me']);
@@ -54,16 +87,9 @@ Route::middleware(['auth:sanctum', 'throttle:120,1'])->group(function () {
     // closing a tab does not lose it.
     Route::get('sessions/current', [SessionController::class, 'current']);
     Route::get('sessions/{session}', [SessionController::class, 'show']);
-    // The only way to advance a session, and so the only path safety screening
-    // has to cover.
-    //
-    // Deliberately *not* given a `throttle` middleware. It is the expensive
-    // call and the one a language model will sit behind, so it does have a
-    // budget — but the budget is consulted inside the controller, after the
-    // risk screen (see `App\Support\GuideBudget`). Middleware here would
-    // refuse a request before anything had looked at what was said, and that
-    // request can be someone saying they are not safe.
-    Route::post('sessions/{session}/turns', [SessionController::class, 'turn']);
+    // The turn is not here. It is the only way to advance a session and so the
+    // only path safety screening has to cover, and it carries no rate limit at
+    // all — declared above this group, with the reasoning.
     Route::post('sessions/{session}/stop', [SessionController::class, 'stop']);
     Route::post('sessions/{session}/rating', [SessionController::class, 'rate']);
 

@@ -265,7 +265,40 @@ bug, not a failing test to update.
 Nothing may come before that screen, and that includes a rate limit. The turns
 route carries **no `throttle` middleware**: middleware refuses a request before
 anything has looked at what it said, and the request it can refuse is someone
-saying they are not safe — and then the helplines never appear. The budget is
+saying they are not safe — and then the helplines never appear.
+
+**That sentence was false for as long as it has been written down, and it is
+the best example in this file of why the warning at the top exists.** The route
+comment said it was "deliberately not given a `throttle` middleware", which was
+true of the line and false of the route: it sat inside the group carrying
+`throttle:120,1`, and a group's middleware is the route's. Measured — 120
+ordinary reads of `GET /me`, then "I want to kill myself" as the next turn:
+**429, no flag raised, the session still open.** The screen never ran. The
+exact failure this ordering exists to prevent, arriving through the shared
+allowance instead of through this route's own middleware, while both the code
+comment and this file said it could not happen.
+
+Two details make it worse than a theoretical ceiling. The budget is **shared
+with every other authenticated route**, so a client paging a long journal
+spends the allowance a disclosure then needs; and `ThrottleRequests` keys on
+the **user id**, not the token, so the web app, the phone and the desktop shell
+share one 120-a-minute budget between them. The route comment said "per token",
+which was wrong too.
+
+The turn is declared outside that group now, with `auth:sanctum` and nothing
+else, and `NoRateLimitBeforeTheScreenTest` has both halves: the behaviour (spend
+the allowance, then assert a crisis turn still stops, still flags, still returns
+helplines) and the structure (the route's gathered middleware contains no
+throttle). The second is the one that matters for next time — nobody added a
+`throttle` to that line, they added the line to a throttled group, so a test
+reading only the line would not have caught it. Both go red with the throttle
+restored.
+
+Be plain about what that leaves: the turns route now has **no request limit at
+all**. What bounds it is `GuideBudget`, after the screen, which withholds the
+expensive call. A spent budget still screens, still flags and still stops; the
+remaining cost of a refused-guide turn is a regex and a row, and that is the
+trade this rule is choosing on purpose. The budget is
 `App\Support\GuideBudget`, resolved in the controller and passed into the turn
 as `guideAvailable`, so a spent budget withholds **the guide** and nothing else.
 The screen still runs, a flag is still raised, a stop still stops. Only the
