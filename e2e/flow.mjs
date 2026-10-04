@@ -1,4 +1,6 @@
-import { API, WEB, launch } from './browser.mjs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { API, PASSWORD, WEB, launch } from './browser.mjs';
 import { reporter } from './report.mjs';
 
 /**
@@ -1151,5 +1153,245 @@ await page.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 if (page.url().includes('/welcome')) ok('the app is unreachable without a token');
 else bad('the app is unreachable without a token', page.url());
+
+// ------------------------------------------------- 9. a forgotten password
+console.log('\n9. A forgotten password is not a lost journal');
+
+/*
+ * The one path back into an account, and nothing drove it.
+ *
+ * `PasswordResetApiTest` covers the API thoroughly — thirteen cases,
+ * including that the journal survives. What nothing covered was the two
+ * screens and the seam between them and the API: the link the notification
+ * mints carries the address as `?email=`, and the reset screen reads that
+ * parameter and shows "This link is incomplete" without it. A mismatch there
+ * would lock out everybody who forgot a password, and the API tests would all
+ * still be green.
+ *
+ * It also proves the only path that exists today. `MAIL_MAILER=log` — no mail
+ * provider has been chosen (`LAUNCH.md` item 2) — so the link is written to
+ * `storage/logs/laravel.log` and a person gets back into their account by
+ * somebody reading it out of a log file. This does exactly that, which is the
+ * check for "is that link actually usable": Laravel's log mailer writes a
+ * rendered message, and a token wrapped across two lines would be a link
+ * nobody could follow.
+ *
+ * Its own account, because the one above has been erased by this point.
+ */
+const forgetful = `forgot+${String(Date.now())}@example.com`;
+const resetPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+
+await resetPage.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await resetPage.getByRole('button', { name: 'Create an account instead' }).click();
+await resetPage.getByLabel('Name').fill('Forgot It');
+await resetPage.getByLabel('Email').fill(forgetful);
+await resetPage.getByLabel('Password').fill(PASSWORD);
+await resetPage.getByRole('button', { name: 'Create my account' }).click();
+await resetPage.waitForURL('**/welcome/consent', { timeout: 15000 });
+const resetBoxes = resetPage.locator('input[type=checkbox]');
+await resetBoxes.nth(0).check();
+await resetBoxes.nth(1).check();
+await resetPage.getByRole('button', { name: /Continue|Saving/ }).click();
+await resetPage.waitForURL('**/welcome/voice', { timeout: 15000 });
+
+// Something in the journal to still be there afterwards. Through the API,
+// because the session flow is section 3's job and not this one's.
+const wrote = await resetPage.evaluate(async (api) => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${String(token)}`,
+  };
+  const started = await fetch(`${api}/sessions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ kind: 'quick' }),
+  });
+  if (!started.ok) return { why: `starting: ${String(started.status)}` };
+  const session = await started.json();
+  for (const utterance of [
+    'The thing I will want to read back later',
+    'I can see my part in it',
+    'hurt',
+    'A morning when I was nine',
+    'I am not taken seriously',
+    'I am letting that go',
+  ]) {
+    const turn = await fetch(`${api}/sessions/${String(session.id)}/turns`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ utterance }),
+    });
+    if (turn.status === 409) break;
+    if (!turn.ok) return { why: `a turn: ${String(turn.status)}` };
+  }
+  const journal = await fetch(`${api}/journal`, { headers }).then((r) => r.json());
+  return { token, total: journal.total ?? 0 };
+}, API);
+
+if (wrote.total >= 1) ok(`the account has something to lose (${String(wrote.total)} entry)`);
+else bad('the account has something to lose', JSON.stringify(wrote));
+
+// Signed out, which is the state somebody who has forgotten their password is
+// in. Cleared rather than pressed, because the sign-out button is section 8's.
+await resetPage.evaluate(() => {
+  window.localStorage.clear();
+});
+
+// ---- the answer must not say whether the address has an account ----------
+//
+// `forgotPassword()` throws the broker's result away on purpose: it
+// distinguishes "sent" from "no such user", and this product's user list is
+// people who went looking for help with being upset. Asserted through the
+// screen, which is where the leak would be visible.
+const askFor = async (address) => {
+  await resetPage.goto(`${WEB}/welcome/forgot`, { waitUntil: 'networkidle' });
+  await resetPage.getByLabel('Email').fill(address);
+  await resetPage.getByRole('button', { name: /Email me a link|One moment/ }).click();
+  await resetPage
+    .waitForFunction(() => /Check your inbox|could not/i.test(document.body.innerText), null, {
+      timeout: 15000,
+    })
+    .catch(() => undefined);
+  // The address is in the sentence, so it is taken out before comparing: what
+  // must match is everything else.
+  return (await resetPage.locator('body').innerText())
+    .replace(/\s+/g, ' ')
+    .split(address)
+    .join('<the address>')
+    .trim();
+};
+
+const unknown = await askFor(`nobody+${String(Date.now())}@example.com`);
+
+// How far the log had been written before this account asked, so the link can
+// be found by *when* it was written rather than by what is in it. Keying on
+// the address would make a link with no `?email=` unfindable, and then
+// dropping that parameter — the seam this section is here for — would fail as
+// "no link for this address" instead of naming the parameter.
+const log = fileURLToPath(new URL('../apps/api/storage/logs/laravel.log', import.meta.url));
+const already = existsSync(log) ? statSync(log).size : 0;
+
+const known = await askFor(forgetful);
+
+if (known === unknown && /Check your inbox/.test(known))
+  ok('the answer is the same whether or not the address has an account');
+else
+  bad(
+    'the answer is the same whether or not the address has an account',
+    `known: ${known.slice(0, 180)} / unknown: ${unknown.slice(0, 180)}`,
+  );
+
+// ---- the link, out of the log, the way a person gets one today ------------
+const written = existsSync(log) ? readFileSync(log, 'utf8').slice(already) : '';
+const links = [...written.matchAll(/https?:\/\/\S*?\/welcome\/reset\/\S+/g)].map((m) =>
+  m[0].replace(/[)\]"'<>].*$/, ''),
+);
+const link = links.at(-1);
+
+if (link === undefined) {
+  bad(
+    'the link is in the log, whole',
+    existsSync(log) ? 'nothing was written when this account asked' : 'no laravel.log at all',
+  );
+} else {
+  ok(`the link is in the log, whole (…${link.slice(-24)})`);
+
+  const parsed = new URL(link);
+  // It must point at the web app, not the API: the token is spent on a web
+  // screen. `APP_FRONTEND_URL` is what decides, and a wrong one here is a
+  // reset nobody can complete.
+  if (parsed.origin === new URL(WEB).origin) ok(`and at the web app (${parsed.origin})`);
+  else bad('and at the web app', `${parsed.origin}, where the web app is ${new URL(WEB).origin}`);
+
+  // The parameter the screen reads. Without it the screen says "This link is
+  // incomplete" and the account is unreachable.
+  if (parsed.searchParams.get('email') === forgetful)
+    ok('and carries the address the screen needs');
+  else bad('and carries the address the screen needs', String(parsed.searchParams.get('email')));
+
+  const fresh = `${PASSWORD}-reset`;
+  await resetPage.goto(link, { waitUntil: 'networkidle' });
+  await resetPage.waitForTimeout(1200);
+
+  const onReset = await resetPage.locator('body').innerText();
+  if (/Choose a new password/.test(onReset)) ok('the screen takes the link');
+  else bad('the screen takes the link', onReset.slice(0, 300));
+
+  await resetPage.getByLabel('New password').fill(fresh);
+  await resetPage.getByLabel('And again').fill(fresh);
+  await resetPage.getByRole('button', { name: /Change my password|One moment/ }).click();
+  await resetPage.waitForTimeout(3000);
+
+  // It does **not** sign them in, and that is the rule rather than a rough
+  // edge: a reset is what you do when you think somebody else has your
+  // account, so it revokes every token including this browser's. The screen
+  // says so, and asserting it is how that stays true.
+  const changed = await resetPage.locator('body').innerText();
+  if (/password is changed/i.test(changed)) ok('the password changes');
+  else bad('the password changes', changed.slice(0, 300));
+  if (/signed out, including this browser/i.test(changed))
+    ok('and it says the browser was signed out too, which it was');
+  else bad('and it says the browser was signed out too', changed.slice(0, 300));
+
+  // So the new password has to be used. Through the sign-in screen, because
+  // that is the trip somebody actually makes.
+  await resetPage.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+  await resetPage.getByLabel('Email').fill(forgetful);
+  await resetPage.getByLabel('Password').fill(fresh);
+  await resetPage.getByRole('button', { name: /^Sign in$/ }).click();
+  await resetPage.waitForTimeout(3000);
+
+  // On the token, not the URL: signing in carries on through the welcome flow —
+  // voice setup comes after consent — so landing on `/welcome/voice` *is* being
+  // signed in, and a URL check reads it as not being.
+  const backIn = await resetPage.evaluate(() => window.localStorage.getItem('stillpoint.token.v1'));
+  if (typeof backIn === 'string' && backIn !== '')
+    ok(`the new password gets them back in (at ${new URL(resetPage.url()).pathname})`);
+  else
+    bad(
+      'the new password gets them back in',
+      (await resetPage.locator('body').innerText()).slice(0, 300),
+    );
+
+  // The whole point of the section, and the reason a reset is safe to offer at
+  // all: the `encrypted` casts use the application's `APP_KEY`, not anything
+  // derived from the password. Key the encryption to the password and this
+  // route becomes a shredder.
+  await resetPage.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
+  await resetPage.waitForTimeout(2000);
+  const after = await resetPage.locator('body').innerText();
+  if (after.includes('read back later')) ok('and the journal is still readable, word for word');
+  else bad('and the journal is still readable, word for word', after.slice(0, 400));
+
+  // A reset is what you do when you think somebody else has your account, so
+  // it revokes every token — this browser's old one included — and the old
+  // password stops working.
+  const afterwards = await resetPage.evaluate(
+    async ([api, address, old, now, stale]) => {
+      const tryPassword = async (password) => {
+        const r = await fetch(`${api}/auth/login`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: address, password }),
+        });
+        return r.status;
+      };
+      const withStale = await fetch(`${api}/me`, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${String(stale)}` },
+      });
+      return { old: await tryPassword(old), now: await tryPassword(now), stale: withStale.status };
+    },
+    [API, forgetful, PASSWORD, fresh, wrote.token],
+  );
+
+  if (afterwards.old === 422) ok('the old password no longer works (422)');
+  else bad('the old password no longer works', String(afterwards.old));
+  if (afterwards.now === 200) ok('and the new one does');
+  else bad('and the new one does', String(afterwards.now));
+  if (afterwards.stale === 401) ok('and the token from before the reset is revoked (401)');
+  else bad('and the token from before the reset is revoked', String(afterwards.stale));
+}
 
 await finish(() => browser.close());

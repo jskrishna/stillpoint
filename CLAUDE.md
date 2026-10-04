@@ -1205,7 +1205,8 @@ it — `← Journal` is what it has instead — and the export is served by a pl
 file server, so reloading a client-side route asks for a file that is not
 there. Both scripts navigate through the app's own controls for those reasons.
 `flow.mjs` is the web app's: register, consent, a full session, a reply lost on
-the way back, journal, insights, settings, the safety stop and sign-out. It
+the way back, journal, insights, settings, the safety stop, sign-out and a
+forgotten password reset. It
 needs three servers, so it is not part of `check` — but it **is** in CI, as the
 `e2e` job, along with the other six. Run it by hand too after changing the
 session flow, `packages/client` or anything in `apps/api/app/Domain`; it is
@@ -1601,6 +1602,39 @@ Mail is `MAIL_MAILER=log` in development: the link is written to
 `storage/logs/laravel.log` rather than sent. The link points at
 `config('app.frontend_url')` (`APP_FRONTEND_URL`), because the token is spent
 on a web screen, not on an API route.
+
+**Section 9 of `flow.mjs` walks it, which nothing did.** `PasswordResetApiTest`
+covers the API thoroughly — thirteen cases, including that the journal is still
+there — and what nothing covered was the two screens and the seam between them
+and the notification. The link carries the address as `?email=`, and the reset
+screen reads that parameter and shows "This link is incomplete" without it: a
+mismatch would lock out everybody who forgot a password while every API test
+stayed green. Checked by dropping the parameter — the section goes red naming
+it, and the screen below it says "This link is incomplete".
+
+It also walks the only path that exists today, which is somebody reading the
+link out of a log file, and that is the check for whether the link is usable at
+all: Laravel's log mailer writes a rendered message, and a token wrapped across
+two lines would be a link nobody could follow. The link is found by **what the
+log gained while this account asked** rather than by the address in it, because
+keying on the address would make a link with no `?email=` unfindable and turn
+the seam's failure into "no link for this address".
+
+Two rules in there are asserted through the screens rather than the API. The
+answer is the same whether or not the address has an account — compared with
+the address itself swapped out of both, since the sentence names it — and
+checked by putting the leak back, which goes red quoting "We have no account
+for that address." And a reset does **not** sign you in: it revokes every
+token, this browser's included, so the screen says so and the new password has
+to be used. That one is asserted on the token in `localStorage` rather than on
+the URL, because signing in carries on through the welcome flow and landing on
+`/welcome/voice` is being signed in.
+
+What the section cannot demonstrate by breaking is the sentence it is named
+for. Keying the encryption to the password is the change that would make a
+reset a shredder, and simulating it means implementing per-user keys. The
+assertion is a regression guard on the composite path; `PasswordResetApiTest`
+is what pins the unit.
 
 ## Signing in
 
