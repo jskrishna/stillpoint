@@ -218,17 +218,47 @@ Developer account and a Google Play account.
 
 ## 7. The marketing site needs a design rebuild
 
-Deliberately untouched. `/` and `/pricing` work and say true things, and the
-visual design is being redone, so no effort has gone into their layout. The
-safety-relevant parts of them are correct: the helplines on `/` come from the
-shared constant and the prices come from `plans.ts`.
+Deliberately untouched: the visual design is being redone, so no effort has
+gone into their layout. The safety-relevant parts are correct — the helplines
+on `/` come from the shared constant and the prices come from `plans.ts`.
+
+**This item used to say they "say true things", and four lines on `/pricing`
+do not.** Read against the code rather than against the designs: `plan` is
+consulted in exactly two places in the API — the session allowance and the
+profile response — and `Plan` controls exactly one thing, full sessions per
+week, which is 3 on Free and unlimited on Plus and Coach. Of the nine feature
+lines on that page, each with a tick beside it:
+
+| Line                          | Plan  | True?                                                                                                                                                 |
+| ----------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3 full sessions a week        | Free  | yes, enforced                                                                                                                                         |
+| Unlimited quick sessions      | Free  | yes, enforced — a quick session is always allowed                                                                                                     |
+| Journal                       | Free  | yes                                                                                                                                                   |
+| Unlimited sessions            | Plus  | yes, enforced                                                                                                                                         |
+| **Insights**                  | Plus  | **no** — `GET /insights` has no plan check, so a Free account has them                                                                                |
+| **Better voices**             | Plus  | **no** — both voices are offered to everyone, and `guideVoice` validates `in:sage,river` with no plan check                                           |
+| Everything in Plus            | Coach | yes, for the one thing Plus is                                                                                                                        |
+| **Up to 25 clients**          | Coach | **no** — deliberately not enforced, and already on the list below                                                                                     |
+| **Shared sessions and notes** | Coach | **no**, and backwards: the portal is gated by `role`, not `plan`. The Coach plan grants nothing, and the `coach` role grants the whole portal on Free |
+
+**And two of the three buttons promise a trial that exists in no form.** "Try 7
+days free" and "Start coach trial" — there is no trial state, no billing, and
+all three CTAs link to `/`.
+
+Nobody has been mis-sold anything, because nobody can be charged: item 5 is
+why. It becomes a refund and a complaint the day billing lands, which is the
+reason this is written down here rather than left for whoever rebuilds the page
+to notice. Which way it is fixed is a product decision and not a small one —
+gating Insights would take something away from everybody who has it today, and
+changing the copy changes what Plus is for. Both options are in
+`DECISIONS.md`.
 
 ---
 
 ## 8. The desktop app has never been packaged
 
-It runs — launched under Xvfb here, and a session survives a relaunch — and
-`pnpm run build` passes. There is no installer, no signing, no notarisation and
+It runs — `e2e/desktop.mjs` launches it under Xvfb on every CI run and asserts
+that a session survives a relaunch — and `pnpm run build` passes. There is no installer, no signing, no notarisation and
 no auto-update, and it has never run on macOS or Windows. Each of those costs a
 certificate or a server rather than a line of configuration.
 

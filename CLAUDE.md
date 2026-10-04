@@ -628,6 +628,27 @@ Two things the designs state and this deliberately does **not** enforce:
   them in the journal, but not which steps are skipped — that is the PRD's to
   say, like the step copy.
 
+**And `Plan` decides exactly one thing, which is less than the pricing page
+ticks.** `plan` is consulted in two places in the whole API — the session
+allowance and the profile response — so full sessions a week is the only rule
+it carries. Four of the nine feature lines on `/pricing` name something else:
+`Insights` has no plan check and a Free account has them, `Better voices` is
+not gated and both voices are offered to everyone, `Up to 25 clients` is the
+item above, and `Shared sessions and notes` is backwards — the portal is gated
+by `role`, so the Coach plan grants nothing and the `coach` role grants the
+whole portal on Free. Two of the three buttons offer a trial that exists in no
+form.
+
+Nobody can be charged, so nothing is mis-sold; it becomes a refund and a
+complaint the day billing lands. It is written down rather than fixed because
+both ways of fixing it are product decisions — gating Insights takes something
+away from everybody who has it today, and changing the copy changes what Plus
+is for. `LAUNCH.md` item 7 has the line-by-line, `DECISIONS.md` has the
+decision, and the comment above `PLANS` in `apps/web/src/app/plans.ts` says it
+beside the data. **Do not read a tick on that page as a rule the server
+keeps.** `Plan` is where the rules are, and `LAUNCH.md` item 7 said that page
+"says true things" until this was read against the code.
+
 ## Do not invent product copy
 
 The designs specify step 1's question, step 4 in full and step 5's question.

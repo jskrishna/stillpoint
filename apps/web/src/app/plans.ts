@@ -38,6 +38,31 @@ export interface Plan {
   readonly featured: boolean;
 }
 
+/**
+ * The three plans, as the pricing page shows them.
+ *
+ * **`features` is marketing copy, not a capability list, and four of its nine
+ * lines are not what the plan controls.** Read against the code: `plan` is
+ * consulted in exactly two places in the API — the session allowance and the
+ * profile response — and `App\Domain\Plan` decides exactly one thing, full
+ * sessions a week.
+ *
+ * So `Insights` is not gated (`GET /insights` has no plan check, and a Free
+ * account has them), `Better voices` is not gated (both voices are offered to
+ * everyone), `Up to 25 clients` is deliberately unenforced, and
+ * `Shared sessions and notes` is backwards: the coach portal is gated by
+ * `role`, so the Coach plan grants nothing and the `coach` role grants the
+ * whole portal on Free. The `cta` strings offer a trial that exists in no
+ * form.
+ *
+ * Nobody can be charged — there is no billing — so nothing is mis-sold today,
+ * and this is a note rather than a change because both ways of fixing it are
+ * product decisions: gating Insights takes something away from everybody who
+ * has it, and changing the copy changes what Plus is for. `LAUNCH.md` item 7
+ * has the line-by-line and `DECISIONS.md` has the decision. **Do not treat a
+ * tick on that page as a rule the server keeps**; `Plan` is where the rules
+ * are.
+ */
 export const PLANS: readonly Plan[] = [
   {
     id: 'free',
