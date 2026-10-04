@@ -2248,6 +2248,26 @@ transaction — two live versions would mean two sets of questions in flight.
 Which is also why a session is pinned to the version it started on: publishing
 must not change the questions under someone part-way through.
 
+**And that was a reason with nothing asserting it.** No test in the suite
+published a version and then took a turn, so the two halves of the rule were
+only ever exercised apart. The behaviour was right — measured, a session at
+step 1 advanced to a step 2 question from its own version while a different
+one was live — and `PublishingDoesNotChangeALiveSessionTest` is what now keeps
+it right. It matters for the obvious reason and one less obvious: a session's
+recorded answers are only interpretable against the version that asked them,
+so a session whose version moved half way through leaves a journal entry no
+version explains.
+
+Its third case is a **control** and the test is worth little without it: a
+product that ignored published versions altogether and always fell back to the
+baseline would pass the first two while being badly broken, so a session
+started _after_ the publish is asserted to get the new question. Both breaks
+were checked. Reading the live version instead of the pinned one turns the
+behavioural case red and leaves the control green — correctly, because the
+column is still written, only the read was wrong. Falling back to the baseline
+turns the control red, and the behavioural case too, through its own guard
+against an empty question rather than by passing vacuously on one.
+
 Roles are set in the console (`/admin/users`), which is the only way — it used
 to take a shell on the server. It is also the console's most consequential
 screen, because granting `admin` grants the safety queue. Three guards and a
