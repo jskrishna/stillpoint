@@ -247,6 +247,16 @@ refusal. Contrast is already covered at the token level by
 control with no accessible name, a label with nothing to label, a heading level
 skipped, a pairing that only exists once a component is rendered.
 
+Two things it asserts that are not axe rules, because a page can satisfy every
+rule and still be wrong for what the screen is for. It checks the **document
+does not scroll sideways** — a horizontally scrolling page is valid, and at 390
+the console's table screens dragged the heading and the navigation off the side
+with them. And it runs the tags up to **`wcag22aa`**, not `wcag21aa`, for one
+criterion: 2.5.8 Target Size (Minimum). axe has exactly one rule there,
+`target-size`, and it is `enabled: false` in axe's own defaults — so the script
+also asserts that axe _considered_ the rule on at least one combination, since a
+rule that never ran reports no violations and reads exactly like a clean page.
+
 ## What the browser sends, and where
 
 `privacy.mjs` loads the public screens and then the signed-in ones, including a

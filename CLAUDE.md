@@ -1013,6 +1013,32 @@ exited 0**: a check that could not fail, which is worse than no check. Caught
 only by reverting the fix to watch the assertion go red. Every `bad()` in that
 script now counts toward one number, and the note beside the summary says so.
 
+**And the audit ran `wcag21aa`, which leaves out the one criterion a
+phone-first product should be measured against.** WCAG 2.2's 2.5.8 Target Size
+(Minimum) asks for a control at least 24 by 24 CSS pixels, or spaced far enough
+from its neighbours to stand in for it, and nothing here checked it — the
+`/app` screens have only a phone layout, so it is the criterion with the most
+surface. The tags go up to `wcag22aa` now.
+
+Nothing was wrong, and the measurement is the point rather than a fix:
+**sixteen controls across six routes are under 24px at 390 and axe exempts
+every one of them.** The consent and voice checkboxes are 22 by 22 — and they
+sit inside their own `<label>`, so the target a finger lands on is the label's
+padded box, which is why measuring the `<input>` reports a failure nobody can
+experience. The rest clear the spacing exemption, by 6px at the tightest:
+`/welcome`'s two text buttons are 22px tall with 30px between their centres.
+Six pixels is what a padding change spends without noticing.
+
+**`target-size` is `enabled: false` in axe's own defaults**, which is the trap
+in adding it. Naming `wcag22aa` in `runOnly` turns out to be enough on its own
+— measured in 4.13, where axe runs a disabled rule a tag selects — but that is
+observed behaviour rather than a promise, so the rule is enabled explicitly as
+well. Neither of those is evidence: the script asserts that axe **considered**
+the rule on at least one combination, because a rule that never ran reports no
+violations and reads exactly like a clean page. That is the same shape as the
+sideways check that could not fail, one paragraph up, which is where the
+assertion came from.
+
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
 and 1440 — 80 combinations across 20 routes — and the last run was clean across

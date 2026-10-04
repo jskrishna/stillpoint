@@ -6,8 +6,13 @@ import { reporter } from './report.mjs';
 const require = createRequire(import.meta.url);
 
 /**
- * WCAG 2.1 AA audit with axe-core over every route, in both palettes, at phone
+ * WCAG 2.2 AA audit with axe-core over every route, in both palettes, at phone
  * and desktop width.
+ *
+ * 2.2 rather than 2.1 because of one criterion: 2.5.8 Target Size (Minimum).
+ * The tags stopped at `wcag21aa` for as long as this script existed, which
+ * left a control's size unchecked on a product whose app screens have only a
+ * phone layout. See the comment beside the `axe.run` call.
  *
  * `CLAUDE.md` asks for this after UI work, and it is a script rather than a
  * test because it needs the built app and a running API — the same reason as
@@ -85,6 +90,13 @@ const THEMES = ['light', 'dark'];
  * the same thing.
  */
 let failingCombinations = 0;
+/**
+ * Whether axe considered `target-size` on any combination.
+ *
+ * Checked at the end, because the rule is disabled in axe's own defaults and
+ * a rule that is not run is indistinguishable from a page with nothing wrong.
+ */
+let targetSizeRan = false;
 
 /** Signs a fresh page in with an existing account, or reports that it cannot. */
 async function signIn(email, password) {
@@ -244,7 +256,7 @@ const SETUP = { admin: 'e2e/admin.mjs', coach: 'e2e/coach.mjs', anonymous: 'e2e/
 
 let combinations = 0;
 let skipped = 0;
-const { ok, bad, watchForThrows } = reporter('WCAG 2.1 AA');
+const { ok, bad, watchForThrows } = reporter('WCAG 2.2 AA');
 watchForThrows();
 
 const violations = [];
@@ -269,11 +281,54 @@ for (const { route, as } of ROUTES) {
       await page.waitForTimeout(900);
 
       await page.addScriptTag({ content: AXE });
+      /*
+       * **WCAG 2.2 is in the tags, and 2.5.8 is the reason.**
+       *
+       * This ran `wcag21aa` and stopped there, so Target Size (Minimum) — a
+       * control at least 24 by 24 CSS pixels, or spaced far enough from its
+       * neighbours to stand in for it — was not checked at all, on a product
+       * whose `/app` screens have only a phone layout. axe 4.13 has exactly
+       * one rule tagged `wcag22aa`, `target-size`, and it is the one that
+       * matters here.
+       *
+       * It is `enabled: false` by default, which is the trap. Measured:
+       * naming `wcag22aa` in `runOnly` is enough on its own — axe runs a
+       * disabled rule when a tag selects it — but that is behaviour observed
+       * in 4.13 rather than anything axe promises, so the enable is written
+       * out as well. Config is not evidence either way, which is what
+       * `targetSizeRan` below is for.
+       *
+       * Measured before it was added, so this is a guard rather than a fix:
+       * sixteen controls across six routes are under 24px at 390, and axe
+       * exempts every one of them — the consent and voice checkboxes are
+       * 22 by 22 but sit inside their own `<label>`, so the label's padded box
+       * is the target a finger lands on, and the rest clear the spacing
+       * exemption by 6px at the tightest (`/welcome`'s two text buttons, 30px
+       * between centres). Six pixels is the margin a padding change spends
+       * without noticing, which is the argument for the check.
+       */
       const result = await page.evaluate(async () =>
         window.axe.run(document, {
-          runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'],
+          },
+          rules: { 'target-size': { enabled: true } },
         }),
       );
+
+      // Whether the rule ran at all, as a fact rather than a belief about the
+      // configuration above. A rule axe skips reports no violations, which
+      // reads exactly like a clean page — the same shape as the sideways
+      // check that could not fail. Any of the four buckets counts: what is
+      // being asserted is that axe considered it.
+      if (
+        ['violations', 'passes', 'incomplete', 'inapplicable'].some((bucket) =>
+          result[bucket].some((r) => r.id === 'target-size'),
+        )
+      ) {
+        targetSizeRan = true;
+      }
 
       /*
        * The page must not scroll sideways, which axe does not check.
@@ -353,6 +408,14 @@ console.log(
  * the fix to see the assertion go red, which is the only reason it was caught
  * at all.
  */
+if (!targetSizeRan) {
+  bad(
+    'axe never ran target-size',
+    "WCAG 2.2 2.5.8 went unchecked on every route \u2014 the rule is disabled in axe's own defaults, so this is a silent pass rather than a clean one",
+  );
+  failingCombinations += 1;
+}
+
 console.log(
   failingCombinations === 0 ? 'CLEAN' : `${String(failingCombinations)} failing combinations`,
 );
