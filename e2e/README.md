@@ -45,6 +45,35 @@ API, through the whole journey and the safety stop. Nothing native is covered;
 `apps/mobile/README.md` lists what that leaves, and the first run on hardware
 is still a test pass that has not happened.
 
+## One command
+
+```bash
+pnpm run e2e                 # build what is missing, seed, all six, tear down
+pnpm run e2e flow admin      # just those two
+pnpm run e2e --no-build      # servers and scripts only, nothing rebuilt
+pnpm run e2e --keep          # leave the servers up afterwards
+```
+
+`e2e/run.mjs` does what the six steps below do: builds the packages, the web
+app and — only when `mobile` is in the run — the Expo export, reseeds with
+`DemoSeeder`, starts the three servers, waits for each to answer, runs every
+script whatever any one of them does, tears the servers down and exits non-zero
+if anything failed. A server that dies before it comes up is reported with its
+own last forty lines rather than two minutes of polling a dead port.
+
+It reseeds on purpose (`migrate:fresh`). A database left part-way through an
+earlier run is how a check once passed here and failed in CI, so `--no-build`
+is the flag to reach for when iterating on one script and the one to suspect
+when a result surprises you.
+
+**It is not what CI runs.** CI brings its own servers up against a MySQL
+service and runs each script as its own step, so a failure in the coach's
+sharing rule and a failure in the safety stop are different lines in the log
+rather than one red job. This is the local convenience; the workflow is the
+contract.
+
+## Or by hand
+
 ```bash
 # 0. the accounts these scripts need. `role` is not fillable and pairing has no
 #    public route, so they cannot be made through the API.

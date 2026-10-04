@@ -81,6 +81,8 @@ export default tseslint.config(
         window: 'readonly',
         fetch: 'readonly',
         setTimeout: 'readonly',
+        // `e2e/run.mjs` polls the three servers with a bounded fetch.
+        AbortSignal: 'readonly',
       },
     },
   },

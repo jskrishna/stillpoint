@@ -810,7 +810,10 @@ pnpm run build   # every workspace project, packages first
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
 
-`e2e/` holds six checks against a running API — see `e2e/README.md`. One of
+`e2e/` holds six checks against a running API — `pnpm run e2e` runs all of
+them, building what is missing, reseeding, starting the three servers and
+tearing them down; `pnpm run e2e flow admin` runs a subset and `--no-build`
+skips the builds and the reseed. See `e2e/README.md`. One of
 them, `mobile.mjs`, is the only thing that executes `apps/mobile` at all: it
 drives the Expo web export in a browser at a phone's width. It does not touch
 anything native, and `apps/mobile/README.md` lists what that leaves.
