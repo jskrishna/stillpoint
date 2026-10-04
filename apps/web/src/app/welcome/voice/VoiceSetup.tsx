@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
 import { ApiError, api } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { takeDestination } from '../../../lib/after-welcome';
 import { NO_EAR_REASON } from '../../../lib/voice';
 import styles from '../welcome.module.css';
 
@@ -27,7 +28,11 @@ export default function VoiceSetup() {
     setError(null);
     try {
       await api.updateMe({ guideVoice: voice, talkMode });
-      router.push('/app');
+      // The end of the welcome flow, and so the one place that asks whether
+      // somebody was going somewhere specific — a coach's invitation they
+      // followed while signed out. Nothing remembered means the home screen,
+      // which is what this always did.
+      router.push(takeDestination() ?? '/app');
     } catch (e: unknown) {
       if (e instanceof ApiError && e.isUnauthenticated) {
         router.push('/welcome');

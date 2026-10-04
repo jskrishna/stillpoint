@@ -305,15 +305,48 @@ if (!coachSignedIn) {
   if (!/don’t recognise this link/.test(unchecked)) ok('and is not called unrecognised');
   else bad('and is not called unrecognised', 'it told them the link is wrong');
 
-  await client.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+  // The invitee's actual journey, which this check used to skip.
+  //
+  // It registered at `/welcome` and then `goto(link)` — navigating back to the
+  // invitation by hand, which is exactly what the product failed to do. So the
+  // check passed while the flow was broken, because the script knew the link
+  // and the person would not. Measured: the invitee clicked Accept, signed in,
+  // and landed on the consent screen with the invitation gone. The push
+  // carried `?next=` and nothing read it.
+  //
+  // So: open the link signed out, press the button the screen offers, and let
+  // the product do the routing. No `goto` anywhere in here.
+  await client.goto(link, { waitUntil: 'networkidle' });
+  await client.waitForTimeout(1500);
+  await client.getByRole('button', { name: /^Accept, and share with/ }).click();
+  await client.waitForURL('**/welcome', { timeout: 15000 });
+  ok('accepting while signed out sends the invitee to sign in');
+
   await client.getByRole('button', { name: 'Create an account instead' }).click();
   await client.getByLabel('Name').fill('Newly Invited');
   await client.getByLabel('Email').fill(invited);
   await client.getByLabel('Password').fill(PASSWORD);
   await client.getByRole('button', { name: 'Create my account' }).click();
-  await client.waitForURL('**/welcome/consent', { timeout: 15000 });
 
-  await client.goto(link, { waitUntil: 'networkidle' });
+  // Consent stays first whatever they were going to: it is the server's gate,
+  // and it is the screen that names the crisis numbers.
+  await client.waitForURL('**/welcome/consent', { timeout: 15000 });
+  ok('and consent still comes first, before the invitation');
+  const inviteeBoxes = client.locator('input[type=checkbox]');
+  await inviteeBoxes.nth(0).check();
+  await inviteeBoxes.nth(1).check();
+  await client.getByRole('button', { name: /Continue|Saving/ }).click();
+  await client.waitForURL('**/welcome/voice', { timeout: 15000 });
+  await client.getByRole('button', { name: 'Keep it silent' }).click();
+
+  // And then back where they were going, rather than the home screen.
+  const returned = await client.waitForURL(`**${new URL(link).pathname}`, { timeout: 15000 }).then(
+    () => true,
+    () => false,
+  );
+  if (returned) ok('and the welcome flow ends back at the invitation');
+  else bad('and the welcome flow ends back at the invitation', client.url());
+
   await client.waitForTimeout(1500);
   await client.getByRole('button', { name: /^Accept, and share with/ }).click();
   await client.waitForTimeout(2000);

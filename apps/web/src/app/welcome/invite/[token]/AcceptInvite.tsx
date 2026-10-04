@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, hasToken, type ApiInvitation } from '../../../../lib/api';
 import { describe } from '../../../../lib/describe';
+import { rememberDestination } from '../../../../lib/after-welcome';
 import styles from '../../welcome.module.css';
 
 /**
@@ -60,9 +61,13 @@ export default function AcceptInvite({ token }: { token: string }) {
 
   const accept = async () => {
     if (!hasToken()) {
-      // Sign in first, and come back. The invitation is in the URL, so it
-      // survives the trip.
-      router.push(`/welcome?next=${encodeURIComponent(`/welcome/invite/${token}`)}`);
+      // Sign in first, and come back — which it did not, before this. The
+      // push carried `?next=` and nothing read it, so the invitee signed in
+      // and landed on the consent screen with the invitation gone. Measured in
+      // a real browser. `lib/after-welcome.ts` says why the destination is not
+      // in the URL.
+      rememberDestination(`/welcome/invite/${token}`);
+      router.push('/welcome');
       return;
     }
 

@@ -1465,6 +1465,47 @@ Accepting is what pairs them, only the address it was sent to may accept, and
 immediately. A sharing rule the sharer cannot inspect or revoke is a promise
 about someone else's behaviour, not a rule.
 
+**And the invitee came back from signing in, which they did not.** Following a
+coach's invitation while signed out is the ordinary case — there is no mail
+driver yet, so the coach passes the link on by hand, and the person it reaches
+is being invited _to_ the product. The screen pushed
+`/welcome?next=/welcome/invite/<token>` with a comment saying "the invitation
+is in the URL, so it survives the trip", and **nothing read that parameter**.
+Measured in a real browser: the invitee pressed Accept, registered, landed on
+`/welcome/consent`, and the invitation was gone. The only path by which a coach
+gets a client, broken for everybody who was not already signed in.
+
+`apps/web/src/lib/after-welcome.ts` holds it, in `sessionStorage` rather than
+in the URL, and says why that is the better answer rather than merely a
+different one. Two reasons. A `?next=` is a redirect target **anybody can
+write** — a link to `/welcome?next=…` makes the welcome flow a thing that signs
+you in and forwards you somewhere chosen by whoever sent the link, which then
+needs validating, and validating a URL-shaped string is where the desktop
+shell's pin went wrong. And it would cost the **static render**: reading a
+search parameter means `useSearchParams`, which on a prerendered route means a
+`Suspense` boundary (see `apps/web/src/app/session/page.tsx`), three of them
+here — and every route being statically prerendered is what lets the content
+policy keep `'unsafe-inline'` instead of minting a nonce. Both `/welcome/voice`
+and `/welcome/invite/[token]` are still prerendered after the fix.
+
+So sign-in and consent do not change at all: the destination is not their
+business, it is just still there when the flow ends. **Consent stays first**,
+because it is the server's gate and the screen that names the crisis numbers —
+an invitee is not routed past it to go and accept a sharing arrangement.
+`safePath()` is still a single origin comparison by the URL parser, and the
+reason is the same as the desktop's: measured, `//evil.example`,
+`/\evil.example` and `  //evil.example` all resolve to another origin, and a
+`startsWith('//')` check catches the first and misses the other two.
+
+**`e2e/coach.mjs` was working around this.** It registered the invitee and then
+`goto`-ed the link, navigating back to the invitation by hand — exactly what
+the product failed to do — so it passed while the flow was broken, because the
+script knew the link and the person would not. It presses the button the screen
+offers and lets the product route, with no `goto` in that block at all; the
+"ends back at the invitation" assertion goes red on `/app` without the fix. It
+is the same shape as the plan trail's paging test: a check that walks a path
+the user cannot.
+
 Ending a pairing does **not** unshare the entries: `shared_with_coach` is a
 separate decision and stays where the user put it. What ends is anyone being
 able to read them, because reading goes through the pairing.
