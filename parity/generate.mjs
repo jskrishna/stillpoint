@@ -25,6 +25,7 @@ import { format } from 'prettier';
 // side. Run `pnpm run build:packages` first, which `parity:generate` does.
 import {
   baselineRiskScreen,
+  insights,
   isSubstantiveAnswer,
   literalExtraction,
   mayStartSession,
@@ -212,11 +213,154 @@ const journalEntry = (e) => ({
   occurredAt: new Date(EPOCH - e.daysAgo * DAY_MS),
   durationMinutes: 12,
   kind: 'full',
-  feelings: [],
-  reachedFinalStep: true,
+  // The coach cases do not vary these; the insights cases do, so they are
+  // parameters with the coach cases' values as the defaults.
+  feelings: e.feelings ?? [],
+  reachedFinalStep: e.reached ?? true,
   sharedWithCoach: e.shared,
   ...(e.belief === undefined ? {} : { belief: e.belief }),
+  ...(e.calmer === undefined || e.calmer === null ? {} : { calmerRating: e.calmer }),
 });
+
+/**
+ * Journals the user's own insights are computed from.
+ *
+ * `parity/cases.json` had no insights section at all, and insights is a rule
+ * in both languages with a lot of surface: a feeling counted once per session
+ * however often it was named, feelings ordered by count and then by label,
+ * "felt calmer" counting an explicit yes and not "a little", the
+ * recurring-belief threshold of two, its tie-break by recency, and the belief
+ * normaliser. None of that was compared.
+ *
+ * The window case is the one that could not be written before this: the
+ * TypeScript `insights()` has always narrowed to the window itself, and
+ * `Insights::from()` recorded `windowDays` as a label and trusted its caller.
+ * Both narrow now, so an out-of-window entry is a case rather than a question
+ * nobody had answered.
+ */
+const INSIGHT_JOURNALS = [
+  { name: 'an empty journal', window: 30, entries: [] },
+  {
+    name: 'one session, nothing repeated',
+    window: 30,
+    entries: [
+      {
+        daysAgo: 1,
+        belief: 'I am not good enough',
+        calmer: 'yes',
+        reached: true,
+        feelings: ['ashamed'],
+      },
+    ],
+  },
+  {
+    // One session counts once per feeling, however often it was named. A
+    // reducer that counted occurrences would read a single session as three.
+    name: 'a feeling named more than once in one session',
+    window: 30,
+    entries: [
+      {
+        daysAgo: 1,
+        belief: undefined,
+        calmer: 'yes',
+        reached: true,
+        feelings: ['angry', 'angry', 'angry'],
+      },
+      { daysAgo: 2, belief: undefined, calmer: 'no', reached: false, feelings: ['angry', 'sad'] },
+    ],
+  },
+  {
+    // Ties in the count are broken by the label, so the order is stable
+    // across both languages rather than by whichever map iterated first.
+    name: 'feelings tied on count, ordered by label',
+    window: 30,
+    entries: [
+      {
+        daysAgo: 1,
+        belief: undefined,
+        calmer: 'a_little',
+        reached: true,
+        feelings: ['sad', 'angry', 'ashamed'],
+      },
+    ],
+  },
+  {
+    // "A little" is deliberately not counted: the number is shown back to the
+    // user as something they said, and rounding a hedge up into agreement is
+    // the product telling them they felt better than they said they did.
+    name: 'a hedge is not a yes',
+    window: 30,
+    entries: [
+      { daysAgo: 1, belief: undefined, calmer: 'a_little', reached: true, feelings: [] },
+      { daysAgo: 2, belief: undefined, calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 3, belief: undefined, calmer: 'no', reached: false, feelings: [] },
+      { daysAgo: 4, belief: undefined, calmer: null, reached: false, feelings: [] },
+    ],
+  },
+  {
+    // The wording kept is the most recent one, which is how the user puts it
+    // now — and the two spellings are one belief because the normaliser
+    // expands the contraction and drops the full stop.
+    name: 'a belief said twice, in two spellings',
+    window: 30,
+    entries: [
+      { daysAgo: 1, belief: 'I’m not good enough.', calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 9, belief: 'I am not good enough', calmer: 'no', reached: true, feelings: [] },
+    ],
+  },
+  {
+    // A belief named once is not a pattern, so the threshold is two.
+    name: 'two beliefs, each said once',
+    window: 30,
+    entries: [
+      { daysAgo: 1, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 3, belief: 'I am too much', calmer: 'yes', reached: true, feelings: [] },
+    ],
+  },
+  {
+    // Two beliefs each said twice: the tie breaks by whichever was said most
+    // recently, not by insertion order.
+    name: 'two beliefs tied on count, broken by recency',
+    window: 30,
+    entries: [
+      { daysAgo: 8, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 6, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 4, belief: 'I am too much', calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 2, belief: 'I am too much', calmer: 'yes', reached: true, feelings: [] },
+    ],
+  },
+  {
+    // The danda is Devanagari's full stop, and until it was stripped beside
+    // the Latin one these were two beliefs rather than one said twice.
+    name: 'a Hindi belief with and without a danda',
+    window: 30,
+    entries: [
+      { daysAgo: 1, belief: 'मैं काफी नहीं हूँ।', calmer: 'yes', reached: true, feelings: [] },
+      { daysAgo: 5, belief: 'मैं काफी नहीं हूँ', calmer: 'no', reached: true, feelings: [] },
+    ],
+  },
+  {
+    // The case that could not be written while the two languages disagreed
+    // about whose job the window was. 40 days ago is outside a 30-day window,
+    // so it counts for nothing — not the session, not the feeling, and not
+    // towards a belief repeating.
+    name: 'an entry outside the window counts for nothing',
+    window: 30,
+    entries: [
+      { daysAgo: 2, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: ['sad'] },
+      { daysAgo: 40, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: ['sad'] },
+    ],
+  },
+  {
+    // And the window is a parameter, not only its default.
+    name: 'a shorter window excludes more',
+    window: 7,
+    entries: [
+      { daysAgo: 1, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: ['sad'] },
+      { daysAgo: 10, belief: 'I am unlovable', calmer: 'yes', reached: true, feelings: ['sad'] },
+    ],
+  },
+];
 
 /**
  * Plan allowances, which the pricing page promises and the server keeps.
@@ -277,6 +421,43 @@ const cases = {
       allowed: decision.allowed,
       limit: decision.allowed ? null : decision.limit,
       left: fullSessionsLeft(plan, used),
+    };
+  }),
+  insights: INSIGHT_JOURNALS.map(({ name, window, entries }) => {
+    const result = insights(
+      entries.map((e, i) =>
+        journalEntry({
+          id: `i${String(i)}`,
+          daysAgo: e.daysAgo,
+          shared: false,
+          belief: e.belief,
+          calmer: e.calmer,
+          reached: e.reached,
+          feelings: e.feelings,
+        }),
+      ),
+      new Date(EPOCH),
+      window,
+    );
+    return {
+      name,
+      windowDays: window,
+      // Epoch milliseconds for `now`, so both languages read one instant
+      // rather than parsing a string two ways.
+      nowMs: EPOCH,
+      entries: entries.map((e, i) => ({
+        id: `i${String(i)}`,
+        occurredAt: new Date(EPOCH - e.daysAgo * DAY_MS).toISOString(),
+        belief: e.belief ?? null,
+        calmerRating: e.calmer ?? null,
+        reachedFinalStep: e.reached,
+        feelings: e.feelings,
+      })),
+      sessions: result.sessions,
+      feltCalmer: result.feltCalmer,
+      reachedFinalStep: result.reachedFinalStep,
+      feelings: result.feelings.map((f) => ({ id: f.id, label: f.label, count: f.count })),
+      recurringBelief: result.recurringBelief ?? null,
     };
   }),
   sharing: SHARING_CASES.map(({ setting, hasCoach }) => ({

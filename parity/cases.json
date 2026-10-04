@@ -791,6 +791,369 @@
       "left": null
     }
   ],
+  "insights": [
+    {
+      "name": "an empty journal",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [],
+      "sessions": 0,
+      "feltCalmer": 0,
+      "reachedFinalStep": 0,
+      "feelings": [],
+      "recurringBelief": null
+    },
+    {
+      "name": "one session, nothing repeated",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": "I am not good enough",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": ["ashamed"]
+        }
+      ],
+      "sessions": 1,
+      "feltCalmer": 1,
+      "reachedFinalStep": 1,
+      "feelings": [
+        {
+          "id": "ashamed",
+          "label": "Ashamed",
+          "count": 1
+        }
+      ],
+      "recurringBelief": null
+    },
+    {
+      "name": "a feeling named more than once in one session",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": ["angry", "angry", "angry"]
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-27T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": "no",
+          "reachedFinalStep": false,
+          "feelings": ["angry", "sad"]
+        }
+      ],
+      "sessions": 2,
+      "feltCalmer": 1,
+      "reachedFinalStep": 1,
+      "feelings": [
+        {
+          "id": "angry",
+          "label": "Angry",
+          "count": 2
+        },
+        {
+          "id": "sad",
+          "label": "Sad",
+          "count": 1
+        }
+      ],
+      "recurringBelief": null
+    },
+    {
+      "name": "feelings tied on count, ordered by label",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": "a_little",
+          "reachedFinalStep": true,
+          "feelings": ["sad", "angry", "ashamed"]
+        }
+      ],
+      "sessions": 1,
+      "feltCalmer": 0,
+      "reachedFinalStep": 1,
+      "feelings": [
+        {
+          "id": "angry",
+          "label": "Angry",
+          "count": 1
+        },
+        {
+          "id": "ashamed",
+          "label": "Ashamed",
+          "count": 1
+        },
+        {
+          "id": "sad",
+          "label": "Sad",
+          "count": 1
+        }
+      ],
+      "recurringBelief": null
+    },
+    {
+      "name": "a hedge is not a yes",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": "a_little",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-27T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i2",
+          "occurredAt": "2026-02-26T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": "no",
+          "reachedFinalStep": false,
+          "feelings": []
+        },
+        {
+          "id": "i3",
+          "occurredAt": "2026-02-25T10:00:00.000Z",
+          "belief": null,
+          "calmerRating": null,
+          "reachedFinalStep": false,
+          "feelings": []
+        }
+      ],
+      "sessions": 4,
+      "feltCalmer": 1,
+      "reachedFinalStep": 2,
+      "feelings": [],
+      "recurringBelief": null
+    },
+    {
+      "name": "a belief said twice, in two spellings",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": "I’m not good enough.",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-20T10:00:00.000Z",
+          "belief": "I am not good enough",
+          "calmerRating": "no",
+          "reachedFinalStep": true,
+          "feelings": []
+        }
+      ],
+      "sessions": 2,
+      "feltCalmer": 1,
+      "reachedFinalStep": 2,
+      "feelings": [],
+      "recurringBelief": {
+        "belief": "I’m not good enough.",
+        "sessions": 2
+      }
+    },
+    {
+      "name": "two beliefs, each said once",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-26T10:00:00.000Z",
+          "belief": "I am too much",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        }
+      ],
+      "sessions": 2,
+      "feltCalmer": 2,
+      "reachedFinalStep": 2,
+      "feelings": [],
+      "recurringBelief": null
+    },
+    {
+      "name": "two beliefs tied on count, broken by recency",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-21T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-23T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i2",
+          "occurredAt": "2026-02-25T10:00:00.000Z",
+          "belief": "I am too much",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i3",
+          "occurredAt": "2026-02-27T10:00:00.000Z",
+          "belief": "I am too much",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        }
+      ],
+      "sessions": 4,
+      "feltCalmer": 4,
+      "reachedFinalStep": 4,
+      "feelings": [],
+      "recurringBelief": {
+        "belief": "I am too much",
+        "sessions": 2
+      }
+    },
+    {
+      "name": "a Hindi belief with and without a danda",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": "मैं काफी नहीं हूँ।",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": []
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-24T10:00:00.000Z",
+          "belief": "मैं काफी नहीं हूँ",
+          "calmerRating": "no",
+          "reachedFinalStep": true,
+          "feelings": []
+        }
+      ],
+      "sessions": 2,
+      "feltCalmer": 1,
+      "reachedFinalStep": 2,
+      "feelings": [],
+      "recurringBelief": {
+        "belief": "मैं काफी नहीं हूँ।",
+        "sessions": 2
+      }
+    },
+    {
+      "name": "an entry outside the window counts for nothing",
+      "windowDays": 30,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-27T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": ["sad"]
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-01-20T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": ["sad"]
+        }
+      ],
+      "sessions": 1,
+      "feltCalmer": 1,
+      "reachedFinalStep": 1,
+      "feelings": [
+        {
+          "id": "sad",
+          "label": "Sad",
+          "count": 1
+        }
+      ],
+      "recurringBelief": null
+    },
+    {
+      "name": "a shorter window excludes more",
+      "windowDays": 7,
+      "nowMs": 1772359200000,
+      "entries": [
+        {
+          "id": "i0",
+          "occurredAt": "2026-02-28T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": ["sad"]
+        },
+        {
+          "id": "i1",
+          "occurredAt": "2026-02-19T10:00:00.000Z",
+          "belief": "I am unlovable",
+          "calmerRating": "yes",
+          "reachedFinalStep": true,
+          "feelings": ["sad"]
+        }
+      ],
+      "sessions": 1,
+      "feltCalmer": 1,
+      "reachedFinalStep": 1,
+      "feelings": [
+        {
+          "id": "sad",
+          "label": "Sad",
+          "count": 1
+        }
+      ],
+      "recurringBelief": null
+    }
+  ],
   "sharing": [
     {
       "setting": "ask_each_time",

@@ -774,6 +774,26 @@ disagree: an answer of 40 emoji became a 30-character title in TypeScript and a
 which a journal renders as a replacement glyph. On a phone an emoji is not an
 unusual thing to type.
 
+**The same gap had been open on insights, and closing it needed the two
+contracts to agree first.** `parity/cases.json` had no insights section at
+all, so nothing compared a rule with a lot of surface: a feeling counted once
+per session however often it was named, feelings ordered by count and then by
+label, "felt calmer" counting an explicit `yes` and not a hedge, the
+recurring-belief threshold of two, its tie-break by recency, the wording kept
+being the most recent one, and the normaliser that makes a danda and a full
+stop the same thing.
+
+Writing the cases turned up the asymmetry that had made them awkward to write:
+`insights()` in TypeScript always narrowed to the window itself, and
+`Insights::from()` recorded `windowDays` as a label and trusted its caller.
+`InsightsService` does scope, in SQL, so nothing was wrong — but the second
+caller to forget would have had a window that lied, silently, and a fixture
+case with an out-of-window entry could not exist while the two disagreed about
+whose job it was. `Insights::from()` takes `$now` and narrows now, the SQL
+`whereBetween` stays because it is what keeps the set small enough to reduce in
+PHP, and the fixture has the case. Checked by taking the filter back out: the
+two window cases go red, and nothing else does.
+
 Both sides count characters now — `firstCharacters()` in
 `packages/protocol/src/utterance.ts`, which `recordable()` also uses, against
 `mb_substr` — and the fixture has the astral cases. Note what catching it looks

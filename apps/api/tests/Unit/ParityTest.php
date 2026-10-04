@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Domain\CalmerRating;
 use App\Domain\CoachSharing;
 use App\Domain\CoachView;
+use App\Domain\FeelingId;
+use App\Domain\Insights;
 use App\Domain\LiteralExtraction;
 use App\Domain\PhraseRiskScreen;
 use App\Domain\Plan;
@@ -56,6 +59,17 @@ final class ParityTest extends TestCase
     }
 
     /** @return array<string, array{array<string, mixed>}> */
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function insightsCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['insights'] as $case) {
+            $out[$case['name']] = [$case];
+        }
+
+        return $out;
+    }
+
     /** @return array<string, array{array<string, mixed>}> */
     public static function sharingCases(): array
     {
@@ -154,6 +168,59 @@ final class ParityTest extends TestCase
             'limit' => $decision['allowed'] ? null : ($decision['limit'] ?? null),
             'left' => $plan->fullSessionsLeft($case['used']),
         ], "Plan parity broke on: {$case['plan']} / {$case['kind']} after {$case['used']}");
+    }
+
+    /**
+     * The user's own insights.
+     *
+     * The fixture had no insights section at all, and this is a rule with a
+     * lot of surface: a feeling counted once per session however often it was
+     * named, feelings ordered by count then by label, "felt calmer" counting
+     * an explicit yes and not a hedge, the recurring-belief threshold of two,
+     * its tie-break by recency, the wording kept being the most recent, and
+     * the normaliser that makes a danda and a full stop the same thing.
+     *
+     * @param  array<string, mixed>  $case
+     */
+    #[DataProvider('insightsCases')]
+    public function test_the_insights_agree(array $case): void
+    {
+        $entries = [];
+        foreach ($case['entries'] as $entry) {
+            $entries[] = [
+                'feelings' => array_map(
+                    fn (string $f) => FeelingId::from($f),
+                    $entry['feelings'],
+                ),
+                'belief' => $entry['belief'],
+                'calmerRating' => $entry['calmerRating'] === null
+                    ? null
+                    : CalmerRating::from($entry['calmerRating']),
+                'reachedFinalStep' => $entry['reachedFinalStep'],
+                'occurredAt' => new \DateTimeImmutable($entry['occurredAt']),
+            ];
+        }
+
+        $now = (new \DateTimeImmutable('@'.(string) intdiv($case['nowMs'], 1000)));
+        $result = Insights::from($entries, $now, $case['windowDays']);
+
+        $this->assertSame([
+            'sessions' => $case['sessions'],
+            'feltCalmer' => $case['feltCalmer'],
+            'reachedFinalStep' => $case['reachedFinalStep'],
+            'feelings' => $case['feelings'],
+            'recurringBelief' => $case['recurringBelief'],
+        ], [
+            'sessions' => $result->sessions,
+            'feltCalmer' => $result->feltCalmer,
+            'reachedFinalStep' => $result->reachedFinalStep,
+            'feelings' => array_map(fn (array $f) => [
+                'id' => $f['id']->value,
+                'label' => $f['label'],
+                'count' => $f['count'],
+            ], $result->feelings),
+            'recurringBelief' => $result->recurringBelief,
+        ], "Insights parity broke on: {$case['name']}");
     }
 
     /** @param array<string, mixed> $case */

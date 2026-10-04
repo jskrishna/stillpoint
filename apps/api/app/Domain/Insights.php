@@ -33,16 +33,55 @@ final readonly class Insights
     ) {}
 
     /**
-     * Summarises a set of entries.
+     * Entries that fall inside the window ending at `$now`.
+     *
+     * Inclusive at both ends, like `withinWindow()` in
+     * `packages/protocol/src/insights.ts`.
+     *
+     * @param  list<array{occurredAt: \DateTimeInterface, ...}>  $entries
+     * @return list<array{occurredAt: \DateTimeInterface, ...}>
+     */
+    public static function withinWindow(
+        array $entries,
+        \DateTimeInterface $now,
+        int $windowDays = self::DEFAULT_WINDOW_DAYS,
+    ): array {
+        $to = $now->getTimestamp();
+        $from = $to - $windowDays * 86400;
+
+        return array_values(array_filter($entries, function (array $entry) use ($from, $to): bool {
+            $at = $entry['occurredAt']->getTimestamp();
+
+            return $at >= $from && $at <= $to;
+        }));
+    }
+
+    /**
+     * Summarises the journal over a window.
      *
      * "Felt calmer" counts an explicit yes only. "A little" is left out on
      * purpose: the number is shown back to the user as something they said, so
      * it should not round their hedge up into agreement.
      *
+     * **It narrows to the window itself**, which it did not. `insights()` in
+     * `packages/protocol/src/insights.ts` always has, so the two had different
+     * contracts for the same rule: this one recorded `windowDays` as a label
+     * and trusted whoever called it to have scoped the rows. `InsightsService`
+     * does, in SQL, so nothing was wrong — but the second caller to forget
+     * would have had a window that lied, silently, and the parity fixture
+     * could not hold a case with an out-of-window entry while the two
+     * disagreed about whose job it was. The SQL `whereBetween` stays: it is
+     * what keeps the set small enough to reduce in PHP at all.
+     *
      * @param  list<array{feelings: list<FeelingId>, belief: ?string, calmerRating: ?CalmerRating, reachedFinalStep: bool, occurredAt: \DateTimeInterface}>  $entries
      */
-    public static function from(array $entries, int $windowDays = self::DEFAULT_WINDOW_DAYS): self
-    {
+    public static function from(
+        array $entries,
+        \DateTimeInterface $now,
+        int $windowDays = self::DEFAULT_WINDOW_DAYS,
+    ): self {
+        $entries = self::withinWindow($entries, $now, $windowDays);
+
         $counts = [];
         foreach ($entries as $entry) {
             // One session counts once per feeling, however often it was named.

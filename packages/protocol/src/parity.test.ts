@@ -22,8 +22,10 @@ import { mayShareEntry, sharesNewEntry, summarise } from './coach.js';
 import type { CoachSharing } from './onboarding.js';
 import { fullSessionsLeft, mayStartSession, type PlanId } from './plans.js';
 import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
+import { insights } from './insights.js';
+import type { FeelingId } from './feelings.js';
 import type { JournalEntry } from './journal.js';
-import type { SessionKind } from './session.js';
+import type { CalmerRating, SessionKind } from './session.js';
 import { baselineRiskScreen } from './risk.js';
 import { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
 import type { StepId } from './steps.js';
@@ -71,6 +73,29 @@ interface Limits {
   readonly keptFromAnEmojiAnswer: number;
 }
 
+interface InsightsCase {
+  readonly name: string;
+  readonly windowDays: number;
+  readonly nowMs: number;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly occurredAt: string;
+    readonly belief: string | null;
+    readonly calmerRating: string | null;
+    readonly reachedFinalStep: boolean;
+    readonly feelings: readonly string[];
+  }[];
+  readonly sessions: number;
+  readonly feltCalmer: number;
+  readonly reachedFinalStep: number;
+  readonly feelings: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly count: number;
+  }[];
+  readonly recurringBelief: { readonly belief: string; readonly sessions: number } | null;
+}
+
 interface SharingCase {
   readonly setting: CoachSharing;
   readonly hasCoach: boolean;
@@ -80,6 +105,7 @@ interface SharingCase {
 
 interface Cases {
   readonly risk: readonly RiskCase[];
+  readonly insights: readonly InsightsCase[];
   readonly sharing: readonly SharingCase[];
   readonly extraction: readonly ExtractionCase[];
   readonly plans: readonly PlanCase[];
@@ -119,6 +145,41 @@ describe('extraction matches the shared cases', () => {
     it(`reads ${c.stepId}: ${JSON.stringify(c.utterance)}`, () => {
       expect(isSubstantiveAnswer(c.stepId, c.utterance)).toBe(c.substantive);
       expect(literalExtraction(c.stepId, c.utterance) ?? null).toEqual(c.capture);
+    });
+  }
+});
+
+describe('the user\u2019s own insights match the shared cases', () => {
+  for (const c of cases.insights) {
+    it(c.name, () => {
+      const entries: JournalEntry[] = c.entries.map((e) => ({
+        id: e.id,
+        title: `Session ${e.id}`,
+        occurredAt: new Date(e.occurredAt),
+        durationMinutes: 12,
+        kind: 'full',
+        feelings: e.feelings as FeelingId[],
+        reachedFinalStep: e.reachedFinalStep,
+        sharedWithCoach: false,
+        ...(e.belief === null ? {} : { belief: e.belief }),
+        ...(e.calmerRating === null ? {} : { calmerRating: e.calmerRating as CalmerRating }),
+      }));
+
+      const result = insights(entries, new Date(c.nowMs), c.windowDays);
+
+      expect({
+        sessions: result.sessions,
+        feltCalmer: result.feltCalmer,
+        reachedFinalStep: result.reachedFinalStep,
+        feelings: result.feelings.map((f) => ({ id: f.id, label: f.label, count: f.count })),
+        recurringBelief: result.recurringBelief ?? null,
+      }).toEqual({
+        sessions: c.sessions,
+        feltCalmer: c.feltCalmer,
+        reachedFinalStep: c.reachedFinalStep,
+        feelings: c.feelings,
+        recurringBelief: c.recurringBelief,
+      });
     });
   }
 });

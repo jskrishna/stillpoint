@@ -35,6 +35,10 @@ final class InsightsService
             'occurredAt' => $e->occurred_at,
         ])->all();
 
-        return Insights::from(array_values($entries), $windowDays);
+        // `$now` as well as the SQL window: the domain narrows to the window
+        // itself now, so a caller that forgot to scope cannot produce a
+        // window that lies. This one scopes anyway, because that is what keeps
+        // the set small enough to reduce in PHP.
+        return Insights::from(array_values($entries), $now, $windowDays);
     }
 }

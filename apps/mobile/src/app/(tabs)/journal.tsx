@@ -84,8 +84,16 @@ export default function Journal() {
     >
       <Text style={s.title}>Your journal</Text>
       <Text style={s.caption}>
+        {/*
+          A failed read is not a slow one. `entries` stays null when the
+          request fails, so this said "Loading…" next to the error message for
+          as long as the screen was open — a small thing to say that is not
+          true, on a screen that already says the true thing underneath.
+        */}
         {entries === null
-          ? 'Loading…'
+          ? problem === null
+            ? 'Loading…'
+            : 'Not loaded'
           : `${String(total)} ${total === 1 ? 'session' : 'sessions'}, newest first`}
       </Text>
 
