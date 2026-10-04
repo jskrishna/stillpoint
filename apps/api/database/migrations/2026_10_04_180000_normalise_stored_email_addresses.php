@@ -35,25 +35,41 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $rows = DB::table('users')->select('id', 'email')->get();
-        $lowered = [];
+        // Row by row rather than all of them: this is a migration against a
+        // table with no ceiling on it, and `select()->get()` would hold every
+        // address in memory at once. That is the same unbounded read the
+        // insights query was just fixed for, and writing it here a commit
+        // later would be the shape of thing this repository keeps catching.
+        //
+        // Two passes rather than one, because a collision is only visible
+        // once both rows have been seen: the first counts, the second writes.
+        //
+        // `chunk` rather than `chunkById` is safe here only because the write
+        // touches `email` and the order is on `id`, so no row moves into or
+        // out of a later page. It would not be safe if this updated the
+        // column it paged by.
+        $counts = [];
 
-        foreach ($rows as $row) {
-            $lowered[mb_strtolower(trim((string) $row->email))][] = $row;
-        }
-
-        foreach ($lowered as $address => $group) {
-            // More than one row shares this address once case is ignored.
-            // Leave all of them: see the note above.
-            if (count($group) > 1) {
-                continue;
+        DB::table('users')->select('id', 'email')->orderBy('id')->chunk(500, function ($rows) use (&$counts): void {
+            foreach ($rows as $row) {
+                $address = mb_strtolower(trim((string) $row->email));
+                $counts[$address] = ($counts[$address] ?? 0) + 1;
             }
+        });
 
-            $row = $group[0];
-            if ((string) $row->email !== $address) {
+        DB::table('users')->select('id', 'email')->orderBy('id')->chunk(500, function ($rows) use ($counts): void {
+            foreach ($rows as $row) {
+                $address = mb_strtolower(trim((string) $row->email));
+
+                // More than one row shares this address once case is ignored.
+                // Leave all of them: see the note above.
+                if (($counts[$address] ?? 0) > 1 || (string) $row->email === $address) {
+                    continue;
+                }
+
                 DB::table('users')->where('id', $row->id)->update(['email' => $address]);
             }
-        }
+        });
     }
 
     /**
