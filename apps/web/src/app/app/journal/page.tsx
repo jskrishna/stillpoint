@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, type ApiJournalEntry } from '../../../lib/api';
@@ -25,6 +25,18 @@ export default function Journal() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
+  /**
+   * What arrived, for a screen reader, and empty until something has.
+   *
+   * The subtitle already carries "Showing 20 of 38." and suppresses itself
+   * once everything is loaded, which is sensible on a first load — "Showing 8
+   * of 8." is noise — and is exactly backwards after a press: the sentence
+   * that would confirm eighteen more entries arrived is the one that
+   * disappears when they do. So the confirmation is its own polite region,
+   * silent until there is news, in the same words the subtitle uses.
+   */
+  const [arrived, setArrived] = useState('');
+  const arrivedRef = useRef<HTMLParagraphElement | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -50,9 +62,23 @@ export default function Journal() {
     setLoadingMore(true);
     try {
       const page = await api.journal(PAGE, cursor);
+      const shown = (entries?.length ?? 0) + page.items.length;
       setEntries((current) => [...(current ?? []), ...page.items]);
       setCursor(page.nextCursor);
       setTotal(page.total);
+      setArrived(`Showing ${String(shown)} of ${String(page.total)}.`);
+
+      // The button goes when the last page lands, and the press that made it
+      // go has nowhere to leave focus — measured, `document.activeElement`
+      // became `<body>`, returning a keyboard user to the top of a list that
+      // had just got longer. So focus moves to the line that says what
+      // arrived, which is the same answer as the session screen's pause: when
+      // the thing you pressed is gone, something has to take focus
+      // deliberately. While the button is still there it keeps focus itself,
+      // which is what `aria-disabled` below is for.
+      if (page.nextCursor === null) {
+        requestAnimationFrame(() => arrivedRef.current?.focus());
+      }
     } catch {
       setFailed(true);
     } finally {
@@ -68,6 +94,31 @@ export default function Journal() {
         {entries === null || total <= entries.length
           ? ''
           : ` Showing ${String(entries.length)} of ${String(total)}.`}
+      </p>
+
+      {/*
+        Polite, not an alert: more of somebody's own journal arriving is not
+        something to interrupt them with. The opposite of the session screen's
+        crisis block, and the same reasoning.
+      */}
+      <p
+        ref={arrivedRef}
+        role="status"
+        tabIndex={-1}
+        className={styles.subtitle}
+        style={
+          arrived === ''
+            ? {
+                position: 'absolute',
+                width: 1,
+                height: 1,
+                overflow: 'hidden',
+                clip: 'rect(0 0 0 0)',
+              }
+            : undefined
+        }
+      >
+        {arrived}
       </p>
 
       {failed ? (
@@ -99,7 +150,14 @@ export default function Journal() {
           onClick={() => {
             void loadOlder();
           }}
-          disabled={loadingMore}
+          /*
+           * `aria-disabled`, not `disabled`, for the reason the console's
+           * buttons have it: a `disabled` button leaves the tab order, so the
+           * focus that was on it lands at the top of the document. Measured
+           * here — focus was on "Load older", the press made it `<body>`, and
+           * it stayed there. The handler refuses the second press.
+           */
+          aria-disabled={loadingMore}
         >
           {loadingMore ? 'Loading…' : 'Load older'}
         </button>

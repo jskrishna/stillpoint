@@ -514,6 +514,45 @@ the surviving loop's success path cleared it. Which loop finishes last decides
 it, so the count is what to trust and
 `tests/Feature/NotFoundSaysNothingTest.php` is where the wording is pinned.
 
+**The journal's "Load older" was the same bug in the ordinary part of the
+app.** The console's buttons were audited; this one was not, and it is the same
+two failures at once. Measured with the page request held open: focus was on
+"Load older", the press made `document.activeElement` **`<body>`**, and it
+stayed there — and when the **last** page lands the button is removed
+altogether (`cursor === null`), so a keyboard user is returned to the top of a
+list that has just got eighteen entries longer, with nothing saying so.
+
+The screen even had the sentence and threw it away. The subtitle carries
+"Showing 20 of 38." and suppresses itself once everything is loaded, which is
+right on a first load — "Showing 8 of 8." is noise — and exactly backwards
+after a press: the one sentence that would confirm the entries arrived is the
+one that disappears when they do.
+
+So `aria-disabled` rather than `disabled`, which keeps focus on the button
+while the page is in flight; a `role="status"` of its own, silent until there
+is news and then holding the same words the subtitle uses; and focus moved to
+that line when the button is removed, because the thing that was pressed is
+gone — the session screen's pause answer, for the same reason. Polite, not an
+alert: more of somebody's own journal arriving is not something to interrupt
+them with. Re-measured: focus stays on "Loading…", then lands on
+`p[role="status"]` reading "Showing 38 of 38.".
+
+**The phone was already right, and it is worth knowing why.** Its button uses
+`accessibilityState={{ disabled, busy }}`, which React Native for web renders
+as `aria-disabled` and `aria-busy` rather than the DOM attribute — the same API
+whose `accessibilityLiveRegion` sibling `mobile.mjs` already checks. Its label
+also carries the count itself ("Load more (20 of 38)"), so its accessible name
+is the announcement. The web hand-rolled `disabled` and got neither.
+
+**This one is measured by hand and is not asserted**, which is the honest part.
+A check needs a second page, so twenty-one journal entries, so twenty-one
+sessions driven through the API; and raising `DemoContentSeeder` past twenty
+would fill a reviewer's demo journal with filler, against the one thing that
+seeder is for. An assertion that silently skips when the button is absent is
+worse than none, because it reads as coverage. The probe is a browser, the page
+request held open, and `document.activeElement` before and after — which is how
+every finding in this section was made.
+
 **And the status must not become the field's name.** Both note fields are
 labels, so a status inside the label folds into the control's accessible name
 and the name then changes every time a save runs. `aria-labelledby` points at
