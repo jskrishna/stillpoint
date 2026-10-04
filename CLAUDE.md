@@ -1823,7 +1823,28 @@ sessions, another in two, one belief in two): thirteen feelings each counted
 once is a ranking of nothing, which is what the first attempt rendered.
 
 CI runs four jobs: the PHP suite, the JavaScript gates, the end-to-end checks,
-and the Docker images. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
+and the Docker images.
+
+**And it has been failing without running, which is a different thing.** From
+run 198 to run 223 — **twenty-six consecutive pushes** — every job finished in
+under two seconds with `conclusion: failure` and **no log output at all**. Not
+a test failure: the annotation says "The job was not started because recent
+account payments have failed or your spending limit needs to be increased."
+A billing hold on the account, with nothing in the repository wrong, for about
+eight hours, while `verify:clean` and all seven end-to-end checks were green
+locally the whole time.
+
+Two things to take from it. **A red CI badge is not a result**, and the way to
+tell is the shape: seconds, no logs, and a reason that lives in the run's
+_annotations_ rather than its output. And what that window leaves unverified is
+exactly the two things only CI can do — the **MySQL** migration run up and back
+down, and the **Docker** images plus `deploy/smoke.mjs` through nginx. Neither
+can be closed in the development container: there is no MySQL and apt cannot
+install one, `migrate --pretend` needs a live connection so it cannot even
+render the MySQL grammar, and the Docker CLI is present with no daemon behind
+it. So for every commit in that window, sqlite passing still proves nothing
+about MySQL, and that is the rule this file already states rather than a new
+one. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
 
 **There is no MySQL server in the development container**, and apt cannot
