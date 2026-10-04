@@ -2927,6 +2927,29 @@ the header was still there after the middleware ran, on the first version of
 it. `header_remove()` is what takes it off. `deploy/php.ini` sets
 `expose_php=Off`, which is the real answer and reaches only the deployment.
 
+**And the policy caught something on the way in.** `/up` is the health route,
+and `health: '/up'` answers JSON to `Accept: application/json` and Laravel's
+own **branded HTML page** to anything else — a page that links
+`fonts.bunny.net` and `cdn.jsdelivr.net`. Measured in a real browser: two
+requests to two third parties, from an API that has no web routes on purpose,
+in a product that stopped linking Google's font CDN because "every visitor's IP
+and user-agent reached a third party on every page". The container's own
+healthcheck is `wget` with no `Accept` header, so that page is the one it had
+been asking for all along.
+
+`default-src 'none'` stops both — checked in the browser, the stylesheet and
+the script are refused — but a page that _tries_ is the thing `e2e/privacy.mjs`
+exists to catch, and that script only ever looked at the web app's origin. So
+the route is ours now, in `withRouting`'s `then`, answering JSON to everybody
+with no page to link anything; it keeps the `DiagnosingHealth` event, the
+200-or-500, and `preventRequestsDuringMaintenance(except: ['up'])`, which
+`health:` used to arrange. It also drops the **exception message** Laravel's
+page prints: a listener here checks a database or a cache, so that message can
+name a host or a credential, on the one route no token guards.
+`HealthRouteNamesNoThirdPartyTest` asserts the body matches no `https?://` at
+all — a stricter rule than avoiding those two hosts — names no framework, and
+contains no `<`.
+
 Asserted twice, on purpose. `ApiOriginIsLockedDownTest` pins all four on a
 signed-in response **and on a 401** — the exception handler builds its own
 response, so appending to the group is the only placement that reaches both.
