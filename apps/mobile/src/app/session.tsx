@@ -4,15 +4,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FEELING_COLOR, RADIUS, SPACE, TEXT } from '@stillpoint/design-tokens';
 import {
+  DEFAULT_COUNTRY,
   FEELINGS,
   MAX_FEELINGS,
   MORE_FEELINGS,
   PRIMARY_FEELINGS,
+  baselineRiskScreen,
   canSelectMore,
+  helplinesFor,
   toggleFeeling,
   type FeelingId,
 } from '@stillpoint/protocol';
-import { ApiError, api, type ApiSession } from '../api';
+import { ApiError, api, type ApiHelpline, type ApiSession } from '../api';
 import { FAMILY, leading } from '../theme';
 import { guideVoiceFor, silentGuide, type GuideVoice } from '../voice';
 import { Button, Card, Field, Tag } from '../ui';
@@ -55,6 +58,31 @@ export default function Session() {
 
   const [session, setSession] = useState<ApiSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Whose crisis numbers, if this screen ever has to offer them itself. */
+  const [country, setCountry] = useState<string>(DEFAULT_COUNTRY);
+  /**
+   * Helplines to show beside an answer that never reached the server.
+   *
+   * **This is not the stop and must never become it.** The stop, the flag and
+   * the queue are the server's — `takeTurn()` screens before the guide is
+   * consulted, and nothing here changes that. What this covers is the one case
+   * the server cannot: the request did not arrive. Somebody typed that they
+   * were going to kill themselves, the POST died in a tunnel, and the screen
+   * said "Could not reach Stillpoint. Check your connection and try again." —
+   * a connection error, to a person who had just said that. On a phone that is
+   * not a rare case; it is the normal one.
+   *
+   * So on a failure, and only on a failure, the local screen's `high` is
+   * enough to put a number on the screen. It does not end the session, does
+   * not raise a flag and does not claim to have read anything: the answer
+   * stays in the box and the retry goes through the server, which does all
+   * three. `high` and not `medium`, to match the level the server stops on.
+   *
+   * Its silence means nothing. The phrase screen misses whole languages, so an
+   * empty list here is not evidence of safety — the same rule as a `none` from
+   * that screen. The web app has this in the same words.
+   */
+  const [unsentCrisis, setUnsentCrisis] = useState<readonly ApiHelpline[] | null>(null);
   const [exhausted, setExhausted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState('');
@@ -82,6 +110,7 @@ export default function Session() {
       .me()
       .then((profile) => {
         setVoice(guideVoiceFor(profile.guideVoice));
+        setCountry(profile.country);
       })
       .catch(() => {
         // A session without a voice is a typed session, which works.
@@ -162,6 +191,9 @@ export default function Session() {
         // lost on the way back is a Tuesday.
         const next = await api.takeTurn(session.id, utterance, session.step?.id ?? null);
         setSession(next);
+        // It arrived, so the server has screened it and this screen has no
+        // business second-guessing what it decided.
+        setUnsentCrisis(null);
         setLastSaid(said);
         setAnswer('');
         setFeelings([]);
@@ -176,6 +208,11 @@ export default function Session() {
           setFeelings([]);
         } else {
           setError(describe(e));
+          // The server never saw this one. See `unsentCrisis` above for why the
+          // local screen gets to speak here and nowhere else.
+          setUnsentCrisis(
+            baselineRiskScreen.assess(utterance).level === 'high' ? helplinesFor(country) : null,
+          );
         }
       } finally {
         setBusy(false);
@@ -404,6 +441,18 @@ export default function Session() {
         </Text>
       )}
 
+      {unsentCrisis === null || unsentCrisis.length === 0 ? null : (
+        <View style={{ gap: SPACE.md }}>
+          <Text style={s.lead}>
+            That answer has not been sent. If you are in danger right now, these do not need the
+            internet.
+          </Text>
+          {unsentCrisis.map((h) => (
+            <HelplineButton key={h.number} helpline={h} />
+          ))}
+        </View>
+      )}
+
       <Button
         label="Continue"
         busy={busy}
@@ -587,7 +636,7 @@ function Summary({
  * omission.
  */
 function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) {
-  const { c, s } = useTheme();
+  const { s } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -605,57 +654,7 @@ function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) 
       <Text style={s.lead}>{safety.body}</Text>
 
       {safety.helplines.map((h) => (
-        <Pressable
-          key={h.number}
-          accessibilityRole="button"
-          accessibilityLabel={`Call ${h.name} on ${h.number}`}
-          // A phone can actually make the call, which is the whole point of
-          // this screen being on a phone.
-          onPress={() => {
-            void Linking.openURL(`tel:${h.number}`);
-          }}
-          style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: SPACE.md,
-            padding: SPACE.lg,
-            borderRadius: RADIUS.card,
-            backgroundColor: h.kind === 'emergency' ? c.danger : c.positive,
-            opacity: pressed ? 0.85 : 1,
-          })}
-        >
-          <View style={{ flex: 1, gap: SPACE.xs }}>
-            <Text
-              style={{
-                fontFamily: FAMILY.uiSemibold,
-                fontSize: TEXT.body,
-                color: h.kind === 'emergency' ? c.dangerInk : '#FFFFFF',
-              }}
-            >
-              {h.name}
-            </Text>
-            <Text
-              style={{
-                fontFamily: FAMILY.ui,
-                fontSize: TEXT.caption,
-                color: h.kind === 'emergency' ? c.dangerInk : '#FFFFFF',
-                opacity: 0.9,
-              }}
-            >
-              {h.detail}
-            </Text>
-          </View>
-          <Text
-            style={{
-              fontFamily: FAMILY.uiSemibold,
-              fontSize: TEXT.subheading,
-              color: h.kind === 'emergency' ? c.dangerInk : '#FFFFFF',
-            }}
-          >
-            {h.number}
-          </Text>
-        </Pressable>
+        <HelplineButton key={h.number} helpline={h} />
       ))}
 
       <Button
@@ -666,5 +665,78 @@ function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) 
         }}
       />
     </ScrollView>
+  );
+}
+
+/**
+ * One crisis number, dialable.
+ *
+ * Shared by the safety pause and by the failure path in the session screen,
+ * because two renderings of a phone number is two places for one of them to
+ * stop making the call.
+ */
+function HelplineButton({
+  helpline,
+}: {
+  helpline: {
+    readonly name: string;
+    readonly number: string;
+    readonly detail: string;
+    readonly kind: string;
+  };
+}) {
+  const { c } = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Call ${helpline.name} on ${helpline.number}`}
+      // A phone can actually make the call, which is the whole point of
+      // this screen being on a phone.
+      onPress={() => {
+        void Linking.openURL(`tel:${helpline.number}`);
+      }}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: SPACE.md,
+        padding: SPACE.lg,
+        borderRadius: RADIUS.card,
+        backgroundColor: helpline.kind === 'emergency' ? c.danger : c.positive,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <View style={{ flex: 1, gap: SPACE.xs }}>
+        <Text
+          style={{
+            fontFamily: FAMILY.uiSemibold,
+            fontSize: TEXT.body,
+            color: helpline.kind === 'emergency' ? c.dangerInk : '#FFFFFF',
+          }}
+        >
+          {helpline.name}
+        </Text>
+        <Text
+          style={{
+            fontFamily: FAMILY.ui,
+            fontSize: TEXT.caption,
+            color: helpline.kind === 'emergency' ? c.dangerInk : '#FFFFFF',
+            opacity: 0.9,
+          }}
+        >
+          {helpline.detail}
+        </Text>
+      </View>
+      <Text
+        style={{
+          fontFamily: FAMILY.uiSemibold,
+          fontSize: TEXT.subheading,
+          color: helpline.kind === 'emergency' ? c.dangerInk : '#FFFFFF',
+        }}
+      >
+        {helpline.number}
+      </Text>
+    </Pressable>
   );
 }

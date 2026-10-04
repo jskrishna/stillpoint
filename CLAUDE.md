@@ -182,6 +182,43 @@ The screen still runs, a flag is still raised, a stop still stops. Only the
 guide is charged for: `TurnResult::guideConsulted()` is false for a stop and for
 a refusal, so neither spends the budget.
 
+### A lost request is not a safe one
+
+`takeTurn()` screening before the guide speaks covers every turn the server
+receives. The case it cannot cover is the turn it never receives: somebody
+types that they are going to kill themselves, the POST dies in a tunnel, and
+the screen showed `describe(e)` — "Could not reach Stillpoint. Check your
+connection and try again." — and nothing else. A connection error, to a person
+who had just said that. Section 3c of `flow.mjs` already establishes that a
+dropped request on mobile data is the ordinary case rather than an edge one.
+
+So **on a failed turn, and only on a failed turn**, the browser's copy of the
+phrase screen is allowed to put a crisis number on the screen:
+`unsentCrisis` in `apps/web/src/app/session/SessionFlow.tsx` and
+`apps/mobile/src/app/session.tsx`, in the same words on both.
+
+Four things about it, and the first is the one that matters:
+
+- **It is not the stop and must never become it.** The session stays open, no
+  flag is raised, nothing is recorded, and the answer stays in the box. The
+  retry goes through the server, which stops, flags and queues. The rule that
+  the browser screen is "a convenience for instant feedback, never the
+  enforcement" is intact — this adds an offer on a path where the server has no
+  opinion because it was never asked.
+- **`high` only**, matching the level the server stops on, so it cannot appear
+  on an ordinary bad day. Hopelessness stays `medium` here as everywhere.
+- **Its silence means nothing.** The phrase screen misses whole languages —
+  `quiero morirme` normalises cleanly and matches nothing — so an empty list
+  here is not evidence of safety, exactly as a `none` from that screen is not.
+- **One rendering of a phone number per surface**, extracted to `HelplineLink`
+  / `HelplineButton`, because two renderings is two places for one of them to
+  stop being a `tel:` link.
+
+`flow.mjs` and `mobile.mjs` abort the turns route, assert the number appears
+with the account's own country, assert the session is **not** treated as
+stopped, and then let the retry through and assert the server does the real
+thing. Both were checked by reverting the screens and rebuilding.
+
 ### A lost response is not a lost turn
 
 A turn names the step it answers (`step` in the request body,

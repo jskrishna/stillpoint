@@ -256,6 +256,36 @@ await page.waitForTimeout(2000);
 await press('Or a quick session');
 await page.waitForTimeout(2500);
 
+// First with the request dying on the way out, which on mobile data is the
+// normal case rather than the rare one. The server never hears this, so it
+// cannot stop anything, raise a flag or send a helpline — and what the screen
+// used to show was "Could not reach Stillpoint. Check your connection and try
+// again." to somebody who had just said they were going to kill themselves.
+//
+// It offers a number from the local phrase screen now. Not the stop: the
+// session stays open, no flag exists, and the retry below is what reaches the
+// server and does all three.
+await page.route('**/turns', (route) => route.abort());
+await answer('I want to kill myself');
+const offered = await page
+  .waitForFunction(() => /That answer has not been sent/.test(document.body.innerText), null, {
+    timeout: 15000,
+  })
+  .then(
+    () => true,
+    () => false,
+  );
+const unsent = await body();
+await page.unroute('**/turns');
+
+if (offered) ok('an answer that never left still gets a crisis number');
+else bad('an answer that never left still gets a crisis number', unsent.slice(0, 600));
+if (/988/.test(unsent) && /\b911\b/.test(unsent)) ok('and it is this account\u2019s own numbers');
+else bad('and it is this account\u2019s own numbers', unsent.slice(0, 600));
+if (/step [1-6] of 6/i.test(unsent)) ok('and the session is not treated as stopped');
+else bad('and the session is not treated as stopped', unsent.slice(0, 600));
+
+// Now let it through, and the server does the real thing.
 await answer('I want to kill myself');
 await page.waitForTimeout(1500);
 

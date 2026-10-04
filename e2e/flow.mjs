@@ -807,7 +807,43 @@ page.on('request', (r) => {
   if (r.url().includes('/api/')) requests.push(`${r.method()} ${r.url().replace(/^.*\/api/, '')}`);
 });
 
+// First, the same words with the request dying on the way out — a tunnel,
+// which section 3c already shows is not an edge case on mobile data. The
+// server never hears this one, so it cannot stop anything, raise a flag or
+// send a helpline: what the screen used to do was print "Could not reach
+// Stillpoint. Check your connection and try again." to somebody who had just
+// said they were going to kill themselves, and nothing else.
+//
+// What it does now is offer a number from the local phrase screen. This is not
+// the stop and must never become it — the session stays open, no flag exists,
+// and the retry below is what reaches the server and does all three.
+await page.route('**/turns', (route) => route.abort());
 await page.locator('textarea, input[type=text]').first().fill('I want to kill myself');
+await page
+  .locator('button', { hasText: /^(Continue|Next)/ })
+  .first()
+  .click();
+const offered = await page
+  .waitForFunction(() => /That answer has not been sent/.test(document.body.innerText), null, {
+    timeout: 15000,
+  })
+  .then(
+    () => true,
+    () => false,
+  );
+const unsent = await text();
+await page.unroute('**/turns');
+
+if (offered) ok('an answer that never left still gets a crisis number');
+else bad('an answer that never left still gets a crisis number', unsent.slice(0, 500));
+if (/988/.test(unsent) && /\b911\b/.test(unsent)) ok('and it is this account\u2019s own numbers');
+else bad('and it is this account\u2019s own numbers', unsent.slice(0, 500));
+// Not the stop. The server has not heard, so there is nothing to be terminal
+// about, and the words are still there to send.
+if (/Step \d of 6/.test(unsent)) ok('and the session is not treated as stopped');
+else bad('and the session is not treated as stopped', unsent.slice(0, 500));
+
+// Now let it through, and the server does the real thing.
 await page
   .locator('button', { hasText: /^(Continue|Next)/ })
   .first()

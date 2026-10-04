@@ -4,16 +4,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
+  DEFAULT_COUNTRY,
   FEELINGS,
   MAX_FEELINGS,
   MORE_FEELINGS,
   PRIMARY_FEELINGS,
+  baselineRiskScreen,
   canSelectMore,
+  helplinesFor,
   toggleFeeling,
   type FeelingId,
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
-import { ApiError, api, hasToken, type ApiSession } from '../../lib/api';
+import { ApiError, api, hasToken, type ApiHelpline, type ApiSession } from '../../lib/api';
 import { browserVoiceLoop, type VoiceLoop } from '../../lib/voice';
 import styles from './session.module.css';
 
@@ -37,6 +40,33 @@ const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
 export default function SessionFlow() {
   const [session, setSession] = useState<ApiSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Whose crisis numbers, if this screen ever has to offer them itself. */
+  const [country, setCountry] = useState<string>(DEFAULT_COUNTRY);
+  /**
+   * Helplines to show beside an answer that never reached the server.
+   *
+   * **This is not the stop and must never become it.** The stop, the flag and
+   * the queue are the server's, and the browser's copy of the phrase screen is
+   * a convenience — that rule is why `takeTurn()` screens server-side before
+   * the guide is consulted, and nothing here changes it. What this covers is
+   * the one case the server cannot: the request did not arrive. Somebody typed
+   * that they were going to kill themselves, the POST failed in a tunnel, and
+   * the screen said "Could not reach Stillpoint. Check your connection and try
+   * again." — a connection error, to a person who had just said that.
+   *
+   * So on a failure, and only on a failure, the local screen's `high` is
+   * enough to put a phone number on the screen. It does not end the session,
+   * does not raise a flag and does not claim to have read anything: the answer
+   * stays in the box and the retry goes through the server, which does all
+   * three. `high` and not `medium`, to match the level the server stops on, so
+   * this cannot appear on an ordinary bad day.
+   *
+   * And its silence means nothing. The phrase screen misses whole languages —
+   * `quiero morirme` normalises cleanly and matches nothing — so an empty list
+   * here is not evidence of safety, exactly as a `none` from that screen is
+   * not.
+   */
+  const [unsentCrisis, setUnsentCrisis] = useState<readonly ApiHelpline[] | null>(null);
   const [exhausted, setExhausted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState('');
@@ -72,6 +102,7 @@ export default function SessionFlow() {
       .me()
       .then((profile) => {
         setVoice(browserVoiceLoop(profile.talkMode));
+        setCountry(profile.country);
       })
       .catch(() => {
         // A session without a voice is a typed session, which works.
@@ -149,6 +180,9 @@ export default function SessionFlow() {
         // question is then never answered by anybody.
         const next = await api.takeTurn(session.id, utterance, session.step?.id ?? null);
         setSession(next);
+        // It arrived, so the server has screened it and this screen has no
+        // business second-guessing what it decided.
+        setUnsentCrisis(null);
         setLastSaid(said);
         setAnswer('');
         setFeelings([]);
@@ -163,6 +197,11 @@ export default function SessionFlow() {
           setFeelings([]);
         } else {
           setError(describe(e));
+          // The server never saw this one. See `unsentCrisis` above for why
+          // the browser's screen gets to speak here and nowhere else.
+          setUnsentCrisis(
+            baselineRiskScreen.assess(utterance).level === 'high' ? helplinesFor(country) : null,
+          );
         }
       } finally {
         setBusy(false);
@@ -361,6 +400,18 @@ export default function SessionFlow() {
 
       {error === null ? null : <p className={styles.missing}>{error}</p>}
 
+      {unsentCrisis === null || unsentCrisis.length === 0 ? null : (
+        <div className={styles.safety}>
+          <p className={styles.safetyBody}>
+            That answer has not been sent. If you are in danger right now, these do not need the
+            internet.
+          </p>
+          {unsentCrisis.map((h) => (
+            <HelplineLink key={h.number} helpline={h} />
+          ))}
+        </div>
+      )}
+
       <div className={styles.actions}>
         <button
           type="button"
@@ -515,19 +566,7 @@ function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) 
         <p className={styles.safetyBody}>{safety.body}</p>
 
         {safety.helplines.map((h) => (
-          <a
-            key={h.number}
-            href={`tel:${h.number}`}
-            className={`${styles.helpline} ${
-              h.kind === 'emergency' ? styles.helplineEmergency : styles.helplineMain
-            }`}
-          >
-            <span className={styles.helplineText}>
-              <span className={styles.helplineName}>{h.name}</span>
-              <span className={styles.helplineDetail}>{h.detail}</span>
-            </span>
-            <span className={styles.helplineNumber}>{h.number}</span>
-          </a>
+          <HelplineLink key={h.number} helpline={h} />
         ))}
       </div>
 
@@ -572,5 +611,38 @@ function TickIcon() {
     >
       <path d="M5 12l5 5 9-10" />
     </svg>
+  );
+}
+
+/**
+ * One crisis number, dialable.
+ *
+ * Shared by the safety pause and by the failure path above, because two
+ * renderings of a phone number on one screen is two places for one of them to
+ * stop being a `tel:` link.
+ */
+function HelplineLink({
+  helpline,
+}: {
+  helpline: {
+    readonly name: string;
+    readonly number: string;
+    readonly detail: string;
+    readonly kind: string;
+  };
+}) {
+  return (
+    <a
+      href={`tel:${helpline.number}`}
+      className={`${styles.helpline} ${
+        helpline.kind === 'emergency' ? styles.helplineEmergency : styles.helplineMain
+      }`}
+    >
+      <span className={styles.helplineText}>
+        <span className={styles.helplineName}>{helpline.name}</span>
+        <span className={styles.helplineDetail}>{helpline.detail}</span>
+      </span>
+      <span className={styles.helplineNumber}>{helpline.number}</span>
+    </a>
   );
 }
