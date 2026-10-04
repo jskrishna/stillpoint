@@ -277,6 +277,94 @@
       "category": "self_harm",
       "matched": "wanted to die",
       "unreadable": false
+    },
+    {
+      "utterance": "je veux mourir",
+      "why": "French, intent",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "je veux mourir",
+      "unreadable": false
+    },
+    {
+      "utterance": "mettre fin à mes jours",
+      "why": "French, intent, with accents",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "mettre fin a mes jours",
+      "unreadable": false
+    },
+    {
+      "utterance": "mettre fin a mes jours",
+      "why": "the same typed without them",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "mettre fin a mes jours",
+      "unreadable": false
+    },
+    {
+      "utterance": "tout le monde serait mieux sans moi",
+      "why": "the designs’ own phrase, in French",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "mieux sans moi",
+      "unreadable": false
+    },
+    {
+      "utterance": "je n’en peux plus",
+      "why": "French hopelessness: medium, not high",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "je n'en peux plus",
+      "unreadable": false
+    },
+    {
+      "utterance": "je suis fatigué de vivre",
+      "why": "accented, and medium",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "fatigue de vivre",
+      "unreadable": false
+    },
+    {
+      "utterance": "je suis fatigue de vivre",
+      "why": "unaccented, and the same grade",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "fatigue de vivre",
+      "unreadable": false
+    },
+    {
+      "utterance": "à quoi bon",
+      "why": "broad enough to be low",
+      "level": "low",
+      "category": "self_harm",
+      "matched": "a quoi bon",
+      "unreadable": false
+    },
+    {
+      "utterance": "je suis en colère",
+      "why": "ordinary French upset",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "aujourd’hui mon patron m’a critiqué devant toute l’équipe",
+      "why": "ordinary, with every accent",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "quiero morirme",
+      "why": "Spanish: not covered, and not reported unreadable",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
     }
   ],
   "extraction": [

@@ -87,6 +87,26 @@ const UTTERANCES = [
     'that film was about someone who wanted to die',
     'A deliberate false positive. Past tense is in the screen because people say it that way, and reported speech trips it. Leave it: a reviewer loses a minute, which is the error this screen is meant to make.',
   ],
+  // French, because Canada is the first market and French is one of its two
+  // official languages. Latin script, so the screen never reported it as
+  // unreadable — it folded the accents away, matched nothing, and graded a
+  // plain statement of intent `none` with full confidence. These pin both the
+  // grading and the accent folding, which the two languages do with the same
+  // three Unicode steps and could silently disagree about.
+  ['je veux mourir', 'French, intent'],
+  ['mettre fin à mes jours', 'French, intent, with accents'],
+  ['mettre fin a mes jours', 'the same typed without them'],
+  ['tout le monde serait mieux sans moi', 'the designs’ own phrase, in French'],
+  ['je n’en peux plus', 'French hopelessness: medium, not high'],
+  ['je suis fatigué de vivre', 'accented, and medium'],
+  ['je suis fatigue de vivre', 'unaccented, and the same grade'],
+  ['à quoi bon', 'broad enough to be low'],
+  ['je suis en colère', 'ordinary French upset'],
+  ['aujourd’hui mon patron m’a critiqué devant toute l’équipe', 'ordinary, with every accent'],
+  // Latin script and not covered: the limitation the folding does not fix, and
+  // the one `unreadable` cannot announce. Pinned so it is a known answer
+  // rather than a surprise.
+  ['quiero morirme', 'Spanish: not covered, and not reported unreadable'],
 ];
 
 /** Step answers both implementations must read the same way. */

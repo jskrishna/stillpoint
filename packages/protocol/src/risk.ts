@@ -207,6 +207,24 @@ export const BASELINE_RULES: readonly Rule[] = [
       'जान देने का',
       'नस काट',
       'खुद को खत्म',
+
+      // French. Canada is the first market and French is one of its two
+      // official languages — and French is Latin script, so before this the
+      // screen graded "je veux mourir" as `none` with `unreadable: false`: a
+      // confident clean answer about a plain statement of intent. That is the
+      // worst shape this screen can fail in.
+      //
+      // Written without accents because `normalise()` folds them, which also
+      // means somebody typing on a keyboard without them still matches.
+      'je veux mourir',
+      'je veux me tuer',
+      'je vais me tuer',
+      'me suicider',
+      'je veux en finir',
+      'en finir avec la vie',
+      'mettre fin a mes jours',
+      'me faire du mal',
+      'mieux sans moi',
     ],
   },
   {
@@ -257,6 +275,25 @@ export const BASELINE_RULES: readonly Rule[] = [
       'बोझ बन गया',
       'बोझ बन गई',
       'जीने से थक',
+
+      // French, graded the same as their English counterparts rather than up.
+      // "je n'en peux plus" is "I can't take any more", which is the sentence
+      // the ceiling rule exists for: flagged, not stopped on.
+      "je n'en peux plus",
+      'je ne peux plus continuer',
+      'fatigue de vivre',
+      // "I don't want to live (any more)" maps to the English `don't want to
+      // live`, which is medium. Only intent or an act is high, and wanting not
+      // to live is not the same sentence as meaning to end it — that is the
+      // whole ceiling rule, and it has to hold in French too or the French
+      // half of the screen stops sessions the English half would not.
+      'je ne veux pas vivre',
+      'je ne veux plus vivre',
+      'plus envie de vivre',
+      "je n'ai plus d'espoir",
+      "plus rien n'a de sens",
+      'je suis un fardeau',
+      'un poids pour tout le monde',
     ],
   },
   {
@@ -267,6 +304,12 @@ export const BASELINE_RULES: readonly Rule[] = [
       'nothing matters anymore',
       "what's the point any more",
       "what's the point anymore",
+
+      // French. "a quoi bon" is broad — it is also how somebody gives up on a
+      // spreadsheet — and `low` is the level for a signal worth a reviewer's
+      // glance and nothing more, which is where a phrase this broad belongs.
+      'a quoi bon',
+      'plus rien ne compte',
     ],
   },
   {
@@ -359,6 +402,23 @@ function normalise(utterance: string): string {
     utterance
       .toLowerCase()
       .replace(/[’‘`]/g, "'")
+      // Latin diacritics folded, so "fatigué" matches `fatigue` and so does
+      // "fatigue" typed without the accent. It is both halves of one problem:
+      // the filter below keeps `a-z` and nothing else, so every accent used to
+      // become a space — "je suis fatigué" normalised to "je suis fatigu" —
+      // while `readsEverything()` reported the text as perfectly readable
+      // because é is Latin script. The two disagreed about what reading means,
+      // and French is an official language of the first market.
+      //
+      // Decompose, drop the Latin combining marks, recompose. The range is the
+      // Combining Diacritical Marks block, which is Latin and Greek: a
+      // Devanagari vowel sign is U+0900-U+097F and is untouched, and the
+      // recompose puts back the few Devanagari characters that decompose at
+      // all (क़ and its kin). `App\Domain\PhraseRiskScreen` does the same
+      // three steps with the same range.
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]+/gu, '')
+      .normalize('NFC')
       // Danda, double danda, and the zero-width joiners that a mobile keyboard
       // leaves inside a conjunct.
       .replace(/[\u0964\u0965\u200c\u200d]/gu, ' ')

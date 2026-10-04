@@ -9,8 +9,22 @@ when they are upset: Notice → Responsibility → Feel → Remember → Inquire
 Forgive. Not therapy, not medical advice; the user can stop at any time.
 
 Five designed surfaces share one protocol: mobile app, desktop app, marketing
-website, admin console, coach portal. The product is India-first (₹ pricing,
-Tele-MANAS and 112 as helplines).
+website, admin console, coach portal.
+
+**Canada is the first market and India is the second.** That is newer than most
+of this file and newer than the design artifacts, which were drawn India-first
+(₹ pricing, Tele-MANAS and 112); where something below still reads as
+India-only, Canada is what it should say. The parts that have been moved
+already: the helplines (`CA` and `IN`, with `CA` the default for a new
+account), French in the risk screen, and the prices.
+
+Two consequences are worth having at the top, because they are both safety
+ones. **A market is a set of crisis numbers**: pricing in a currency implies
+users in that country, and `helplinesFor()` returning an empty list for them
+means a pause screen with nothing to call. And **a market is a set of
+languages**: French is an official language of Canada, and a Latin-script
+language the screen has no phrases for does not report itself as unreadable —
+it reports nothing found, with confidence.
 
 The design artifacts — not this repo — are the source of truth for product
 behaviour. Read them before changing domain rules; do not infer product
@@ -29,9 +43,25 @@ Never weaken these to make a flow more convenient, and never add a resume path
 around a safety stop. They have tests; a change that breaks them is a bug, not a
 failing test to update.
 
-Helplines resolve by country and cover India only. `helplinesFor()` returns an
-empty list for anywhere else — leave it that way rather than substituting a
-plausible-looking number. A wrong crisis number is worse than none.
+Helplines resolve by country and cover **Canada and India**. `helplinesFor()`
+returns an empty list for anywhere else — leave it that way rather than
+substituting a plausible-looking number. A wrong crisis number is worse than
+none.
+
+Canada is 9-8-8 (the national suicide crisis line, call or text, bilingual),
+Québec's 1-866-APPELLE, and 911. **Québec is listed separately on purpose**: it
+answers through its own line rather than 988, and somebody in Montréal
+dialling the wrong one of those is the failure this screen exists to prevent.
+India is Tele-MANAS 14416 and 112.
+
+`users.country` defaults to `CA`. It covered India only until Canada became the
+first market — so a Canadian who said they were not safe had their session
+stopped, saw the pause screen, and had nothing to call on it. The test that
+pinned that behaviour used Canada as its example of a country we correctly know
+nothing about, which is worth remembering the next time a market changes.
+Adding a country means adding its numbers **and** checking what else assumed
+the old one: the language the screen reads, the currency, the locale, and the
+privacy law the consent screen names.
 
 ## The risk screen is a backstop, not the detector
 
@@ -39,11 +69,23 @@ plausible-looking number. A wrong crisis number is worse than none.
 obvious cases cannot be missed while a real classifier is chosen and reviewed.
 It cannot read tone, context, metaphor or irony.
 
-**It knows English, Hinglish and Hindi, and it is thin in all three.** It used
-to know English only, and that was worse than it sounded: `normalise()` dropped
-every character outside `[a-z' ]`, so an utterance in Devanagari did not go
-unmatched — it became an empty string and returned `none` before a rule ran.
-Somebody typing "मुझे मरना है" into an India-first product got nothing at all.
+**It knows English, French, Hinglish and Hindi, and it is thin in all four.**
+It used to know English only, and that was worse than it sounded: `normalise()`
+dropped every character outside `[a-z' ]`, so an utterance in Devanagari did not
+go unmatched — it became an empty string and returned `none` before a rule ran.
+Somebody typing "मुझे मरना है" got nothing at all.
+
+**French was the same failure with the sharper edge, and it survived longer.**
+French is Latin script, so `normalise()` did not empty the string — it deleted
+only the accents, leaving "je suis fatigué" as "je suis fatigu", found no
+phrase, and returned `none` with `unreadable: false`. A plain statement of
+intent in an official language of the first market got a _confident_ clean
+answer, which is worse than the Devanagari case where the screen at least now
+admits it could not read. `normalise()` folds Latin diacritics (NFD, drop
+U+0300–U+036F, NFC) in both languages, so "fatigué" and "fatigue" are one
+phrase — which also means a keyboard without French accents still matches. The
+fold leaves Devanagari alone: its vowel signs are U+0900–U+097F, and the
+recompose puts back the few characters that decompose at all.
 
 The normaliser keeps Devanagari now, and the Hinglish and Hindi phrases are
 graded by the same rule as the English ones: only a statement of intent or of
@@ -81,6 +123,16 @@ Three things about it, all deliberate:
 
 Adding a script to the readable list without adding phrases for it is the wrong
 fix: it would make `unreadable` say no about text that still nobody reads.
+
+**`unreadable` catches only one of the two gaps, and it is the less dangerous
+one.** It is true when a letter is in a script the screen has no phrases for, so
+Bengali or Tamil announces itself. A language written in **Latin** script that
+the screen has no phrases for does not: it normalises cleanly, matches nothing,
+and comes back `none` with `unreadable: false` — exactly what French got until
+French was added. `quiero morirme` is "I want to kill myself" and this screen
+reports nothing at all, with confidence. There is a test saying so, and it is
+the thing the clinical review pack asks about most directly. Do not read a
+`none` as evidence of safety in a language nobody has checked.
 
 It is counted, in `guided_sessions.unreadable_turns`, and the console's
 overview reports it. That is the whole intervention — a count, because a count

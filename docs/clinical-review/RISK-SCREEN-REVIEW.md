@@ -1,6 +1,6 @@
 # Stillpoint — risk screen, for clinical review
 
-Generated from `packages/protocol/src/risk.ts` at commit `ab79466`.
+Generated from `packages/protocol/src/risk.ts` at commit `9f3895c`.
 Regenerate with `pnpm run clinical:review` after any change to the screen.
 
 ## What we are asking for
@@ -88,16 +88,30 @@ session. That false positive is deliberate and is recorded as such.
 
 ## The languages it covers
 
-English, Hinglish (romanised Hindi) and Hindi in Devanagari — and it is thin
-in all three. Hinglish has no settled spelling, so common variants are listed
-separately; a missed spelling is a missed disclosure.
+**English, French, Hinglish (romanised Hindi) and Hindi in Devanagari** —
+and it is thin in all four. French is here because Canada is the first
+market and French is one of its two official languages. Hinglish has no
+settled spelling, so common variants are listed separately; a missed
+spelling is a missed disclosure.
 
-**It covers no other Indian language.** When somebody writes in Bengali,
-Tamil, Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi or Urdu, the
-screen records that it could not read the text at all, rather than reporting
-that it found nothing. That is counted and shown to administrators, so the
-gap is visible. Nothing is flagged on that basis, and nothing is stored about
-which language it was.
+Accents are folded before matching, so "fatigué" and "fatigue" are the same
+phrase — a phone keyboard without French accents is ordinary.
+
+### Two different kinds of gap, and only one of them announces itself
+
+When somebody writes in a script the screen has no phrases for at all —
+Bengali, Tamil, Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi,
+Perso-Arabic — it records that **it could not read the text**, rather than
+reporting that it found nothing. That is counted and shown to
+administrators, so the gap is visible. Nothing is flagged on that basis, and
+nothing is stored about which language it was.
+
+**A language written in Latin script that it has no phrases for does not
+announce itself.** It normalises cleanly, matches nothing, and comes back
+"nothing found" with full confidence — which is exactly what French got
+until French was added. Spanish and Portuguese are in that position now.
+This is the limitation we would most like your view on: it is not that the
+screen is thin, it is that in these cases it cannot tell that it is.
 
 ## The phrases, in full
 
@@ -105,13 +119,13 @@ Matched as substrings of the answer after lowercasing, straightening curly
 apostrophes, and removing punctuation. So "KILL MYSELF." and "...kill
 myself..." both match `kill myself`.
 
-There are 134 phrases in 8 rules.
+There are 155 phrases in 8 rules.
 
 ### Graded high
 
 **The session ends immediately.** The guide is never consulted. The person is shown a pause screen with the crisis numbers for their country (see below), and the session cannot be resumed or continued. A flag is raised for a reviewer. No journal entry is written.
 
-**Self-harm or suicide** — 52 phrases
+**Self-harm or suicide** — 61 phrases
 
 - `better off without me`
 - `better off if i was gone`
@@ -165,6 +179,15 @@ There are 134 phrases in 8 rules.
 - `जान देने का`
 - `नस काट`
 - `खुद को खत्म`
+- `je veux mourir`
+- `je veux me tuer`
+- `je vais me tuer`
+- `me suicider`
+- `je veux en finir`
+- `en finir avec la vie`
+- `mettre fin a mes jours`
+- `me faire du mal`
+- `mieux sans moi`
 
 **Harm to others** — 4 phrases
 
@@ -177,7 +200,7 @@ There are 134 phrases in 8 rules.
 
 The session continues normally. A flag is raised for a reviewer, with the sentence that matched. The person is not interrupted and is not told anything happened.
 
-**Self-harm or suicide** — 33 phrases
+**Self-harm or suicide** — 43 phrases
 
 - `feel like a burden`
 - `burden to everyone`
@@ -212,6 +235,16 @@ The session continues normally. A flag is raised for a reviewer, with the senten
 - `बोझ बन गया`
 - `बोझ बन गई`
 - `जीने से थक`
+- `je n'en peux plus`
+- `je ne peux plus continuer`
+- `fatigue de vivre`
+- `je ne veux pas vivre`
+- `je ne veux plus vivre`
+- `plus envie de vivre`
+- `je n'ai plus d'espoir`
+- `plus rien n'a de sens`
+- `je suis un fardeau`
+- `un poids pour tout le monde`
 
 **Harm to others** — 4 phrases
 
@@ -264,12 +297,14 @@ The session continues normally. A flag is raised for a reviewer, with the senten
 
 The session continues normally. A flag is raised for a reviewer, at the lowest severity. The person is not interrupted and is not told anything happened.
 
-**Self-harm or suicide** — 4 phrases
+**Self-harm or suicide** — 6 phrases
 
 - `nothing matters any more`
 - `nothing matters anymore`
 - `what's the point any more`
 - `what's the point anymore`
+- `a quoi bon`
+- `plus rien ne compte`
 
 **Medical** — 3 phrases
 
@@ -294,10 +329,17 @@ What the screen actually returns, run against it while generating this.
 | a film about someone who wanted to die                      | high              | Session ends, helplines shown, flag raised                                  |
 | मुझे मरना है                                                | high              | Session ends, helplines shown, flag raised                                  |
 | ab jeene ka mann nahi karta                                 | medium            | Flag raised, session continues                                              |
+| je veux mourir                                              | high              | Session ends, helplines shown, flag raised                                  |
+| je n’en peux plus                                           | medium            | Flag raised, session continues                                              |
+| je suis fatigué de vivre                                    | medium            | Flag raised, session continues                                              |
+| quiero morirme                                              | none              | Nothing                                                                     |
 | আমি মরতে চাই                                                | none (unreadable) | Not read — the screen has no phrases for this script. Counted, not flagged. |
 
-The last two rows are the point of the previous section: the Hinglish one is
-graded, and the Bengali one is not read at all.
+The last rows are the point of the previous section. The Hinglish and
+French ones are graded. The Bengali one is not read at all and says so. The
+Spanish one — "quiero morirme", "I want to kill myself" — is the gap that
+does not announce itself: read cleanly, matched against nothing, and
+returned as though there were nothing there.
 
 ## Questions we need answered
 

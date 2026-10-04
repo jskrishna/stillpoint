@@ -138,16 +138,30 @@ w('session. That false positive is deliberate and is recorded as such.');
 w();
 w('## The languages it covers');
 w();
-w('English, Hinglish (romanised Hindi) and Hindi in Devanagari — and it is thin');
-w('in all three. Hinglish has no settled spelling, so common variants are listed');
-w('separately; a missed spelling is a missed disclosure.');
+w('**English, French, Hinglish (romanised Hindi) and Hindi in Devanagari** —');
+w('and it is thin in all four. French is here because Canada is the first');
+w('market and French is one of its two official languages. Hinglish has no');
+w('settled spelling, so common variants are listed separately; a missed');
+w('spelling is a missed disclosure.');
 w();
-w('**It covers no other Indian language.** When somebody writes in Bengali,');
-w('Tamil, Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi or Urdu, the');
-w('screen records that it could not read the text at all, rather than reporting');
-w('that it found nothing. That is counted and shown to administrators, so the');
-w('gap is visible. Nothing is flagged on that basis, and nothing is stored about');
-w('which language it was.');
+w('Accents are folded before matching, so "fatigué" and "fatigue" are the same');
+w('phrase — a phone keyboard without French accents is ordinary.');
+w();
+w('### Two different kinds of gap, and only one of them announces itself');
+w();
+w('When somebody writes in a script the screen has no phrases for at all —');
+w('Bengali, Tamil, Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi,');
+w('Perso-Arabic — it records that **it could not read the text**, rather than');
+w('reporting that it found nothing. That is counted and shown to');
+w('administrators, so the gap is visible. Nothing is flagged on that basis, and');
+w('nothing is stored about which language it was.');
+w();
+w('**A language written in Latin script that it has no phrases for does not');
+w('announce itself.** It normalises cleanly, matches nothing, and comes back');
+w('"nothing found" with full confidence — which is exactly what French got');
+w('until French was added. Spanish and Portuguese are in that position now.');
+w('This is the limitation we would most like your view on: it is not that the');
+w('screen is thin, it is that in these cases it cannot tell that it is.');
 w();
 w('## The phrases, in full');
 w();
@@ -194,6 +208,10 @@ for (const said of [
   'a film about someone who wanted to die',
   'मुझे मरना है',
   'ab jeene ka mann nahi karta',
+  'je veux mourir',
+  'je n’en peux plus',
+  'je suis fatigué de vivre',
+  'quiero morirme',
   'আমি মরতে চাই',
 ]) {
   const r = baselineRiskScreen.assess(said);
@@ -209,8 +227,11 @@ for (const said of [
   );
 }
 w();
-w('The last two rows are the point of the previous section: the Hinglish one is');
-w('graded, and the Bengali one is not read at all.');
+w('The last rows are the point of the previous section. The Hinglish and');
+w('French ones are graded. The Bengali one is not read at all and says so. The');
+w('Spanish one — "quiero morirme", "I want to kill myself" — is the gap that');
+w('does not announce itself: read cleanly, matched against nothing, and');
+w('returned as though there were nothing there.');
 w();
 w('## Questions we need answered');
 w();

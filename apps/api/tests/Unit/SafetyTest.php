@@ -139,6 +139,113 @@ final class SafetyTest extends TestCase
         $this->assertSame(SafetyLevel::None, (new NoRiskScreen)->assess('I want to die')->level);
     }
 
+    /**
+     * The bug this closes, stated as a test.
+     *
+     * Canada is the first market and French is one of its two official
+     * languages. French is Latin script, so `normalise()` did not throw it
+     * away the way it once threw away Devanagari — it threw away only the
+     * accents, found no phrase, and returned None with unreadable false.
+     *
+     * That is worse than the Devanagari bug it resembles: there the screen now
+     * at least admits it could not read the text, where this gave a plain
+     * statement of intent a confident clean answer.
+     */
+    public function test_reads_a_french_statement_of_intent_as_high(): void
+    {
+        $screen = new PhraseRiskScreen;
+
+        foreach ([
+            'je veux mourir',
+            'je veux me tuer',
+            'j’ai envie de me suicider',
+            'je veux en finir',
+            'mettre fin à mes jours',
+            'tout le monde serait mieux sans moi',
+        ] as $said) {
+            $this->assertSame(SafetyLevel::High, $screen->assess($said)->level, $said);
+        }
+    }
+
+    /**
+     * The ceiling rule, in French too. High ends the session, so if this
+     * graded up, the French half of the screen would stop sessions the English
+     * half would not.
+     */
+    public function test_keeps_french_hopelessness_at_medium(): void
+    {
+        $screen = new PhraseRiskScreen;
+
+        foreach ([
+            'je n’en peux plus',
+            'je ne peux plus continuer',
+            'je suis fatigué de vivre',
+            'je ne veux plus vivre',
+            'je suis un fardeau pour tout le monde',
+        ] as $said) {
+            $this->assertSame(SafetyLevel::Medium, $screen->assess($said)->level, $said);
+        }
+    }
+
+    public function test_leaves_an_ordinary_french_bad_day_alone(): void
+    {
+        $screen = new PhraseRiskScreen;
+
+        foreach ([
+            'aujourd’hui mon patron m’a critiqué devant toute l’équipe',
+            'je suis en colère',
+            'je me sens seul',
+        ] as $said) {
+            $assessment = $screen->assess($said);
+            $this->assertSame(SafetyLevel::None, $assessment->level, $said);
+            $this->assertFalse($assessment->unreadable, $said);
+        }
+    }
+
+    /**
+     * Accents folded, so the same sentence matches typed either way — which a
+     * phone keyboard without French accents makes ordinary, and which saves
+     * listing every spelling twice. The three Unicode steps are the same here
+     * and in `packages/protocol/src/risk.ts`, and the parity fixture pins it.
+     */
+    public function test_matches_french_with_or_without_the_accents(): void
+    {
+        $screen = new PhraseRiskScreen;
+
+        $this->assertSame(SafetyLevel::Medium, $screen->assess('je suis fatigué de vivre')->level);
+        $this->assertSame(SafetyLevel::Medium, $screen->assess('je suis fatigue de vivre')->level);
+        $this->assertSame(SafetyLevel::High, $screen->assess('mettre fin à mes jours')->level);
+        $this->assertSame(SafetyLevel::High, $screen->assess('mettre fin a mes jours')->level);
+    }
+
+    /** The folding must not disturb Devanagari, which decomposes differently. */
+    public function test_still_reads_devanagari_after_the_folding(): void
+    {
+        $screen = new PhraseRiskScreen;
+
+        $this->assertSame(SafetyLevel::High, $screen->assess('मुझे मरना है')->level);
+        $this->assertSame(SafetyLevel::Medium, $screen->assess('मैं जीने से थक गया हूँ')->level);
+        $this->assertSame(SafetyLevel::None, $screen->assess('मेरा दिन बहुत खराब था')->level);
+    }
+
+    /**
+     * The limitation this leaves, stated so nobody has to rediscover it.
+     *
+     * `unreadable` is true only for a script the screen has no phrases for at
+     * all. A language in Latin script that it has no phrases for normalises
+     * cleanly, matches nothing, and comes back None with unreadable false —
+     * the confident clean answer French used to get. French is covered because
+     * Canada is the first market; Spanish is not, and does not announce
+     * itself.
+     */
+    public function test_cannot_say_when_a_latin_script_language_is_not_covered(): void
+    {
+        $assessment = (new PhraseRiskScreen)->assess('quiero morirme');
+
+        $this->assertSame(SafetyLevel::None, $assessment->level);
+        $this->assertFalse($assessment->unreadable);
+    }
+
     public function test_offers_tele_manas_and_emergency_for_india(): void
     {
         $this->assertSame(

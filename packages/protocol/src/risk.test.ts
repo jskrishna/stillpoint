@@ -201,3 +201,94 @@ describe('what the screen cannot read', () => {
     expect(baselineRiskScreen.assess('நான் சாக விரும்புகிறேன்').level).toBe('none');
   });
 });
+
+describe('French', () => {
+  /**
+   * The bug this closes, stated as a test.
+   *
+   * Canada is the first market and French is one of its two official
+   * languages. French is Latin script, so `normalise()` did not throw it away
+   * the way it once threw away Devanagari — it threw away only the accents,
+   * and then found no phrase and returned `none` with `unreadable: false`.
+   *
+   * That is worse than the Devanagari bug it resembles. There, the screen now
+   * at least admits it could not read the text. Here it gave a plain statement
+   * of intent a confident clean answer.
+   */
+  it('reads a statement of intent as high', () => {
+    for (const said of [
+      'je veux mourir',
+      'je veux me tuer',
+      'j’ai envie de me suicider',
+      'je veux en finir',
+      'mettre fin à mes jours',
+      'tout le monde serait mieux sans moi',
+    ]) {
+      expect(baselineRiskScreen.assess(said).level, said).toBe('high');
+    }
+  });
+
+  /**
+   * The ceiling rule, in French too. Wanting not to live is not a statement of
+   * intent, and `high` ends the session — so if this graded up, the French half
+   * of the screen would stop sessions the English half would not.
+   */
+  it('keeps hopelessness at medium rather than grading it up', () => {
+    for (const said of [
+      'je n’en peux plus',
+      'je ne peux plus continuer',
+      'je suis fatigué de vivre',
+      'je ne veux plus vivre',
+      'je suis un fardeau pour tout le monde',
+    ]) {
+      expect(baselineRiskScreen.assess(said).level, said).toBe('medium');
+    }
+  });
+
+  it('leaves an ordinary bad day alone', () => {
+    for (const said of [
+      'aujourd’hui mon patron m’a critiqué devant toute l’équipe',
+      'je suis en colère',
+      'je me sens seul',
+    ]) {
+      expect(baselineRiskScreen.assess(said), said).toEqual({
+        level: 'none',
+        unreadable: false,
+      });
+    }
+  });
+
+  /**
+   * Accents are folded, so the same sentence matches typed either way — which
+   * matters because a phone keyboard without French accents is common, and
+   * because the alternative was listing every spelling twice.
+   */
+  it('matches with or without the accents', () => {
+    expect(baselineRiskScreen.assess('je suis fatigué de vivre').level).toBe('medium');
+    expect(baselineRiskScreen.assess('je suis fatigue de vivre').level).toBe('medium');
+    expect(baselineRiskScreen.assess('mettre fin à mes jours').level).toBe('high');
+    expect(baselineRiskScreen.assess('mettre fin a mes jours').level).toBe('high');
+  });
+
+  it('still reads Devanagari, which the folding must not disturb', () => {
+    expect(baselineRiskScreen.assess('मुझे मरना है').level).toBe('high');
+    expect(baselineRiskScreen.assess('मैं जीने से थक गया हूँ').level).toBe('medium');
+    expect(baselineRiskScreen.assess('मेरा दिन बहुत खराब था').level).toBe('none');
+  });
+
+  /**
+   * The limitation this leaves, stated so nobody has to rediscover it.
+   *
+   * `unreadable` is true only for a script the screen has no phrases for at
+   * all. A language written in Latin script that it has no phrases for — and
+   * there are many — is normalised cleanly, matches nothing, and comes back
+   * `none` with `unreadable: false`: the confident clean answer that French
+   * used to get. French is covered now because Canada is the first market;
+   * Spanish and Portuguese are not covered and do not announce themselves.
+   */
+  it('cannot say when a Latin-script language is simply not covered', () => {
+    const spanish = baselineRiskScreen.assess('quiero morirme');
+    expect(spanish.level).toBe('none');
+    expect(spanish.unreadable).toBe(false);
+  });
+});

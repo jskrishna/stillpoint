@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
+use Normalizer;
+
 /**
  * A small phrase screen for the obvious cases.
  *
@@ -57,6 +59,21 @@ final class PhraseRiskScreen implements RiskScreen
                 'मरना चाहता', 'मरना चाहती',
                 'जान दे दूंगा', 'जान दे दूँगा', 'जान दे दूंगी', 'जान दे दूँगी',
                 'जान देने का', 'नस काट', 'खुद को खत्म',
+
+                // French. Canada is the first market and French is one of its
+                // two official languages — and French is Latin script, so
+                // before this the screen graded "je veux mourir" as None with
+                // unreadable false: a confident clean answer about a plain
+                // statement of intent. That is the worst shape this screen can
+                // fail in.
+                //
+                // Written without accents because `normalise()` folds them,
+                // which also means somebody typing without them still matches.
+                'je veux mourir', 'je veux me tuer',
+                'je vais me tuer', 'me suicider',
+                'je veux en finir', 'en finir avec la vie',
+                'mettre fin a mes jours', 'me faire du mal',
+                'mieux sans moi',
             ],
         ],
         [
@@ -88,6 +105,18 @@ final class PhraseRiskScreen implements RiskScreen
                 'जीने का मन नहीं', 'जीना नहीं चाहता', 'जीना नहीं चाहती',
                 'जीने की इच्छा नहीं', 'सबके लिए बोझ', 'बोझ बन गया', 'बोझ बन गई',
                 'जीने से थक',
+
+                // French, graded the same as their English counterparts
+                // rather than up. "je n'en peux plus" is "I can't take any
+                // more", the sentence the ceiling rule exists for: flagged,
+                // not stopped on. And wanting not to live is not a statement
+                // of intent in French either — or the French half of the
+                // screen would stop sessions the English half would not.
+                "je n'en peux plus", 'je ne peux plus continuer',
+                'fatigue de vivre', 'je ne veux pas vivre',
+                'je ne veux plus vivre', 'plus envie de vivre',
+                "je n'ai plus d'espoir", "plus rien n'a de sens",
+                'je suis un fardeau', 'un poids pour tout le monde',
             ],
         ],
         [
@@ -96,6 +125,11 @@ final class PhraseRiskScreen implements RiskScreen
             'phrases' => [
                 'nothing matters any more', 'nothing matters anymore',
                 "what's the point any more", "what's the point anymore",
+
+                // French. "a quoi bon" is broad — it is also how somebody
+                // gives up on a spreadsheet — and Low is the level for a
+                // signal worth a reviewer's glance and nothing more.
+                'a quoi bon', 'plus rien ne compte',
             ],
         ],
         [
@@ -217,6 +251,26 @@ final class PhraseRiskScreen implements RiskScreen
     {
         $text = mb_strtolower($utterance);
         $text = str_replace(['’', '‘', '`'], "'", $text);
+        // Latin diacritics folded, so "fatigué" matches `fatigue` and so does
+        // "fatigue" typed without the accent. The filter below keeps `a-z` and
+        // nothing else, so every accent used to become a space — "je suis
+        // fatigué" normalised to "je suis fatigu" — while `readsEverything()`
+        // called the text perfectly readable, because é is Latin script. The
+        // two disagreed about what reading means, and French is an official
+        // language of the first market.
+        //
+        // Decompose, drop the Latin combining marks, recompose. The range is
+        // the Combining Diacritical Marks block, which is Latin and Greek: a
+        // Devanagari vowel sign is U+0900-U+097F and is untouched, and the
+        // recompose puts back the few Devanagari characters that decompose at
+        // all. `normalise()` in `packages/protocol/src/risk.ts` does the same
+        // three steps with the same range, and the parity fixture covers it.
+        $decomposed = Normalizer::normalize($text, Normalizer::FORM_D);
+        if (is_string($decomposed)) {
+            $stripped = preg_replace('/[\x{0300}-\x{036f}]+/u', '', $decomposed) ?? $decomposed;
+            $recomposed = Normalizer::normalize($stripped, Normalizer::FORM_C);
+            $text = is_string($recomposed) ? $recomposed : $stripped;
+        }
         // Danda, double danda, and the zero-width joiners a mobile keyboard
         // leaves inside a conjunct.
         $text = preg_replace('/[\x{0964}\x{0965}\x{200c}\x{200d}]/u', ' ', $text) ?? '';
