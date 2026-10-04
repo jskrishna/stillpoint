@@ -8,9 +8,9 @@ use App\Models\CoachInvite;
 use App\Models\PlanChange;
 use App\Models\RoleChange;
 use App\Models\User;
+use App\Support\EmailAddress;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 
 /**
  * Erasing an account.
@@ -91,7 +91,7 @@ final readonly class AccountDeletionService
             // has no account — so nothing here cascades. Compared lowercased
             // because `CoachInvite::open()` stores it that way and sqlite's `=`
             // is case-sensitive where MySQL's collation is not.
-            $address = Str::lower(trim((string) $user->email));
+            $address = EmailAddress::normalise($user->email);
             // Grouped. The two conditions are an `or`, and today there is
             // nothing else in the query — but `A and B or C` groups as
             // `(A and B) or C`, so adding one `where` above these later would

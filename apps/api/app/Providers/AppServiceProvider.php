@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Support\EmailAddress;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -106,7 +107,7 @@ class AppServiceProvider extends ServiceProvider
             // being guessed. Falling back to the address keeps a request with
             // neither from sharing one bucket with every other such request.
             $target = is_string($email) && $email !== ''
-                ? 'email:'.hash('sha256', mb_strtolower(trim($email)))
+                ? 'email:'.hash('sha256', EmailAddress::normalise($email))
                 : 'token:'.hash('sha256', (string) $request->route('token')).'|'.$request->ip();
 
             return [

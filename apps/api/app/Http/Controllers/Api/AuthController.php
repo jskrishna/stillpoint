@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AccountDeletionService;
 use App\Services\SessionService;
+use App\Support\EmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +35,13 @@ final class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        // Normalised **before** validation, so `unique:users,email` compares
+        // the same string that gets stored. Laravel's `unique` rule is a
+        // `where email = ?`, which is case-sensitive on sqlite — validating
+        // the raw input would let a second account through differing only in
+        // case, and then two rows exist that MySQL would never have allowed.
+        $request->merge(['email' => EmailAddress::normalise($request->input('email'))]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -59,7 +67,11 @@ final class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        // Normalised, so the one spelling stored is the one looked up. On
+        // MySQL the collation hid this; on sqlite somebody who registered
+        // `Aarav@Example.com` could not sign in as `aarav@example.com` and
+        // could not reset the password either, because the broker lowercases.
+        $user = User::where('email', EmailAddress::normalise($validated['email']))->first();
 
         if ($user === null || ! Hash::check($validated['password'], $user->password)) {
             // One message for both cases, so the response cannot be used to
@@ -94,7 +106,7 @@ final class AuthController extends Controller
 
         // The broker's own result is deliberately discarded. It distinguishes
         // "sent" from "no such user", and that distinction is the leak.
-        PasswordBroker::sendResetLink(['email' => Str::lower(trim($validated['email']))]);
+        PasswordBroker::sendResetLink(['email' => EmailAddress::normalise($validated['email'])]);
 
         return response()->json([
             'message' => 'If that address has an account, a reset link is on its way.',
@@ -117,7 +129,7 @@ final class AuthController extends Controller
         ]);
 
         $status = PasswordBroker::reset([
-            'email' => Str::lower(trim($validated['email'])),
+            'email' => EmailAddress::normalise($validated['email']),
             'password' => $validated['password'],
             'password_confirmation' => $validated['password'],
             'token' => $validated['token'],

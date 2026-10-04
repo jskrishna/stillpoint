@@ -7,10 +7,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CoachInvite;
 use App\Models\User;
+use App\Support\EmailAddress;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -48,9 +48,9 @@ final class CoachInviteController extends Controller
         ]);
 
         $coach = $request->user();
-        $email = Str::lower(trim($validated['email']));
+        $email = EmailAddress::normalise($validated['email']);
 
-        if ($email === Str::lower($coach->email)) {
+        if ($email === EmailAddress::normalise($coach->email)) {
             return response()->json(
                 ['message' => 'You cannot invite yourself.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY,
@@ -144,7 +144,7 @@ final class CoachInviteController extends Controller
         }
 
         $user = $request->user();
-        if (Str::lower($user->email) !== $invite->email) {
+        if (EmailAddress::normalise($user->email) !== $invite->email) {
             return response()->json([
                 'message' => 'This invitation was sent to a different address. Sign in as '.$invite->email.' to accept it.',
             ], Response::HTTP_FORBIDDEN);

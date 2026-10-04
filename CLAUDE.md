@@ -1537,6 +1537,48 @@ verified against sqlite's grammar. CI closes that gap with a MySQL 8.4 service
 that runs the migrations up and back down. If you change a migration, assume
 sqlite passing proves nothing about MySQL until CI says so.
 
+**Collation is the second thing sqlite will not tell you**, after column
+widths, and it was costing somebody their account. `users.email` was written
+exactly as typed while five other places compared it lowercased — the password
+broker, the invitation table, the rate limiter, the erasure sweep and the
+invitation accept path. On MySQL the default collation is case-insensitive, so
+`where email = ?` matches whatever case was asked and the disagreement is
+invisible. On sqlite `=` is case-sensitive, and all three of these were
+measured:
+
+- somebody who registered `Aarav@Example.com` could not sign in as
+  `aarav@example.com` — 422, "These credentials do not match our records";
+- a second account registered fine differing only in case, because
+  `unique:users,email` is that same comparison, leaving two rows MySQL would
+  never have allowed;
+- and a reset asked for with the **exact** address they had registered
+  answered **200 and sent nothing** — no notification, no token row — because
+  the broker lowercases. The 200 is deliberate, so an unauthenticated caller
+  cannot learn who has an account, which means the person is told a link is on
+  its way to an account they can never get back into.
+
+`App\Support\EmailAddress::normalise()` is the one rule now and all eight call
+sites go through it, so the product behaves the same where it is developed and
+where it runs rather than resting on an accident of the storage engine — which
+is this repository's position everywhere else. Registration normalises
+**before** validating, because `unique` is that same case-sensitive compare.
+
+`OneSpellingForAnAddressTest` is written as sqlite tests on purpose: against
+MySQL they would pass before the fix as well as after, by the collation rather
+than by anything the application does, and that is the whole point. Checked two
+ways, and the difference is worth knowing. Removing the helper entirely leaves
+five of the seven red but the **reset one green** — because then both sides are
+as-typed, which is accidentally consistent. The bug was the _disagreement_, so
+reproducing it means storing as typed while the broker lowercases, and under
+that exact configuration the reset case goes red too, on zero token rows.
+
+The migration that lowercases existing rows **leaves a case collision alone**
+rather than failing. Two such rows were never storable on MySQL and are
+storable on sqlite, so a development database can hold them, and a blind
+`LOWER(email)` would violate the unique index. Merging two accounts is not a
+migration's decision — each has its own journal — which is the same choice
+`stillpoint:rotate-key` makes for a row it cannot decrypt.
+
 `check` builds the packages first on purpose: `apps/web` resolves
 `@stillpoint/*` through `node_modules` to their built output, exactly as an
 outside consumer would, so lint and typecheck need that output to exist. CI runs

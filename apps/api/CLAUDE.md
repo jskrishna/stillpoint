@@ -44,6 +44,15 @@ doubles what it stores. They are `mediumText` now, and
 `encrypted` cast has a widened column behind it. Add a new one and that test is
 what reminds you.
 
+**Collation is the other one.** sqlite's `=` is case-sensitive; MySQL's default
+collation is not. `users.email` was stored as typed while five other places
+compared it lowercased, so on sqlite a person who registered with a capital
+could not sign in, could not reset their password, and could have a second
+account created differing only in case — none of which happens on MySQL.
+`App\Support\EmailAddress::normalise()` is the one rule now, and
+`OneSpellingForAnAddressTest` pins it. Any new comparison of an address goes
+through that function rather than through the database's idea of equality.
+
 The guided sessions table is `guided_sessions`, not `sessions`: Laravel's
 session driver owns that name.
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\EmailAddress;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -46,7 +47,7 @@ final class CoachInvite extends Model
     {
         return self::create([
             'coach_id' => $coach->id,
-            'email' => Str::lower(trim($email)),
+            'email' => EmailAddress::normalise($email),
             'token' => Str::random(64),
             'status' => 'pending',
             'expires_at' => now()->addDays(self::VALID_FOR_DAYS),
