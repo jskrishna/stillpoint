@@ -120,6 +120,38 @@ final class OneSpellingForAnAddressTest extends TestCase
         $this->assertSame(1, $coach->clients()->count());
     }
 
+    /**
+     * Registration is the only thing that writes the column.
+     *
+     * That is what makes normalising there sufficient, and nothing pinned it.
+     * `PATCH /me` validates three unrelated fields and builds its own array,
+     * so naming an address in the body is already ignored — this asserts it
+     * the way `GrantingAPlanTest` asserts the fillable list: no request can
+     * exploit it today, and the next route that reaches for `fill()` is the
+     * reason to have said so.
+     *
+     * If a route ever should change an address, this test going red is the
+     * right way to find out that it has to normalise and that the uniqueness
+     * check has to be case-insensitive with it.
+     */
+    public function test_the_profile_update_cannot_change_the_address(): void
+    {
+        $this->register(self::TYPED)->assertCreated();
+        $user = User::query()->sole();
+
+        $this->actingAs($user)
+            ->patchJson('/api/me', [
+                'email' => 'someone.else@example.com',
+                'guideVoice' => 'river',
+            ])
+            ->assertOk();
+
+        $this->assertSame(self::LOWER, $user->fresh()->email);
+        // And the field it does accept really was applied, so this is not
+        // passing because the whole request was refused.
+        $this->assertSame('river', $user->fresh()->guide_voice);
+    }
+
     /** One function, and these are the shapes it has to flatten. */
     public function test_the_normaliser_itself(): void
     {

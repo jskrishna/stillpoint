@@ -48,6 +48,13 @@ return new class extends Migration
         // touches `email` and the order is on `id`, so no row moves into or
         // out of a later page. It would not be safe if this updated the
         // column it paged by.
+        // `mb_strtolower(trim(...))` by hand rather than
+        // `App\Support\EmailAddress::normalise()`, which is the same thing
+        // today. A migration is a historical record of one change to one
+        // schema, and it has to keep running years after whatever class it
+        // might have called has been renamed, moved or deleted. So it depends
+        // on nothing but the query builder — do not "tidy" this into the
+        // helper.
         $counts = [];
 
         DB::table('users')->select('id', 'email')->orderBy('id')->chunk(500, function ($rows) use (&$counts): void {
