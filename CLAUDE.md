@@ -248,6 +248,67 @@ with the account's own country, assert the session is **not** treated as
 stopped, and then let the retry through and assert the server does the real
 thing. Both were checked by reverting the screens and rebuilding.
 
+### A number on the screen is only an offer to whoever can see the screen
+
+The session screen had **no live region at all** and moved focus nowhere, which
+is worse than it sounds on the one screen in the product where a change of
+state is the point. Measured in a real browser, not inferred: the error
+paragraph carried no `role`, the `unsentCrisis` block carried none, and after
+the server ended a session for safety `document.activeElement` was `<body>` —
+the button that had been pressed was gone, the whole screen had been replaced by
+the pause, and focus had fallen to the top of the document.
+
+So somebody using a screen reader typed that they wanted to kill themselves,
+the POST died in a tunnel, three phone numbers appeared, and they were told
+**none of it**. Then the retry went through, the server stopped the session, the
+screen became the pause, and they were told none of that either.
+
+It was the odd one out rather than an oversight nobody had thought about:
+seventeen web screens and six on the phone already mark their error as an
+alert, and the session screen was the one that did not.
+
+Four things, and the ordering of the last two is the part worth keeping:
+
+- **The crisis block is `role="alert"` on the whole block**, not on the sentence
+  alone, so the sentence and the numbers are announced together — the only
+  useful order for them. Assertive is right here and almost nowhere else: a
+  crisis number is the one thing on this screen that should interrupt.
+- **The pause and the summary take focus** on their own heading, with
+  `tabIndex={-1}` so it stays out of the tab order. Taking focus is what says
+  the screen changed, and it reads the title out as it lands.
+- **An advance moves focus to the new question**, and a live region on the
+  question would have been the other way to do it and is worse: the guide
+  speaks its question aloud in voice mode, so the text would be said twice.
+  Focus says it once and leaves the next Tab on the answer box, which is where
+  a keyboard user was going anyway.
+- **Arriving is not a change.** The first question is skipped deliberately —
+  the person came here, they were not moved — so focus is only taken when the
+  screen swaps something out from under them.
+
+On the phone the live regions are the same and the focus move is not:
+`setAccessibilityFocus` needs a host node and differs per platform, so the
+pause calls `AccessibilityInfo.announceForAccessibility`. `e2e/mobile.mjs`
+checks the live region, which React Native for web renders as `aria-live`.
+**It cannot check the announcement**, because there is no screen reader here —
+that is on `apps/mobile/README.md`'s list beside the `tel:` links, on the same
+screen.
+
+What the two checks assert is the ARIA and the focus, which is what is
+assertable without a screen reader: the mechanics that decide whether anything
+is announced, rather than the announcement. All five assertions were checked by
+reverting the screens and rebuilding.
+
+`e2e/a11y.mjs` runs axe-core over every route and would not have caught any of
+this. Nothing here is a rule violation — a page with no live region is a valid
+page. It is only wrong once you ask what this particular screen is for.
+
+And the failure sentence changed with it. `describe()` returned "Something went
+wrong. Please try again.", which tells somebody nothing they can act on, while
+the comment at the top of that very file quoted the right wording and
+`apps/mobile/src/describe.ts` already said it: "Could not reach Stillpoint.
+Check your connection and try again." Two surfaces disagreeing about one
+failure is the one thing that file's own note promises they do not.
+
 ### A lost response is not a lost turn
 
 A turn names the step it answers (`step` in the request body,

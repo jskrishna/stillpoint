@@ -350,3 +350,18 @@
   font-size: var(--sp-text-control);
   line-height: var(--sp-leading-normal);
 }
+
+/*
+ * The four elements focus is moved to when this screen replaces itself: the
+ * question on an advance, and the two titles that end a session. They carry
+ * `tabIndex={-1}`, so they are not in the tab order and can only be focused
+ * programmatically — a target for an announcement rather than a control. A
+ * focus ring on a paragraph says "this is operable", which it is not, and the
+ * rings that matter (every button and link here) are untouched.
+ */
+.question:focus,
+.missing:focus,
+.summaryTitle:focus,
+.safetyTitle:focus {
+  outline: none;
+}

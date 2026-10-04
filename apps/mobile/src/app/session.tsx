@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { AccessibilityInfo, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FEELING_COLOR, RADIUS, SPACE, TEXT } from '@stillpoint/design-tokens';
@@ -442,7 +442,21 @@ export default function Session() {
       )}
 
       {unsentCrisis === null || unsentCrisis.length === 0 ? null : (
-        <View style={{ gap: SPACE.md }}>
+        /*
+         * An alert over the whole block, the same as the web's.
+         *
+         * The error above this has been `accessibilityRole="alert"` since it
+         * was written and these numbers were not, which is the gap the web had
+         * too: somebody using a screen reader typed that they wanted to kill
+         * themselves, the POST died, and the three numbers that answer that
+         * appeared with nothing announcing them. `accessibilityLiveRegion` is
+         * Android's half and the role is what VoiceOver reads, so both are set.
+         */
+        <View
+          style={{ gap: SPACE.md }}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+        >
           <Text style={s.lead}>
             That answer has not been sent. If you are in danger right now, these do not need the
             internet.
@@ -640,6 +654,24 @@ function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) 
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  /*
+   * Say that the screen changed.
+   *
+   * The web's half of this moves focus to the heading, which is what a browser
+   * gives you. React Native's equivalent — `setAccessibilityFocus` through
+   * `findNodeHandle` — needs a host node and behaves differently on each
+   * platform, so the portable answer is to announce it: VoiceOver and TalkBack
+   * both speak this, and the live region below covers a re-render.
+   *
+   * **This is one of the things `apps/mobile/README.md` lists as unproven.**
+   * There is no device or simulator here, so what is verified is that the call
+   * is made with the title the server sent; whether a screen reader speaks it
+   * is item 6 in `LAUNCH.md`, with the `tel:` links and the keychain.
+   */
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(safety.title);
+  }, [safety.title]);
+
   return (
     <ScrollView
       style={s.screen}
@@ -650,12 +682,16 @@ function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) 
         gap: SPACE.lg,
       }}
     >
-      <Text style={s.title}>{safety.title}</Text>
-      <Text style={s.lead}>{safety.body}</Text>
+      <View accessibilityLiveRegion="assertive" style={{ gap: SPACE.lg }}>
+        <Text style={s.title} accessibilityRole="header">
+          {safety.title}
+        </Text>
+        <Text style={s.lead}>{safety.body}</Text>
 
-      {safety.helplines.map((h) => (
-        <HelplineButton key={h.number} helpline={h} />
-      ))}
+        {safety.helplines.map((h) => (
+          <HelplineButton key={h.number} helpline={h} />
+        ))}
+      </View>
 
       <Button
         label="I’m safe, go back home"

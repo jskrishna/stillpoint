@@ -285,6 +285,45 @@ else bad('and it is this account\u2019s own numbers', unsent.slice(0, 600));
 if (/step [1-6] of 6/i.test(unsent)) ok('and the session is not treated as stopped');
 else bad('and the session is not treated as stopped', unsent.slice(0, 600));
 
+// And somebody is told about it.
+//
+// The error on this screen has been an alert since it was written and these
+// numbers were not, which is the gap the web had too: a person using a screen
+// reader typed that they wanted to kill themselves, the POST died, and the
+// numbers that answer that appeared with nothing announcing them. React Native
+// for web renders `accessibilityRole` and `accessibilityLiveRegion` as `role`
+// and `aria-live`, so the markup is checkable here even though no screen
+// reader is — and `AccessibilityInfo.announceForAccessibility`, the half that
+// carries the pause on a device, is not. `apps/mobile/README.md` lists it with
+// the other things only a phone can prove.
+const announced = await page.evaluate(() => {
+  const inAlert = (el) => {
+    for (let n = el; n !== null; n = n.parentElement) {
+      const role = n.getAttribute?.('role');
+      const live = n.getAttribute?.('aria-live');
+      if (
+        role === 'alert' ||
+        role === 'status' ||
+        (live !== null && live !== undefined && live !== '')
+      )
+        return true;
+    }
+    return false;
+  };
+  // Anchored on the sentence, not on a `tel:` link: `HelplineButton` here is a
+  // `Pressable` calling `Linking.openURL`, so a phone can place the call and
+  // the web export has no `href` to find. Looking for one was this check's own
+  // bug before it was this one. The sentence and the numbers are in the same
+  // block, so the block being live covers both.
+  const sentence = [...document.querySelectorAll('*')].find(
+    (el) => el.children.length === 0 && /^That answer has not been sent/.test(el.textContent ?? ''),
+  );
+  if (sentence === undefined) return 'the sentence is not on the screen';
+  return inAlert(sentence) ? true : 'the crisis block is in no live region';
+});
+if (announced === true) ok('and the numbers are in a live region, so they are announced');
+else bad('and the numbers are in a live region', String(announced));
+
 // Now let it through, and the server does the real thing.
 await answer('I want to kill myself');
 await page.waitForTimeout(1500);

@@ -51,6 +51,16 @@ that matters. What a browser cannot stand in for: the keychain
 handing it to the share sheet (`expo-file-system`, `expo-sharing`), the splash
 screen, safe-area insets on a notched device, and how any of it behaves when
 the app is backgrounded mid-session.
+
+**And whether VoiceOver or TalkBack actually speaks the safety pause.** The
+session screen announces it with `AccessibilityInfo.announceForAccessibility`
+and marks the pause and the unsent-crisis block as assertive live regions —
+because without that a person using a screen reader typed that they wanted to
+kill themselves, the request died, and the numbers that answer that appeared
+with nothing announcing them. `e2e/mobile.mjs` checks the live region, which
+React Native for web renders as `aria-live`, so the markup is verified. The
+announcement call is not: there is no screen reader here. It is the same kind
+of unproven as the `tel:` link beside it, and on the same screen.
 Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 

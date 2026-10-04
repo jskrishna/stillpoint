@@ -242,7 +242,11 @@ honest about both halves:
   the client can see who can read their sessions and end it.
 - The plan allowance, enforced, with a quick session always allowed.
 - WCAG AA contrast, asserted for every text role against every surface in both
-  palettes, and audited across 19 routes at two widths.
+  palettes, and axe-core clean across 19 routes at two widths in both.
+- The session screen announced rather than only drawn: the crisis numbers on an
+  answer that never sent, and the safety pause, reach a screen reader instead
+  of appearing silently. Verified in a real browser on web; on the phone the
+  live regions are verified and the spoken announcement is item 6.
 - No third-party origin is contacted from any screen, asserted by a real
   browser.
 - 574 TypeScript tests, 522 PHP tests, a cross-language parity fixture both

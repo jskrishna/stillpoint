@@ -76,6 +76,28 @@ export default function SessionFlow() {
   const [voice, setVoice] = useState<VoiceLoop | null>(null);
   const started = useRef(false);
   const spoken = useRef<string | null>(null);
+  /**
+   * The question, so an advance can be announced.
+   *
+   * This screen replaces its question in place. A sighted user sees that; a
+   * screen reader is told nothing, because nothing here moves focus and the
+   * question is not in a live region. Measured: after the server ended a
+   * session for safety, `document.activeElement` was `<body>` — the button
+   * that had been pressed was gone, the whole screen had been replaced by the
+   * pause, and focus had fallen to the top of the document with no
+   * announcement.
+   *
+   * A live region on the question would be the other way to do it, and is
+   * worse here: the guide speaks its question aloud when the account is in
+   * voice mode, so the text would be said twice. Moving focus announces the
+   * new question once and leaves the next Tab on the answer box, which is
+   * where a keyboard user was going anyway.
+   */
+  const questionRef = useRef<HTMLParagraphElement>(null);
+  /** False until the first question has been rendered; see the effect below. */
+  const arrived = useRef(false);
+  /** The question focus was last moved to, which is not what was spoken. */
+  const spokenQuestion = useRef<string>('');
   const router = useRouter();
   const search = useSearchParams();
   // `?kind=quick` — the home screen offers both, and a quick session is the one
@@ -151,6 +173,27 @@ export default function SessionFlow() {
     spoken.current = say;
     void voice.guide.speak(say);
   }, [voice, session]);
+
+  /**
+   * Move focus to the question when it changes, and only then.
+   *
+   * Arriving at the first question is not a change — the person came here, they
+   * were not moved — so the first render is recorded and skipped. Every later
+   * one is: the screen swapped the question out from under them, and before
+   * this nothing said so.
+   */
+  useEffect(() => {
+    if (session === null) return;
+    const say = session.say ?? '';
+    if (!arrived.current) {
+      arrived.current = true;
+      spokenQuestion.current = say;
+      return;
+    }
+    if (say === spokenQuestion.current) return;
+    spokenQuestion.current = say;
+    questionRef.current?.focus();
+  }, [session]);
 
   // Stop mid-sentence when the screen goes away, so a question is not still
   // being spoken over whatever comes next.
@@ -255,7 +298,9 @@ export default function SessionFlow() {
   if (error !== null && session === null) {
     return (
       <div className={styles.screen}>
-        <p className={styles.missing}>{error}</p>
+        <p className={styles.missing} role="alert">
+          {error}
+        </p>
         <div className={styles.actions}>
           <Link href="/app" className={`${styles.button} ${styles.secondary}`}>
             Back
@@ -347,12 +392,14 @@ export default function SessionFlow() {
       </div>
 
       {session.say === null || session.say === '' ? (
-        <p className={styles.missing}>
+        <p className={styles.missing} ref={questionRef} tabIndex={-1}>
           This step has no question yet. Its copy is still owed by the PRD, so the protocol cannot
           be published.
         </p>
       ) : (
-        <p className={styles.question}>{session.say}</p>
+        <p className={styles.question} ref={questionRef} tabIndex={-1}>
+          {session.say}
+        </p>
       )}
 
       {lastSaid !== '' || recap.length === 0 ? null : (
@@ -398,10 +445,25 @@ export default function SessionFlow() {
         </label>
       )}
 
-      {error === null ? null : <p className={styles.missing}>{error}</p>}
+      {error === null ? null : (
+        <p className={styles.missing} role="alert">
+          {error}
+        </p>
+      )}
 
       {unsentCrisis === null || unsentCrisis.length === 0 ? null : (
-        <div className={styles.safety}>
+        /*
+         * `role="alert"` on the whole block, not on the sentence alone.
+         *
+         * Measured before this: nothing on this screen was in a live region at
+         * all, so somebody using a screen reader typed that they wanted to kill
+         * themselves, the POST died, three phone numbers appeared — and they
+         * were told none of it. An alert announces its contents, so the
+         * sentence and the numbers arrive together, which is the only useful
+         * order for them. Assertive is right here and almost nowhere else: a
+         * crisis number is the one thing on this screen that should interrupt.
+         */
+        <div className={styles.safety} role="alert">
           <p className={styles.safetyBody}>
             That answer has not been sent. If you are in danger right now, these do not need the
             internet.
@@ -434,7 +496,12 @@ export default function SessionFlow() {
 
 function describe(error: unknown): string {
   if (error instanceof ApiError) return error.message;
-  return 'Something went wrong. Please try again.';
+  // Not "something went wrong", which tells somebody nothing they can act on.
+  // The error that reaches here is the request not arriving — the case the
+  // `unsentCrisis` note above is about — and the same sentence the sign-in
+  // screen uses for it. The comment at the top of this file quoted this
+  // wording while the code said the other thing.
+  return 'Could not reach Stillpoint. Check your connection and try again.';
 }
 
 function FeelingPicker({
@@ -505,13 +572,21 @@ function Summary({
     { label: 'FORGIVENESS', value: data.forgiveness },
   ].filter((r): r is { label: string; value: string } => r.value !== null && r.value !== '');
 
+  // The session ending replaces the whole screen too, so the same argument as
+  // `SafetyPause` applies: without this, focus falls to `<body>` and nothing
+  // says the session is over.
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    title.current?.focus();
+  }, []);
+
   return (
     <div className={styles.screen}>
       <span className={styles.summaryBadge}>
         <TickIcon />
         {session.endReason === 'completed' ? 'Session complete' : 'Session saved'}
       </span>
-      <h1 className={styles.summaryTitle}>
+      <h1 className={styles.summaryTitle} ref={title} tabIndex={-1}>
         {session.endReason === 'completed' ? 'Well done.' : 'Saved.'}
       </h1>
 
@@ -559,10 +634,29 @@ function Summary({
  * disagree with the rest of the product about which number to call.
  */
 function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) {
+  /*
+   * This screen replaces everything, including the button that was pressed to
+   * reach it — so focus falls to `<body>` and a screen reader is told nothing
+   * at all. Measured before this fix, on the one screen in the product where
+   * that matters most: the person had just said they were not safe, and the
+   * three numbers that answer that were on screen, unannounced, with focus at
+   * the top of the document.
+   *
+   * Taking focus here is what says the screen changed, and it reads the title
+   * out as it lands. `tabIndex={-1}` keeps the heading out of the tab order —
+   * it is a target for this, not a control.
+   */
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    title.current?.focus();
+  }, []);
+
   return (
     <div className={styles.screen}>
       <div className={styles.safety}>
-        <h1 className={styles.safetyTitle}>{safety.title}</h1>
+        <h1 className={styles.safetyTitle} ref={title} tabIndex={-1}>
+          {safety.title}
+        </h1>
         <p className={styles.safetyBody}>{safety.body}</p>
 
         {safety.helplines.map((h) => (

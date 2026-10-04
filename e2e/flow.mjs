@@ -227,6 +227,21 @@ for (let step = 1; step <= 6; step += 1) {
   if ((await next.count()) === 0) break;
   await next.click();
   await page.waitForTimeout(600);
+
+  // Advancing swaps the question out in place, which a sighted user sees and a
+  // screen reader is told nothing about. Focus moves to the new question now,
+  // so it is read out once — rather than a live region, which would say it
+  // twice over the guide's own speech when the account is in voice mode.
+  // Checked at the first advance only; one is the whole mechanism.
+  if (step === 1) {
+    const moved = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? null,
+      text: (document.activeElement?.textContent ?? '').trim().slice(0, 50),
+    }));
+    if (moved.tag === 'P' && moved.text !== '')
+      ok('advancing moves focus to the new question, so it is announced');
+    else bad('advancing moves focus to the new question', JSON.stringify(moved));
+  }
 }
 
 if (asked.length === 6) ok('the guide asked a question at every one of the six steps');
@@ -910,6 +925,57 @@ else bad('and it is this account\u2019s own numbers', unsent.slice(0, 500));
 if (/Step \d of 6/.test(unsent)) ok('and the session is not treated as stopped');
 else bad('and the session is not treated as stopped', unsent.slice(0, 500));
 
+// And somebody is actually told about it.
+//
+// A number on the screen is only an offer to whoever can see the screen. This
+// whole screen used to be in no live region at all — measured, not inferred:
+// the error paragraph had no `role`, the crisis block had none, and every
+// other screen in the product already marks its error as an alert. So a person
+// using a screen reader typed that they wanted to kill themselves, the POST
+// died, three phone numbers appeared, and they were told none of it.
+//
+// Asserted on the ARIA, because that is what is assertable here: there is no
+// screen reader in this container, so what this proves is that the numbers are
+// in an assertive live region and the failure sentence is an alert — the
+// mechanics that decide whether anything is announced, rather than the
+// announcement itself.
+const announced = await page.evaluate(() => {
+  const inAlert = (el) => {
+    for (let n = el; n !== null; n = n.parentElement) {
+      const role = n.getAttribute?.('role');
+      const live = n.getAttribute?.('aria-live');
+      if (
+        role === 'alert' ||
+        role === 'status' ||
+        (live !== null && live !== undefined && live !== '')
+      )
+        return true;
+    }
+    return false;
+  };
+  const tel = document.querySelector('a[href^="tel:"]');
+  const sentence = [...document.querySelectorAll('p')].find((el) =>
+    /not been sent/.test(el.textContent ?? ''),
+  );
+  return {
+    number: tel !== null && inAlert(tel),
+    sentence: sentence !== undefined && inAlert(sentence),
+  };
+});
+if (announced.number) ok('and the number is in a live region, so it is announced');
+else bad('and the number is in a live region', 'the crisis numbers are in no live region');
+if (announced.sentence) ok('and so is the sentence that says the answer did not send');
+else bad('and so is the sentence that says the answer did not send');
+
+// The wording itself, which had drifted from what this file's own comment
+// quoted and from what the phone says. "Something went wrong. Please try
+// again." tells somebody nothing they can act on; the request not arriving is
+// exactly the thing "check your connection" is for, and `apps/mobile`'s
+// `describe.ts` already said so — so the two surfaces disagreed about one
+// failure, which is the one thing that file's note promises they do not.
+if (/Could not reach Stillpoint/.test(unsent)) ok('and the failure says what to try');
+else bad('and the failure says what to try', unsent.slice(0, 300));
+
 // Now let it through, and the server does the real thing.
 await page
   .locator('button', { hasText: /^(Continue|Next)/ })
@@ -931,6 +997,21 @@ if (/\b911\b/.test(stopped)) ok('and the emergency number, 911 here rather than 
 else bad('and the emergency number, 911 here rather than 112', stopped.slice(0, 400));
 if (!/Step \d of 6/.test(stopped)) ok('the session is over, no step is shown');
 else bad('the session is over, no step is shown');
+
+// The pause replaced the whole screen, including the button that was pressed
+// to reach it — so focus fell to `<body>` and nothing said the screen had
+// changed. Measured before the fix, on the one screen in this product where
+// that matters most: the person had just said they were not safe, the three
+// numbers that answer that were on screen, and focus was at the top of the
+// document with no announcement. Taking focus is what says so, and it reads
+// the title out as it lands.
+const paused = await page.evaluate(() => ({
+  tag: document.activeElement?.tagName ?? null,
+  text: (document.activeElement?.textContent ?? '').trim().slice(0, 60),
+}));
+if (paused.tag === 'H1' && paused.text !== '')
+  ok(`the pause takes focus, so it is announced (“${paused.text}”)`);
+else bad('the pause takes focus, so it is announced', JSON.stringify(paused));
 if (requests.some((r) => r.includes('/turns')))
   ok(`the utterance went to the server (${requests.join(', ')})`);
 else bad('the utterance went to the server', requests.join(', '));
