@@ -980,6 +980,39 @@ Three of the designs' colours did not meet AA and the tokens deliberately differ
 the table. **Use `accentText` when the accent is small text and `accent` when it
 is a fill**; they are not interchangeable, which is the whole reason both exist.
 
+**And the console scrolled sideways on a phone, which axe does not check.**
+Measured on every route at both widths: at 390 the three console table screens
+and the coach portal dragged the **document** — `/admin` by 26px,
+`/admin/safety` by 34px, `/coach` by 44px and `/admin/users` by **284px**,
+which takes the heading and the navigation off the side with it. The tables are
+`width: 100%`, which cannot shrink below their content's minimum.
+
+The audit was clean on all of them, and that is the point rather than a
+complaint about axe: a page that scrolls horizontally is a valid page, the same
+way a screen with no live region is. It is only wrong once you ask what the
+screen is for, and somebody checking the safety queue from a phone is what
+this one is for — the overview reporting how long the oldest open flag has
+waited implies it is checked with some urgency.
+
+`apps/web/src/components/TableScroll.tsx` is the wrapper, one component for
+six tables because the `overflow-x` is not the subtle part and the ARIA is: a
+box that scrolls has to be **focusable** or a keyboard user cannot reach the
+right-hand end of the table, so it carries `tabIndex={0}`, `role="region"` and
+a name. Measured after: at 390 the region takes focus and ArrowRight scrolls it
+from 0 to 304 with the page staying put; at 1440 it is not scrollable at all,
+so the desktop layout is untouched. It is **not** a responsive redesign —
+stacking a table into cards is a design decision and the artifacts give no
+narrow layout for these screens.
+
+`a11y.mjs` asserts it now, and the way that went wrong is worth more than the
+check. It was added calling `bad()` and nothing else — and `a11y.mjs` is the
+one browser script that does not end with `report.mjs`'s `finish()`, because
+it counts route-and-palette combinations rather than named assertions. So it
+keeps its own tally, and a run printed **six FAIL lines, then "CLEAN", and
+exited 0**: a check that could not fail, which is worse than no check. Caught
+only by reverting the fix to watch the assertion go red. Every `bad()` in that
+script now counts toward one number, and the note beside the summary says so.
+
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
 and 1440 — 80 combinations across 20 routes — and the last run was clean across

@@ -6,6 +6,7 @@ import { describeAge } from '../../lib/ago';
 import { ApiError, api, type ApiAdminOverview } from '../../lib/api';
 import { describe } from '../../lib/describe';
 import styles from './admin.module.css';
+import { TableScroll } from '../../components/TableScroll';
 
 const RESULT_LABEL: Readonly<Record<string, string>> = {
   yes: 'Calmer',
@@ -107,32 +108,36 @@ export default function Overview() {
       {overview.recentSessions.length === 0 ? (
         <p className={styles.sub}>No sessions yet.</p>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>User</th>
-              <th className={styles.th}>Type</th>
-              <th className={styles.th}>Reached</th>
-              <th className={styles.th}>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {overview.recentSessions.map((s, i) => (
-              <tr key={`${s.user}-${String(i)}`}>
-                <td className={styles.td}>{s.user}</td>
-                <td className={styles.td}>
-                  {s.kind === 'quick' ? 'Quick' : 'Deep'} · {s.minutes} min
-                </td>
-                <td className={styles.td}>Step {s.reachedStep}</td>
-                <td className={styles.td}>
-                  <span className={`${styles.tag} ${s.result === 'safety' ? styles.tagHigh : ''}`}>
-                    {RESULT_LABEL[s.result] ?? s.result}
-                  </span>
-                </td>
+        <TableScroll label="Recent sessions">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>User</th>
+                <th className={styles.th}>Type</th>
+                <th className={styles.th}>Reached</th>
+                <th className={styles.th}>Result</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {overview.recentSessions.map((s, i) => (
+                <tr key={`${s.user}-${String(i)}`}>
+                  <td className={styles.td}>{s.user}</td>
+                  <td className={styles.td}>
+                    {s.kind === 'quick' ? 'Quick' : 'Deep'} · {s.minutes} min
+                  </td>
+                  <td className={styles.td}>Step {s.reachedStep}</td>
+                  <td className={styles.td}>
+                    <span
+                      className={`${styles.tag} ${s.result === 'safety' ? styles.tagHigh : ''}`}
+                    >
+                      {RESULT_LABEL[s.result] ?? s.result}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </>
   );

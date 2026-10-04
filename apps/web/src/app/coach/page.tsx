@@ -7,6 +7,7 @@ import { ApiError, api, type ApiClient } from '../../lib/api';
 import { describe } from '../../lib/describe';
 import styles from './coach.module.css';
 import { LOCALE, relativeDay } from '@stillpoint/protocol';
+import { TableScroll } from '../../components/TableScroll';
 
 /**
  * The coach's client list.
@@ -52,55 +53,57 @@ export default function Clients() {
       {clients.length === 0 ? (
         <p className={styles.empty}>No clients yet.</p>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>Client</th>
-              <th className={styles.th}>Belief that comes back</th>
-              <th className={styles.th}>Last session</th>
-              <th className={styles.th}>Shared</th>
-              <th className={styles.th}>Next call</th>
-              <th className={styles.th} />
-            </tr>
-          </thead>
-          <tbody>
-            {clients.map((client) => {
-              return (
-                <tr key={client.id}>
-                  <td className={styles.td}>{client.name}</td>
-                  <td className={styles.td}>
-                    {client.recurringBelief === null ? '—' : `“${client.recurringBelief.belief}”`}
-                  </td>
-                  <td className={styles.td}>
-                    {client.lastSharedAt === null || now === null
-                      ? '—'
-                      : relativeDay(new Date(client.lastSharedAt), now)}
-                  </td>
-                  <td className={styles.td}>
-                    {client.sharedCount === 0 ? '—' : client.sharedCount}
-                  </td>
-                  <td className={styles.td}>
-                    {client.nextCallAt === null
-                      ? '—'
-                      : new Date(client.nextCallAt).toLocaleString(LOCALE, {
-                          weekday: 'short',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
-                  </td>
-                  <td className={styles.td}>
-                    {/* Every row here is an accepted pairing. Invitations that
-                        have not been accepted are listed by `InviteClient`
-                        below, which is where resending belongs. */}
-                    <Link href={`/coach/${client.id}`} className={styles.open}>
-                      Open
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <TableScroll label="Your clients">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>Client</th>
+                <th className={styles.th}>Belief that comes back</th>
+                <th className={styles.th}>Last session</th>
+                <th className={styles.th}>Shared</th>
+                <th className={styles.th}>Next call</th>
+                <th className={styles.th} />
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((client) => {
+                return (
+                  <tr key={client.id}>
+                    <td className={styles.td}>{client.name}</td>
+                    <td className={styles.td}>
+                      {client.recurringBelief === null ? '—' : `“${client.recurringBelief.belief}”`}
+                    </td>
+                    <td className={styles.td}>
+                      {client.lastSharedAt === null || now === null
+                        ? '—'
+                        : relativeDay(new Date(client.lastSharedAt), now)}
+                    </td>
+                    <td className={styles.td}>
+                      {client.sharedCount === 0 ? '—' : client.sharedCount}
+                    </td>
+                    <td className={styles.td}>
+                      {client.nextCallAt === null
+                        ? '—'
+                        : new Date(client.nextCallAt).toLocaleString(LOCALE, {
+                            weekday: 'short',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                    </td>
+                    <td className={styles.td}>
+                      {/* Every row here is an accepted pairing. Invitations that
+                          have not been accepted are listed by `InviteClient`
+                          below, which is where resending belongs. */}
+                      <Link href={`/coach/${client.id}`} className={styles.open}>
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       <InviteClient

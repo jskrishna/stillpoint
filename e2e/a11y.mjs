@@ -77,6 +77,15 @@ const WIDTHS = [
 ];
 const THEMES = ['light', 'dark'];
 
+/**
+ * Combinations that failed for any reason, which is what the exit code reads.
+ *
+ * Separate from `violations`, which holds only the axe results for the report
+ * below — see the note beside the summary for what happened when the two were
+ * the same thing.
+ */
+let failingCombinations = 0;
+
 /** Signs a fresh page in with an existing account, or reports that it cannot. */
 async function signIn(email, password) {
   const page = await browser.newPage();
@@ -266,12 +275,42 @@ for (const { route, as } of ROUTES) {
         }),
       );
 
+      /*
+       * The page must not scroll sideways, which axe does not check.
+       *
+       * It is not a rule violation — a page that scrolls horizontally is a
+       * valid page — and it is the same shape as a screen with no live region
+       * being valid too: only wrong once you ask what the screen is for. At
+       * 390 the console's three table screens and the coach portal dragged the
+       * **document**, measured, `/admin/users` by 284px, which takes the
+       * heading and the navigation off the side with it. The tables sit in a
+       * `TableScroll` region now and scroll inside themselves.
+       *
+       * Only the document, deliberately. An element wider than the viewport is
+       * fine when it is inside something that scrolls — that is the fix, not
+       * the fault — so this asks the one question that distinguishes them.
+       */
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+
       combinations += 1;
       const nodes = result.violations.reduce((n, v) => n + v.nodes.length, 0);
       const label = `${route} · ${theme} · ${size.name}`;
-      if (nodes === 0) {
+      let failed = false;
+
+      if (sideways > 1) {
+        bad(
+          `${label} — the page scrolls sideways by ${String(sideways)}px`,
+          'something is wider than the viewport and not inside a scrollable region',
+        );
+        failed = true;
+      }
+
+      if (nodes === 0 && !failed) {
         ok(label);
-      } else {
+      } else if (nodes > 0) {
+        failed = true;
         // The rule ids and the first few offending selectors, in the annotation
         // as well as the log: "3 nodes" on its own is not something anyone can
         // act on without opening the log, and the log is not always reachable.
@@ -287,6 +326,8 @@ for (const { route, as } of ROUTES) {
         }
         violations.push({ label, violations: result.violations });
       }
+
+      if (failed) failingCombinations += 1;
     }
   }
 }
@@ -297,7 +338,22 @@ console.log(
   `\n${String(combinations)} combinations across ${String(ROUTES.length - skipped)} routes, both palettes, 390 and 1440.` +
     (skipped === 0 ? '' : ` ${String(skipped)} route(s) skipped.`),
 );
+/*
+ * **Every `bad()` in this script has to be counted here.**
+ *
+ * This is the one browser check that does not end with `report.mjs`'s
+ * `finish()` — it counts route-and-palette combinations rather than named
+ * assertions, and its summary says so, which `report.mjs` records as
+ * deliberate. The cost is a second tally, and a second tally is a thing that
+ * can disagree with the first.
+ *
+ * It did. The sideways-scroll check was added calling `bad()` and nothing
+ * else, so a run printed **six FAIL lines and then "CLEAN", and exited 0** —
+ * a check that cannot fail, which is worse than no check. Caught by reverting
+ * the fix to see the assertion go red, which is the only reason it was caught
+ * at all.
+ */
 console.log(
-  violations.length === 0 ? 'CLEAN' : `${String(violations.length)} failing combinations`,
+  failingCombinations === 0 ? 'CLEAN' : `${String(failingCombinations)} failing combinations`,
 );
-process.exit(violations.length === 0 ? 0 : 1);
+process.exit(failingCombinations === 0 ? 0 : 1);

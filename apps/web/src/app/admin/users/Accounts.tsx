@@ -13,6 +13,7 @@ import { describe } from '../../../lib/describe';
 import { useStaleGuard } from '../../../lib/stale';
 import styles from '../admin.module.css';
 import { LOCALE } from '@stillpoint/protocol';
+import { TableScroll } from '../../../components/TableScroll';
 
 const ROLES = [
   { value: 'user', label: 'User' },
@@ -278,81 +279,83 @@ export default function Accounts() {
       {users !== null && rows.length === 0 ? (
         <p className={styles.sub}>No account matches that.</p>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>Name</th>
-              <th className={styles.th}>Email</th>
-              <th className={styles.th}>Plan</th>
-              <th className={styles.th}>Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((user) => {
-              const isMe = me !== null && String(me.id) === user.id;
-              return (
-                <tr key={user.id}>
-                  <td className={styles.td}>
-                    {user.name}
-                    {isMe ? ' (you)' : ''}
-                  </td>
-                  <td className={styles.td}>{user.email}</td>
-                  <td className={styles.td}>
-                    {isMe ? (
-                      // Nobody grants themselves an unlimited allowance, for
-                      // the reason nobody grants themselves the safety queue.
-                      <span className={styles.statLabel}>
-                        {PLAN_LABEL[user.plan] ?? user.plan} · ask another admin
-                      </span>
-                    ) : (
-                      <select
-                        className={styles.input}
-                        value={user.plan}
-                        disabled={saving === user.id}
-                        aria-label={`Plan for ${user.name}`}
-                        onChange={(e) => {
-                          void changePlan(user, e.target.value);
-                        }}
-                      >
-                        {PLANS.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </td>
-                  <td className={styles.td}>
-                    {isMe ? (
-                      // Nobody changes their own role, so there is nothing to
-                      // offer here — and saying why is better than a disabled
-                      // control with no explanation.
-                      <span className={styles.statLabel}>
-                        {ROLE_LABEL[user.role] ?? user.role} · ask another admin to change yours
-                      </span>
-                    ) : (
-                      <select
-                        className={styles.input}
-                        value={user.role}
-                        disabled={saving === user.id}
-                        aria-label={`Role for ${user.name}`}
-                        onChange={(e) => {
-                          void change(user, e.target.value);
-                        }}
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r.value} value={r.value}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <TableScroll label="Accounts">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>Name</th>
+                <th className={styles.th}>Email</th>
+                <th className={styles.th}>Plan</th>
+                <th className={styles.th}>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((user) => {
+                const isMe = me !== null && String(me.id) === user.id;
+                return (
+                  <tr key={user.id}>
+                    <td className={styles.td}>
+                      {user.name}
+                      {isMe ? ' (you)' : ''}
+                    </td>
+                    <td className={styles.td}>{user.email}</td>
+                    <td className={styles.td}>
+                      {isMe ? (
+                        // Nobody grants themselves an unlimited allowance, for
+                        // the reason nobody grants themselves the safety queue.
+                        <span className={styles.statLabel}>
+                          {PLAN_LABEL[user.plan] ?? user.plan} · ask another admin
+                        </span>
+                      ) : (
+                        <select
+                          className={styles.input}
+                          value={user.plan}
+                          disabled={saving === user.id}
+                          aria-label={`Plan for ${user.name}`}
+                          onChange={(e) => {
+                            void changePlan(user, e.target.value);
+                          }}
+                        >
+                          {PLANS.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                    <td className={styles.td}>
+                      {isMe ? (
+                        // Nobody changes their own role, so there is nothing to
+                        // offer here — and saying why is better than a disabled
+                        // control with no explanation.
+                        <span className={styles.statLabel}>
+                          {ROLE_LABEL[user.role] ?? user.role} · ask another admin to change yours
+                        </span>
+                      ) : (
+                        <select
+                          className={styles.input}
+                          value={user.role}
+                          disabled={saving === user.id}
+                          aria-label={`Role for ${user.name}`}
+                          onChange={(e) => {
+                            void change(user, e.target.value);
+                          }}
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r.value} value={r.value}>
+                              {r.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       {cursor === null ? null : (
@@ -386,30 +389,32 @@ export default function Accounts() {
           <p className={styles.sub}>No role has been changed yet.</p>
         ) : null
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>When</th>
-              <th className={styles.th}>Account</th>
-              <th className={styles.th}>Change</th>
-              <th className={styles.th}>By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trail.map((c) => (
-              <tr key={c.id}>
-                <td className={styles.td}>
-                  {c.at === null ? '—' : new Date(c.at).toLocaleString(LOCALE)}
-                </td>
-                <td className={styles.td}>{c.userEmail}</td>
-                <td className={styles.td}>
-                  {ROLE_LABEL[c.fromRole] ?? c.fromRole} → {ROLE_LABEL[c.toRole] ?? c.toRole}
-                </td>
-                <td className={styles.td}>{c.changedByEmail ?? 'a deleted account'}</td>
+        <TableScroll label="Role changes">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>When</th>
+                <th className={styles.th}>Account</th>
+                <th className={styles.th}>Change</th>
+                <th className={styles.th}>By</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {trail.map((c) => (
+                <tr key={c.id}>
+                  <td className={styles.td}>
+                    {c.at === null ? '—' : new Date(c.at).toLocaleString(LOCALE)}
+                  </td>
+                  <td className={styles.td}>{c.userEmail}</td>
+                  <td className={styles.td}>
+                    {ROLE_LABEL[c.fromRole] ?? c.fromRole} → {ROLE_LABEL[c.toRole] ?? c.toRole}
+                  </td>
+                  <td className={styles.td}>{c.changedByEmail ?? 'a deleted account'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
 
       <span className={styles.label} style={{ marginTop: 24 }}>
@@ -429,32 +434,34 @@ export default function Accounts() {
           <p className={styles.sub}>No plan has been changed yet.</p>
         ) : null
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>When</th>
-              <th className={styles.th}>Account</th>
-              <th className={styles.th}>Change</th>
-              <th className={styles.th}>By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plans.map((c) => (
-              <tr key={c.id}>
-                <td className={styles.td}>
-                  {c.at === null ? '—' : new Date(c.at).toLocaleString(LOCALE)}
-                </td>
-                <td className={styles.td}>{c.userEmail}</td>
-                <td className={styles.td}>
-                  {PLAN_LABEL[c.fromPlan] ?? c.fromPlan} → {PLAN_LABEL[c.toPlan] ?? c.toPlan}
-                </td>
-                {/* Null would mean a change nobody made by hand. Nothing
-                    writes one today; billing would. */}
-                <td className={styles.td}>{c.changedByEmail ?? 'billing'}</td>
+        <TableScroll label="Plan changes">
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>When</th>
+                <th className={styles.th}>Account</th>
+                <th className={styles.th}>Change</th>
+                <th className={styles.th}>By</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {plans.map((c) => (
+                <tr key={c.id}>
+                  <td className={styles.td}>
+                    {c.at === null ? '—' : new Date(c.at).toLocaleString(LOCALE)}
+                  </td>
+                  <td className={styles.td}>{c.userEmail}</td>
+                  <td className={styles.td}>
+                    {PLAN_LABEL[c.fromPlan] ?? c.fromPlan} → {PLAN_LABEL[c.toPlan] ?? c.toPlan}
+                  </td>
+                  {/* Null would mean a change nobody made by hand. Nothing
+                      writes one today; billing would. */}
+                  <td className={styles.td}>{c.changedByEmail ?? 'billing'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </>
   );

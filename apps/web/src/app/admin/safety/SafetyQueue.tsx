@@ -6,6 +6,7 @@ import { describe } from '../../../lib/describe';
 import { useStaleGuard } from '../../../lib/stale';
 import { ago, describeAge, exact } from '../../../lib/ago';
 import styles from '../admin.module.css';
+import { TableScroll } from '../../../components/TableScroll';
 
 /**
  * The safety queue.
@@ -146,50 +147,52 @@ export default function SafetyQueue() {
         </p>
       ) : (
         <div className={styles.split}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}>Level</th>
-                <th className={styles.th}>Type</th>
-                <th className={styles.th}>What was said</th>
-                <th className={styles.th}>Raised</th>
-                <th className={styles.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordered.map((f) => (
-                <tr key={f.id}>
-                  <td className={styles.td}>
-                    <button
-                      type="button"
-                      className={`${styles.tag} ${levelClass(f.level)} ${styles.rowButton}`}
-                      onClick={() => {
-                        setSelectedId(f.id);
-                      }}
-                      aria-label={`Open the ${f.level} ${f.categoryLabel} flag`}
-                    >
-                      {label(f.level)}
-                    </button>
-                  </td>
-                  <td className={styles.td}>{f.categoryLabel}</td>
-                  <td className={styles.td}>“{truncate(f.excerpt)}”</td>
-                  {/*
-                    The age, which the queue did not show at all. After its
-                    severity it is the thing a reviewer most needs: a `high`
-                    raised four days ago is a different situation from the same
-                    flag raised twenty minutes ago. Rounded down in the cell,
-                    exact in the tooltip and in the label a screen reader gets.
-                  */}
-                  <td className={styles.td} title={exact(f.raisedAt)}>
-                    <span aria-label={`Raised ${describeAge(f.raisedAt)} ago`}>
-                      {ago(f.raisedAt)}
-                    </span>
-                  </td>
-                  <td className={styles.td}>{f.status === 'open' ? 'Open' : 'Reviewed'}</td>
+          <TableScroll label="Safety flags">
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th className={styles.th}>Level</th>
+                  <th className={styles.th}>Type</th>
+                  <th className={styles.th}>What was said</th>
+                  <th className={styles.th}>Raised</th>
+                  <th className={styles.th}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ordered.map((f) => (
+                  <tr key={f.id}>
+                    <td className={styles.td}>
+                      <button
+                        type="button"
+                        className={`${styles.tag} ${levelClass(f.level)} ${styles.rowButton}`}
+                        onClick={() => {
+                          setSelectedId(f.id);
+                        }}
+                        aria-label={`Open the ${f.level} ${f.categoryLabel} flag`}
+                      >
+                        {label(f.level)}
+                      </button>
+                    </td>
+                    <td className={styles.td}>{f.categoryLabel}</td>
+                    <td className={styles.td}>“{truncate(f.excerpt)}”</td>
+                    {/*
+                      The age, which the queue did not show at all. After its
+                      severity it is the thing a reviewer most needs: a `high`
+                      raised four days ago is a different situation from the same
+                      flag raised twenty minutes ago. Rounded down in the cell,
+                      exact in the tooltip and in the label a screen reader gets.
+                    */}
+                    <td className={styles.td} title={exact(f.raisedAt)}>
+                      <span aria-label={`Raised ${describeAge(f.raisedAt)} ago`}>
+                        {ago(f.raisedAt)}
+                      </span>
+                    </td>
+                    <td className={styles.td}>{f.status === 'open' ? 'Open' : 'Reviewed'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
 
           {cursor === null ? null : (
             <button

@@ -1,0 +1,22 @@
+/*
+ * A table that scrolls inside itself rather than dragging the page.
+ *
+ * `overflow-x: auto` so the scroll belongs to this box, and a `max-width` of
+ * 100% so the box itself can never be wider than the column it sits in — the
+ * table's own `width: 100%` cannot shrink below its content's minimum, which
+ * is what pushed it past the viewport.
+ */
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/*
+ * The focus ring matters here, because this box is in the tab order on
+ * purpose: a region somebody can scroll has to be reachable by keyboard, and
+ * one that takes focus invisibly is worse than one that does not take it.
+ */
+.scroll:focus-visible {
+  outline: 2px solid var(--sp-color-accent);
+  outline-offset: 2px;
+}
