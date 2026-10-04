@@ -189,8 +189,27 @@ if (!signedIn) {
     if (detail.includes(FLAGGED.slice(0, 30))) ok('the detail pane shows the full excerpt');
     else bad('the detail pane shows the full excerpt', detail.slice(-300));
 
-    await admin.getByRole('button', { name: 'Mark as reviewed' }).click();
+    // Focus, which the press used to take away: `disabled` leaves the tab
+    // order, so `document.activeElement` became `<body>` the moment the
+    // review landed and a reviewer using a screen reader was told nothing.
+    // `aria-disabled` keeps the button where it is and its own name becomes
+    // the announcement. Asserted rather than hoped for, because nothing about
+    // the rendered page shows it.
+    const reviewButton = admin.getByRole('button', { name: 'Mark as reviewed' });
+    await reviewButton.focus();
+    await reviewButton.click();
     await admin.waitForTimeout(1200);
+
+    const stayed = await admin.evaluate(() => {
+      const a = document.activeElement;
+      return a === null || a === document.body
+        ? '<body>'
+        : `${a.tagName.toLowerCase()} "${(a.textContent ?? '').trim()}"`;
+    });
+    if (stayed === 'button "Reviewed"')
+      ok('reviewing keeps focus on the button, whose name becomes the news');
+    else bad('reviewing keeps focus on the button', `focus is ${stayed}`);
+
     await admin.reload({ waitUntil: 'networkidle' });
     await admin.waitForTimeout(1800);
 
@@ -570,6 +589,59 @@ if (!signedIn) {
     ok('a draft is already open from an earlier run');
   }
 
+  // ---- publishing, which nothing here used to assert at all --------------
+  //
+  // The rest of this section asserts the 422 for an incomplete draft and
+  // stopped there, so a successful publish — the one action on this screen
+  // that changes what the guide says to everybody — was never exercised end
+  // to end.
+  //
+  // It happens **first**, before the checks below edit any copy, and that
+  // ordering is the point: those edits carry a timestamp so a reload can be
+  // seen to have round-tripped, and publishing afterwards would promote
+  // "Which of these are you feeling? (1791…)" to the live version every other
+  // check then reads. Here the draft is the live copy with nothing changed in
+  // it, so publishing it is a no-op in content and still a real publish.
+  //
+  // Two things, and the second cannot be seen on the rendered page: that the
+  // version line is a live region, so the new live version is announced, and
+  // that the Publish button still holds focus afterwards. It used to be
+  // `disabled`, which leaves the tab order — measured,
+  // `document.activeElement` became `<body>` the moment the publish
+  // succeeded, on the most consequential button in the console.
+  //
+  // `count()` first on the region: with none there is nothing to read, and a
+  // throw out of `innerText` is a red run naming a timeout rather than the
+  // thing that broke.
+  const liveLine = admin.locator('p[role="status"]').first();
+  const beforePublish =
+    (await liveLine.count()) > 0 ? await liveLine.innerText() : '(no live region)';
+  const publish = admin.getByRole('button', { name: 'Publish' });
+  await publish.focus();
+  await publish.click();
+  await admin.waitForTimeout(2500);
+
+  const announced = (await liveLine.count()) > 0 ? await liveLine.innerText() : '(no live region)';
+  const held = await admin.evaluate(() => {
+    const a = document.activeElement;
+    return a === null || a === document.body
+      ? '<body>'
+      : `${a.tagName.toLowerCase()} "${(a.textContent ?? '').trim()}"`;
+  });
+
+  if (/^Live version /.test(announced) && announced !== beforePublish)
+    ok(`publishing announces the new live version (${announced})`);
+  else bad('publishing announces the new live version', `"${beforePublish}" → "${announced}"`);
+  if (held === 'button "Publish"') ok('and the button it was pressed on keeps focus');
+  else bad('and the button it was pressed on keeps focus', `focus is ${held}`);
+  if (!/not published/.test(await admin.locator('body').innerText())) ok('and the draft is gone');
+  else bad('and the draft is gone');
+
+  // A fresh draft for the refusal checks below, since publishing closed the
+  // one they were going to use.
+  await admin.getByRole('button', { name: 'Edit as a new draft' }).click();
+  await admin.waitForTimeout(1500);
+
   // This section used to lean on the seeded protocol being incomplete, which
   // was true only while the step copy was missing. `DemoSeeder` publishes a
   // complete draft now, so the draft this opens inherits that copy and there
@@ -668,8 +740,7 @@ if (!signedIn) {
   if (!/Could not save that edit/.test(shown)) ok('and not blamed on the connection');
   else bad('and not blamed on the connection', shown.slice(0, 400));
 
-  // Put the step back, so a later run of this script starts from a complete
-  // draft rather than one this check left too long to publish.
+  // Put the step back, so the draft is publishable again.
   await admin.locator('textarea').first().fill(copy);
   await admin.waitForTimeout(1800);
 }

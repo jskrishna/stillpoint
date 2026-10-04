@@ -209,12 +209,44 @@ if (!coachSignedIn) {
     else bad('the safety queue refuses a coach', String(queue));
 
     // The coach's own notes.
-    await coach.locator('textarea').fill('Wants to talk about her manager.');
+    //
+    // Unique per run on purpose. Filling the same text twice is not an edit —
+    // the save effect returns early when the field matches what was loaded —
+    // so on a second run against the same database nothing was saved and the
+    // status assertion below read an empty region. A check that depends on
+    // the database being fresh is a check that passes for the wrong reason.
+    const notes = `Wants to talk about her manager. (${String(Date.now())})`;
+    await coach.locator('textarea').fill(notes);
     await coach.waitForTimeout(1500);
+
+    // Saved after typing stops, and said so. The only confirmation used to be
+    // `· saving…` appended to the field's label, in no live region, on screen
+    // for exactly as long as the request took — there was never a "saved" at
+    // all. What is assertable without a screen reader is the region and its
+    // content, which is the mechanism that decides whether anything is said.
+    const region = coach.locator('[role="status"]').first();
+    const status =
+      (await region.count()) > 0 ? await region.innerText() : '(there is no live region)';
+    if (/saved/.test(status)) ok('a saved note says so, in a live region');
+    else bad('a saved note says so, in a live region', `the region reads "${status}"`);
+
+    // And the status is not folded into the field's own name: `.field` is a
+    // wrapping label, so the whole label would have named the textarea and its
+    // accessible name would change every time a save ran.
+    const named = await coach
+      .locator('textarea')
+      .first()
+      .evaluate((el) => {
+        const by = el.getAttribute('aria-labelledby');
+        return by === null ? null : (document.getElementById(by)?.textContent ?? '').trim();
+      });
+    if (named === 'My private notes') ok('and the field is still named by its label alone');
+    else bad('and the field is still named by its label alone', JSON.stringify(named));
+
     await coach.reload({ waitUntil: 'networkidle' });
     await coach.waitForTimeout(1800);
     const saved = await coach.locator('textarea').inputValue();
-    if (saved === 'Wants to talk about her manager.') ok('the coach’s notes survive a reload');
+    if (saved === notes) ok('the coach’s notes survive a reload');
     else bad('the coach’s notes survive a reload', saved);
   }
   // -------------------------------------------------------------------------

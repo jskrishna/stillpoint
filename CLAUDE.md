@@ -310,6 +310,80 @@ reverting the screens and rebuilding.
 this. Nothing here is a rule violation — a page with no live region is a valid
 page. It is only wrong once you ask what this particular screen is for.
 
+### The same question, asked of every screen that changes under a press
+
+The session screen was the sharpest case and not the only one. Measured the
+same way — `document.activeElement` and the live regions in a real browser,
+before and after a press:
+
+- **Publish, on `/admin/protocol`.** Focus fell to `<body>` and there was no
+  live region on the page. An admin published the product's voice to everybody
+  and the screen said nothing — on the most consequential button in the
+  console after a role grant.
+- **"Mark as reviewed", on `/admin/safety`.** Focus fell to `<body>`, no live
+  region. A reviewer marked somebody's crisis disclosure as handled and was
+  told neither that it worked nor where they now were.
+- **Three autosaves** — the step prompts, a journal note, a coach's private
+  notes — showed `· saving…` appended to their field's label, in no live
+  region, and **never said "saved" at all**. The only confirmation an edit had
+  been written was a word disappearing, and measured against a local API the
+  word is on screen for less than the 400ms the sampling used: even sighted, on
+  a fast connection, there was nothing to see.
+
+Two decisions, and the first is the one worth reusing:
+
+- **`aria-disabled`, not `disabled`, on a button whose press settles it.** A
+  `disabled` button leaves the tab order, so the focus that was on it has
+  nowhere to go and lands at the top of the document. Focusable, the button
+  stays exactly where the user left it and its own accessible name changes
+  from "Mark as reviewed" to "Reviewed" — which is the announcement, with
+  nothing added to the screen. The `onClick` handler is what refuses the
+  second press, and `admin.module.css` styles both spellings so it looks
+  identical. This is why no new focus target or wording had to be invented
+  here, unlike the session screen's pause, where the whole screen is replaced.
+- **One live region per screen, holding what that screen is about.** The
+  editor's version line is the region, so an autosave and a publish announce
+  from one place and after publishing it reads exactly the news: "Live version
+  1.3". `apps/web/src/components/SaveStatus.tsx` is the shared one for a
+  field's status — polite, because a save must not interrupt somebody
+  mid-sentence, which is the exact opposite of the crisis block's
+  `role="alert"`. A failure stays in its own `role="alert"` through
+  `describe()`, and a failed save goes back to **idle** rather than "saved":
+  a status that lies is worse than no status.
+
+**And the status must not become the field's name.** Both note fields are
+labels, so a status inside the label folds into the control's accessible name
+and the name then changes every time a save runs. `aria-labelledby` points at
+a span holding the words alone. Measured through Chromium's accessibility
+tree: `"My private notes"`, with the status beside it rather than in it.
+
+On the phone the journal note is an explicit "Save the note" button that
+**disappears** once saved, so the vanishing control is a sighted user's
+confirmation and a screen reader's nothing. It announces, like the session
+screen's pause and for the same reason — `setAccessibilityFocus` needs a host
+node and differs per platform. Whether a screen reader speaks it is unproven
+here, with the `tel:` links and the keychain.
+
+`e2e/admin.mjs` and `e2e/coach.mjs` assert the focus and the regions, which is
+what is assertable without a screen reader. All five were checked by reverting
+the three files and rebuilding; all five go red, by name rather than by
+timeout — the region is counted before it is read, because a throw out of
+`innerText` is a red run that names a timeout instead of the thing that broke.
+
+**`admin.mjs` publishes now, and it does it first.** Nothing in the suite
+asserted a _successful_ publish — the editor section proved the 422 for an
+incomplete draft and stopped there. It runs before the checks that edit copy,
+deliberately: those stamp a timestamp into step 3 so a reload can be seen to
+have round-tripped, and publishing afterwards would promote
+"Which of these are you feeling? (1791…)" to the live version every other
+check then reads. Published first, the draft is the live copy unchanged.
+
+The coach check's note is **unique per run** for a related reason: filling the
+same text twice is not an edit — the save effect returns early when the field
+matches what was loaded — so on a second run against the same database nothing
+saved and the status region was legitimately empty. Both scripts were run twice
+in a row against one database to prove they do not need a fresh one.
+
 And the failure sentence changed with it. `describe()` returned "Something went
 wrong. Please try again.", which tells somebody nothing they can act on, while
 the comment at the top of that very file quoted the right wording and

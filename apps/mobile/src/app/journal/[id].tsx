@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { AccessibilityInfo, Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
@@ -79,6 +79,14 @@ export default function Entry() {
       const updated = await api.updateJournalEntry(entry.id, { note: note.trim() });
       setEntry(updated);
       setProblem(null);
+      // The button that was just pressed disappears — `noteChanged` is false
+      // once the note matches the entry — so for a sighted user the vanishing
+      // control is the confirmation and for a screen reader there was none at
+      // all. Announced rather than focused for the same reason the session
+      // screen's pause is: `setAccessibilityFocus` needs a host node and
+      // differs per platform. Whether a screen reader speaks it is unproven
+      // here, with the `tel:` links and the keychain — `LAUNCH.md` item 6.
+      AccessibilityInfo.announceForAccessibility('Note saved.');
     } catch (e: unknown) {
       setProblem(describe(e));
     } finally {

@@ -13,6 +13,7 @@ import {
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
 import { describe } from '../../../../lib/describe';
+import { SaveStatus, type SaveState } from '../../../../components/SaveStatus';
 import styles from '../../app.module.css';
 
 const LABEL = new Map<string, string>(FEELINGS.map((f) => [f.id, f.label]));
@@ -32,7 +33,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
   const [entry, setEntry] = useState<ApiJournalEntry | null | undefined>(undefined);
   const [note, setNote] = useState('');
   const [now, setNow] = useState<Date | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
   const [failed, setFailed] = useState<string | null>(null);
   /**
    * The owner's standing choice about their coach, because the server enforces
@@ -77,20 +78,23 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
   // render that may happen twice.
   useEffect(() => {
     if (loadedNote.current === null || note === loadedNote.current) return;
+    // Typing again means the last "saved" is about older text.
+    setSaveState('idle');
     const timer = setTimeout(() => {
-      setSaving(true);
+      setSaveState('saving');
       api
         .updateJournalEntry(entryId, { note: note === '' ? null : note })
         .then((updated) => {
           loadedNote.current = updated.note ?? '';
           setEntry(updated);
           setFailed(null);
+          setSaveState('saved');
         })
         .catch((e: unknown) => {
           setFailed(describe(e));
-        })
-        .finally(() => {
-          setSaving(false);
+          // Back to idle, not "saved": the failure is the `role="alert"`
+          // below, and a status saying nothing is better than one that lies.
+          setSaveState('idle');
         });
     }, SAVE_AFTER_MS);
 
@@ -178,10 +182,16 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         would not have caught the session screen having no live region.
       */}
       <label className={styles.label} htmlFor="journal-note" style={{ marginTop: 16 }}>
-        My note{saving ? ' · saving…' : ''}
+        <span id="journal-note-label">My note</span>
+        <SaveStatus state={saveState} />
       </label>
       <textarea
         id="journal-note"
+        // Named by the span alone, not by the whole label: the status beside
+        // it changes as the save runs, and a field whose accessible name keeps
+        // changing is worse than one named by its placeholder. `htmlFor` stays
+        // so clicking the words still focuses the field.
+        aria-labelledby="journal-note-label"
         rows={3}
         value={note}
         onChange={(e) => {

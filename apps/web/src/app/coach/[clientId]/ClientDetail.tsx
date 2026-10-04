@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { FEELINGS, LOCALE, duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiClientDetail } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { SaveStatus, type SaveState } from '../../../components/SaveStatus';
 import styles from '../coach.module.css';
 
 const LABEL = new Map<string, string>(FEELINGS.map((f) => [f.id, f.label]));
@@ -27,7 +28,7 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ApiClientDetail | null | undefined>(undefined);
   const [notes, setNotes] = useState('');
   const [now, setNow] = useState<Date | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const loadedNotes = useRef<string | null>(null);
   const router = useRouter();
@@ -53,14 +54,17 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
   // Saved after typing stops, from an effect rather than a change handler.
   useEffect(() => {
     if (loadedNotes.current === null || notes === loadedNotes.current) return;
+    // Typing again means the last "saved" is about older text.
+    setSaveState('idle');
     const timer = setTimeout(() => {
-      setSaving(true);
+      setSaveState('saving');
       api
         .updateCoachClient(clientId, { coachNotes: notes === '' ? null : notes })
         .then((updated) => {
           loadedNotes.current = updated.coachNotes ?? '';
           setClient(updated);
           setProblem(null);
+          setSaveState('saved');
         })
         .catch((e: unknown) => {
           // Including the case this screen is most likely to meet: the client
@@ -69,9 +73,9 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
           // which is what shows them the client is gone. "Check your
           // connection" was false and left them retrying.
           setProblem(describe(e));
-        })
-        .finally(() => {
-          setSaving(false);
+          // Idle rather than "saved": the failure is the `role="alert"` the
+          // screen already shows, and a status that lies is worse than none.
+          setSaveState('idle');
         });
     }, SAVE_AFTER_MS);
 
@@ -179,9 +183,19 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
           )}
 
           <label className={styles.field}>
-            My private notes{saving ? ' · saving…' : ''}
+            {/*
+              One flex row for the words and the status, and the field named by
+              the words alone — `.field` is a flex column, so two items would
+              put the status on its own line, and a wrapping label would fold
+              the changing status into the field's accessible name.
+            */}
+            <span>
+              <span id="coach-notes-label">My private notes</span>
+              <SaveStatus state={saveState} />
+            </span>
             <textarea
               className={styles.textarea}
+              aria-labelledby="coach-notes-label"
               rows={5}
               value={notes}
               placeholder="Only you can see these."

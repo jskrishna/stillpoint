@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type ApiProtocolVersion, type ApiStepEdit } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { type SaveState } from '../../../components/SaveStatus';
 import styles from '../admin.module.css';
 import { LOCALE } from '@stillpoint/protocol';
 
@@ -26,7 +27,7 @@ export default function ProtocolEditor() {
   const [draft, setDraft] = useState<ApiProtocolVersion | null>(null);
   const [selected, setSelected] = useState('notice');
   const [problem, setProblem] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
 
   /** Edits typed but not yet sent, so the fields stay responsive. */
   const [pending, setPending] = useState<Record<string, ApiStepEdit>>({});
@@ -56,9 +57,11 @@ export default function ProtocolEditor() {
     const steps = Object.keys(pending);
     if (steps.length === 0) return;
 
+    // Typing again means the last "saved" is about older text.
+    setSaveState('idle');
     const timer = setTimeout(() => {
       void (async () => {
-        setSaving(true);
+        setSaveState('saving');
         try {
           let latest: ApiProtocolVersion | null = null;
           for (const stepId of steps) {
@@ -69,6 +72,7 @@ export default function ProtocolEditor() {
           if (latest !== null) setDraft(latest);
           setPending({});
           setProblem(null);
+          setSaveState('saved');
         } catch (e: unknown) {
           // The server's own sentence. This said "Check your connection" for
           // every failure including a 422 — so an admin pasting a step prompt
@@ -77,8 +81,9 @@ export default function ProtocolEditor() {
           // lost the edit. Measured: the API answers "The main field must not
           // be greater than 500 characters."
           setProblem(describe(e));
-        } finally {
-          setSaving(false);
+          // Idle rather than "saved": the failure is the `role="alert"` below,
+          // and a status that lies is worse than no status.
+          setSaveState('idle');
         }
       })();
     }, SAVE_AFTER_MS);
@@ -161,12 +166,21 @@ export default function ProtocolEditor() {
       <div className={styles.head}>
         <div>
           <h1 className={styles.title}>Step prompts</h1>
-          <p className={styles.sub}>
+          {/*
+            The whole line is the live region, rather than a `SaveStatus`
+            inside it. Everything this screen does ends up here — which
+            version is live, whether a draft is open, whether the last edit
+            was written — so one region covers an autosave and a publish
+            alike, and after publishing it reads exactly the news:
+            "Live version 1.1". Polite, because none of it should interrupt
+            somebody typing; the refusals below are the `role="alert"`.
+          */}
+          <p className={styles.sub} role="status">
             {live === null || live.status !== 'live'
               ? 'No live version'
               : `Live version ${live.label}`}
             {draft === null ? '' : ` · Draft ${draft.label} (not published)`}
-            {saving ? ' · saving…' : ''}
+            {saveState === 'saving' ? ' · saving…' : saveState === 'saved' ? ' · saved' : ''}
           </p>
         </div>
         <div className={styles.actions}>
@@ -185,9 +199,18 @@ export default function ProtocolEditor() {
             type="button"
             className={`${styles.button} ${styles.primary}`}
             onClick={() => {
+              if (readOnly || !editing.publishable || saveState === 'saving') return;
               void onPublish();
             }}
-            disabled={readOnly || !editing.publishable || saving}
+            /*
+             * `aria-disabled`, not `disabled`: publishing changes what the
+             * guide says to everybody, and a `disabled` button leaves the tab
+             * order — so the press that succeeded dropped
+             * `document.activeElement` to `<body>`, measured, and the admin
+             * was told nothing. Focusable, the button stays put while the line
+             * above announces the new live version. The handler refuses.
+             */
+            aria-disabled={readOnly || !editing.publishable || saveState === 'saving'}
             title={
               editing.publishable
                 ? undefined

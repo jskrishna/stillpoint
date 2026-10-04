@@ -93,7 +93,17 @@
   color: var(--sp-color-accent-ink);
 }
 
-.primary:disabled {
+/*
+ * Both spellings, because two buttons here use `aria-disabled` rather than
+ * `disabled` on purpose: a `disabled` button cannot hold focus, so pressing
+ * Publish or "Mark as reviewed" dropped `document.activeElement` to `<body>`
+ * — measured — the moment the press succeeded. `aria-disabled` keeps the
+ * button focusable and in the tab order while still reporting itself
+ * unavailable, so the name the user just pressed changes under their focus
+ * instead of the focus disappearing. The click handler is what refuses.
+ */
+.primary:disabled,
+.primary[aria-disabled='true'] {
   opacity: 0.4;
   cursor: not-allowed;
 }

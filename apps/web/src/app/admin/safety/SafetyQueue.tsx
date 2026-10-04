@@ -211,11 +211,23 @@ export default function SafetyQueue() {
                 {describeAge(selected.raisedAt)} ago
                 {exact(selected.raisedAt) === undefined ? '' : ` · ${exact(selected.raisedAt)}`}
               </span>
+              {/*
+                `aria-disabled`, not `disabled`. Reviewing is the one action on
+                this screen and the press used to take the user's focus with
+                it: a `disabled` button leaves the tab order, so
+                `document.activeElement` became `<body>` — measured — and a
+                reviewer using a screen reader was told nothing at all, on the
+                screen where somebody's crisis words are read. Focusable, the
+                button stays put and its own name changes from "Mark as
+                reviewed" to "Reviewed" under their focus, which is the
+                announcement. The handler is what refuses the second press.
+              */}
               <button
                 type="button"
                 className={`${styles.button} ${styles.primary}`}
-                disabled={selected.status === 'reviewed'}
+                aria-disabled={selected.status === 'reviewed'}
                 onClick={() => {
+                  if (selected.status === 'reviewed') return;
                   void review(selected.id);
                 }}
               >
