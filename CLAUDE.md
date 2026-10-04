@@ -701,16 +701,24 @@ nothing else. What they _record_ is `literalExtraction` (TS) /
 a step is what that step was asking for. Both are stand-ins for a model, both
 exist in both languages, and the parity fixture covers them.
 
-Step 3 is not answered in prose. The designs give it a grid of the twelve
-feelings and "Choose up to 3", so `answerKindOf('feel')` is `'feelings'` and the
-client posts feeling **ids**, not labels.
+Step 3 is not answered in prose. The designs give it a grid of twelve feelings
+and "Choose up to 3", so `answerKindOf('feel')` is `'feelings'` and the client
+posts feeling **ids**, not labels.
+
+**There are thirteen of them, and the grid is twelve.** `FEELINGS` has
+thirteen entries; `humiliated` is the only one with `primary: false`, so it
+sits behind "See more feelings" and the grid shows the other twelve. Counted,
+because this file said twelve in five places and the number of _colours_ is
+thirteen too — `FEELING_COLOR` and `FEELING_SWATCHES` both. Where it matters
+is below: "a turn naming all of them" is thirteen ids, not twelve, and a
+fixture case that listed twelve would be one short of the set.
 
 **And "up to 3" was a rule only the two grids kept.** `toggleFeeling` refuses
 the fourth tap and `FeelingId::MAX_CHOICES` was declared and used by nothing,
-so `feelingsIn()` took every recognised token: a turn naming all twelve
-recorded all twelve, the journal's "What you felt" listed twelve, and insights
-counted twelve for one session — which makes "Feelings you chose most" a
-ranking of twelve things at one apiece. No shipped client can send that, and
+so `feelingsIn()` took every recognised token: a turn naming all thirteen
+recorded all thirteen, the journal's "What you felt" listed thirteen, and
+insights counted thirteen for one session — which makes "Feelings you chose
+most" a ranking of thirteen things at one apiece. No shipped client can send that, and
 that is the point rather than the excuse: a rule only the client keeps is one
 the next client does not, which is the same reason the risk screen's browser
 copy is a convenience and the server is the enforcement.
@@ -719,8 +727,9 @@ It is the first three in the order given, not a refusal. At this step the
 answer is a selection, and dropping the fourth is exactly what the screen does
 to the fourth tap, so the journal and the insights end up agreeing with what
 the person was told they could choose. Three fixture cases pin it — four
-feelings, all twelve, and a different order — because the order is where the
-two languages could disagree without a count noticing. Checked by taking the
+feelings, all thirteen (checked: the case lists `humiliated` too, so it is the
+whole set rather than the grid), and a different order — because the order is
+where the two languages could disagree without a count noticing. Checked by taking the
 cap back out of the PHP: all three go red. The guide's word-count heuristic is
 only applied to prose: judging a selection by its length stalled step 3 for
 anyone who did not happen to pick exactly three feelings. Answer kind belongs to
@@ -1513,8 +1522,8 @@ breaking it in the PHP: a crisis that no longer stops turns three cases red, a
 
 **The step order, how each step is answered, and consent are in there too.**
 Those were the last rules living in both languages with nothing comparing
-them. Step 3's answer kind is the one that bites: it is a grid of twelve
-feelings and "choose up to 3", so the client posts ids, and a language that
+them. Step 3's answer kind is the one that bites: it is a grid of feelings
+and "choose up to 3", so the client posts ids, and a language that
 thought it was prose would judge a selection by its word count and stall the
 step for anybody who did not pick exactly three. Consent points both ways — a
 client needing fewer items walks somebody into a 403 three screens later, and
@@ -1588,7 +1597,7 @@ The design direction is **Warm & Clear** (cream `#FBF4EC`, terracotta accent
 `#E4572E`, Newsreader + Hanken Grotesk), taken from the newest and only complete
 artifact. The earlier "Dusk to Light" exploration is not current; do not mix its
 palette in. Only its feeling colours survive, because nothing else assigns the
-twelve feelings colours at all.
+thirteen feelings colours at all.
 
 ## Commands
 
@@ -1791,8 +1800,8 @@ check. Three things about it are deliberate:
   used all three" cannot show anybody the session flow.
 
 The insights content is overlapped on purpose too (one feeling in three
-sessions, another in two, one belief in two): twelve feelings each counted once
-is a ranking of nothing, which is what the first attempt rendered.
+sessions, another in two, one belief in two): thirteen feelings each counted
+once is a ranking of nothing, which is what the first attempt rendered.
 
 CI runs four jobs: the PHP suite, the JavaScript gates, the end-to-end checks,
 and the Docker images. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
