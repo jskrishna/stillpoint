@@ -309,13 +309,6 @@ if (!signedIn) {
   if (/Step prompts/.test(editor) && !editor.includes('Loading')) ok('the editor loads');
   else bad('the editor loads', editor.slice(0, 300));
 
-  // Five of six steps have no copy, which is the honest state the PRD has not
-  // filled yet — and it must block publishing.
-  if (/problems? block/.test(editor)) ok('an incomplete protocol blocks publishing');
-  else bad('an incomplete protocol blocks publishing', editor.slice(0, 400));
-  if (/Step 1 has no main question/.test(editor)) bad('step 1’s question is reported missing');
-  else ok('the step the designs specify is not reported missing');
-
   // An earlier run may have left a draft open, so this does not assume either
   // way: with none open the editor is read-only and offers to open one.
   const openDraft = admin.getByRole('button', { name: 'Edit as a new draft' });
@@ -329,6 +322,43 @@ if (!signedIn) {
   } else {
     ok('a draft is already open from an earlier run');
   }
+
+  // This section used to lean on the seeded protocol being incomplete, which
+  // was true only while the step copy was missing. `DemoSeeder` publishes a
+  // complete draft now, so the draft this opens inherits that copy and there
+  // was nothing left to refuse — the check passed for a reason that then went
+  // away, and CI went red rather than the check going quiet, which is the
+  // better of the two failures but still a check that was testing the fixture.
+  //
+  // So it makes its own incomplete state: blank one step's question, assert
+  // that both the screen and the server refuse, and then the section below
+  // fills it back in and watches the problem clear.
+  const blanked = await admin.evaluate(async (api) => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const r = await fetch(`${api}/admin/protocol-versions/draft/steps/feel`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ main: null }),
+    });
+    return r.status;
+  }, API);
+  if (blanked === 200) ok('step 3’s question can be cleared, to have something to refuse');
+  else bad('step 3’s question can be cleared', String(blanked));
+
+  await admin.reload({ waitUntil: 'networkidle' });
+  await admin.waitForTimeout(1800);
+  const incomplete = await admin.locator('body').innerText();
+
+  if (/problems? block/.test(incomplete)) ok('an incomplete protocol blocks publishing');
+  else bad('an incomplete protocol blocks publishing', incomplete.slice(0, 400));
+  if (/Step 3 has no main question/.test(incomplete)) ok('and it names the step at fault');
+  else bad('and it names the step at fault', incomplete.slice(0, 400));
+  if (/Step 1 has no main question/.test(incomplete)) bad('step 1’s question is reported missing');
+  else ok('the step the designs specify is not reported missing');
 
   // The server refuses regardless of the button, which is the check that
   // matters: a screen's own guard can always be skipped.
