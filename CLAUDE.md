@@ -1061,6 +1061,47 @@ And section 3c: it lets a turn reach the server and then drops the response —
 what a train tunnel does — and asserts the retry advanced exactly one step for
 one answer, rather than being recorded as the next step's.
 
+### The checks get an empty database and the demo does not
+
+`DemoSeeder` makes the four accounts and the pairing and **nothing else**,
+because a fixture that already contains what a test is about is a test that
+passes whether or not the code works. Every check above runs against exactly
+that, and `flow.mjs` registers its own account anyway.
+
+`pnpm run demo` is the same machinery pointed at a person rather than a check,
+and it inherited that emptiness — which `LAUNCH.md` item 1 had already promised
+away. That item is asking a clinician to read the risk screen and says the way
+to ask is the demo, "including the console's safety queue, where they can see
+what a reviewer would actually read". Walked in a real browser, what they would
+have seen: a journal saying "Nothing yet", insights saying "Nothing to show
+yet", a console overview of 0 sessions and 0% at every step, the coach's two
+clients as a row of em-dashes, and the **safety queue saying "Nothing in the
+queue"** — the one screen the whole request is about. `run.mjs` also printed
+`you@stillpoint.test` as "an ordinary account, with a journal", which it was
+not.
+
+So `DemoContentSeeder` is the demo's own furniture, run by `--demo` and by no
+check. Three things about it are deliberate:
+
+- **It is a second seeder, not an addition to the first.** Folding it in would
+  hand every check a database that already contains journal rows, insights and
+  an open flag, and several of them assert on counts. Checked: the test seed is
+  still 0 entries, 0 flags and 0 sessions, and `flow`, `coach` and `admin` all
+  still pass.
+- **Only one row carries anything like a disclosure**, at `medium`, and the
+  excerpt is a sentence about not coping rather than a statement of intent.
+  An empty queue cannot show a reviewer what a reviewer reads; inventing crisis
+  language for a database somebody may screenshot is a different mistake. The
+  phrases a reviewer actually judges are in the generated
+  `docs/clinical-review/RISK-SCREEN-REVIEW.md`.
+- **The free allowance is left intact.** The recent sessions are `quick`, since
+  the weekly count is `where('kind', Full)` — a demo that opens on "you have
+  used all three" cannot show anybody the session flow.
+
+The insights content is overlapped on purpose too (one feeling in three
+sessions, another in two, one belief in two): twelve feelings each counted once
+is a ranking of nothing, which is what the first attempt rendered.
+
 CI runs four jobs: the PHP suite, the JavaScript gates, the end-to-end checks,
 and the Docker images. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.

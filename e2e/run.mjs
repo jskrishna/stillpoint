@@ -170,7 +170,30 @@ async function seed() {
     ['artisan', 'migrate:fresh', '--seed', '--seeder=DemoSeeder', '--force'],
     { cwd: api, env },
   );
-  return code === 0;
+  if (code !== 0) return false;
+
+  // Content for a demo, and **only** for a demo.
+  //
+  // `DemoSeeder` makes accounts and a pairing and says why it makes nothing
+  // else: "a fixture that already contains what a test is about is a test that
+  // passes whether or not the code works." That is right, and the checks below
+  // never see this seeder.
+  //
+  // But `--demo` exists to put the product in front of a person — `LAUNCH.md`
+  // item 1, a clinician reading the risk screen — and walked in a real browser
+  // the seeded stack showed them an empty journal, empty insights, a console
+  // overview of zeros, a coach's clients that were a row of em-dashes, and a
+  // **safety queue saying "Nothing in the queue"**. That last one is the screen
+  // item 1 names in as many words.
+  if (!flags.has('--demo')) return true;
+
+  log('seeding the demo’s own content (not used by any check)');
+  return (
+    (await run('php', ['artisan', 'db:seed', '--class=DemoContentSeeder', '--force'], {
+      cwd: api,
+      env,
+    })) === 0
+  );
 }
 
 const started = [];
@@ -265,12 +288,20 @@ async function main() {
       // Say what was actually done. `--no-build` skips the reseed, so whether
       // the guide speaks at every step depends on whatever is in the database
       // already — and claiming otherwise is the kind of sentence this codebase
-      // keeps finding and fixing.
-      console.log('  \x1b[2m--no-build: nothing was reseeded, so the step copy is whatever');
-      console.log('  this database already had. Drop the flag to reseed.\x1b[0m');
+      // keeps finding and fixing. The same goes for the journal: without a
+      // reseed, `you@stillpoint.test` has whatever it had, which may be
+      // nothing at all.
+      console.log('  \x1b[2m--no-build: nothing was reseeded, so the step copy and the');
+      console.log('  journal are whatever this database already had. Drop the flag');
+      console.log('  to reseed.\x1b[0m');
     } else {
       console.log('  The step copy is published, so the guide speaks at all six steps.');
       console.log('  A real deployment publishes nothing by itself — LAUNCH.md item 4.');
+      console.log('');
+      console.log('  Seeded to be worth looking at: a journal and insights for');
+      console.log('  you@stillpoint.test, a shared history and a recurring belief for');
+      console.log('  the coach’s client, and \x1b[1mone open flag in the safety queue\x1b[0m —');
+      console.log('  which is the screen a reviewer actually reads.');
     }
     console.log('');
     console.log('  \x1b[2mCtrl-C to stop.\x1b[0m');

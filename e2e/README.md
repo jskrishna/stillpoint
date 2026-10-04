@@ -85,6 +85,17 @@ it start disagreeing — and it is in `LAUNCH.md` because the first thing on tha
 list is asking a clinician to read the risk screen, which is easier if you can
 hand them the console.
 
+**`--demo` seeds content that the checks never see**, and the two halves are
+separate seeders on purpose. `DemoSeeder` makes the four accounts and the
+pairing and nothing else, because a fixture that already contains what a test
+is about is a test that passes whether or not the code works — so every script
+above runs against exactly that. `DemoContentSeeder` is the demo's own
+furniture: sessions, a journal, insights worth ranking, a shared history for
+the coach's client, and **one open flag in the safety queue**, which is the
+screen `LAUNCH.md` item 1 names in as many words and which was empty until it
+was walked in a browser. Do not fold the second into the first; `pnpm run e2e`
+must keep seeing an empty database.
+
 ## Or by hand
 
 ```bash

@@ -35,6 +35,17 @@ including the console's safety queue, where they can see what a reviewer would
 actually read. Asking somebody to judge a crisis screen from a document is
 harder than asking them to use it for ten minutes.
 
+That sentence was false until recently and worth knowing why, because it is the
+shape of thing this list exists to catch. `DemoSeeder` makes accounts and a
+pairing and **nothing else**, deliberately — a fixture that already contains
+what a test is about is a test that passes whether or not the code works. The
+demo inherited that: walked in a real browser, a reviewer got an empty journal,
+empty insights, a console overview of zeros, a coach's clients as a row of
+em-dashes, and a safety queue reading "Nothing in the queue" — the one screen
+this item is about. `DemoContentSeeder` is the demo's own content, run by
+`--demo` and by no check, and its header says what is in it and what is
+deliberately not.
+
 Then `docs/clinical-review/RISK-SCREEN-REVIEW.md`, which is generated from
 the code (`pnpm run clinical:review`), so it cannot drift from what actually
 runs. It lists every phrase, every grade, the worked examples, and the four
