@@ -40,6 +40,13 @@ const { _electron } = require('playwright');
  * - **The fixed port is the app's identity.** `localStorage` survives a
  *   relaunch, which is the entire reason the port is 8735 and not whatever the
  *   operating system offers.
+ * - **The headers the window is served under.** `e2e/privacy.mjs` asserts
+ *   these on the web app, served by `next start` from `.next`. This is a
+ *   different server from a different build, and they come from `headers()` in
+ *   `next.config.ts`, which `output: 'standalone'` has no reason to drop —
+ *   "no reason to" being a poor argument for the one window signed in to
+ *   somebody's journal with `shell.openExternal` behind it. Checked by
+ *   deleting `X-Frame-Options` from `next.config.ts` and rebuilding.
  *
  * It needs the desktop build (`pnpm --filter @stillpoint/desktop run build`)
  * and the API on :8000, both of which `e2e/run.mjs` arranges. It needs a
@@ -212,5 +219,49 @@ await win
     window.localStorage.removeItem('stillpoint.e2e.relaunch');
   })
   .catch(() => undefined);
+
+// ---------------------------------------------------------------------------
+console.log('\n6. The policy the window is served under');
+
+// `e2e/privacy.mjs` asserts these on the web app — served by `next start` from
+// `.next`. The desktop window is served by a **different** server from a
+// different build, and nothing checked that the headers survive the trip. They
+// come from `headers()` in `apps/web/next.config.ts`, which `output:
+// 'standalone'` has no reason to drop, and "no reason to" is not the argument
+// to rest on for the one window that is signed in to somebody's journal and
+// has `shell.openExternal` behind it.
+const served = await win.evaluate(async () => {
+  const r = await fetch(window.location.href);
+  const out = {};
+  for (const [k, v] of r.headers.entries()) out[k.toLowerCase()] = v;
+  return out;
+});
+
+const policy = served['content-security-policy'] ?? '';
+if (/default-src 'self'/.test(policy) && /object-src 'none'/.test(policy))
+  ok('a Content-Security-Policy is served here too');
+else bad('a Content-Security-Policy is served here too', policy.slice(0, 200) || '(none)');
+
+// The one directive that matters most: a token read out of `localStorage`
+// cannot be sent anywhere this does not name.
+const connect = /connect-src ([^;]+)/.exec(policy)?.[1]?.trim() ?? '';
+if (connect !== '' && !connect.includes('*'))
+  ok(`connect-src is a list, not a wildcard (${connect})`);
+else bad('connect-src is a list, not a wildcard', connect || '(no connect-src)');
+
+// True only while `UserEar` is unbound, which is what the setup screen's
+// "Your voice is never saved" rests on.
+if (/microphone=\(\)/.test(served['permissions-policy'] ?? ''))
+  ok('and the microphone is denied, as the unbound listener implies');
+else bad('and the microphone is denied', served['permissions-policy'] ?? '(no Permissions-Policy)');
+
+for (const [header, want] of [
+  ['x-content-type-options', 'nosniff'],
+  ['x-frame-options', 'DENY'],
+  ['referrer-policy', 'no-referrer'],
+]) {
+  if (served[header] === want) ok(`${header}: ${want}`);
+  else bad(`${header}: ${want}`, served[header] ?? '(absent)');
+}
 
 await finish(() => app.close());
