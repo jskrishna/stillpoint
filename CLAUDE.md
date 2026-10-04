@@ -442,6 +442,14 @@ comparison that produced them written beside them. `priceLabel()` still returns
 `[PRICE]/mo` for a `null`, because that is still the right answer for a plan
 nobody has priced.
 
+**A price is not a way to pay.** There is no billing at all — no provider, no
+checkout, and no route that sets `users.plan`: registration does not accept it,
+the profile update whitelists three unrelated fields, and the console changes
+`role` rather than `plan`. Every account is `free` for ever, so Plus and Coach
+are states nobody can reach, and the figures above are for plans nobody can
+buy. `Plan` enforces what each one _allows_ and always has; what is missing is
+everything that would move somebody between them. `DECISIONS.md` has it.
+
 And the locale is **one constant**, `LOCALE` in `packages/protocol/src/display.ts`,
 exported and imported by the surfaces. It was `en-IN` written out in eleven
 places, so changing market meant finding all eleven — which is the drift that
