@@ -6,6 +6,7 @@
  * what a guide needs rather than by what one browser API happens to look like.
  */
 
+import type { GuideCopy } from '@stillpoint/client';
 import type { SpeechEngine, SpeechStyle } from './guide-voice';
 
 /**
@@ -18,7 +19,7 @@ export function browserSpeechEngine(): SpeechEngine | undefined {
   const synthesis = window.speechSynthesis;
 
   return {
-    speak(text: string, style: SpeechStyle, done: () => void): void {
+    speak(text: GuideCopy, style: SpeechStyle, done: () => void): void {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = style.lang;
       utterance.rate = style.rate;

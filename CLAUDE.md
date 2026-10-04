@@ -2309,12 +2309,35 @@ The interface it stays behind is `apps/web/src/lib/voice/`, in the surface and
 not in `packages/protocol`, which must stay free of speech. Two halves, kept
 apart on purpose:
 
-- **`GuideVoice` — the guide speaking.** Bound, and working. `speak()` is only
-  ever handed `session.say`, which is the protocol's own copy and is already on
-  the screen, so saying it aloud discloses nothing new. It is **never** the
-  user's words. `SpeechEngine` is the narrow seam a vendor binds behind; the Web
-  Speech API lives in `browser-engine.ts` and nowhere else, so the browser's
-  accident of design does not become the requirement.
+- **`GuideVoice` — the guide speaking.** Bound, and working. `speak()` takes
+  `GuideCopy`, which is the protocol's own copy and is already on the screen,
+  so saying it aloud discloses nothing new. It is **never** the user's words.
+  `SpeechEngine` is the narrow seam a vendor binds behind; the Web Speech API
+  lives in `browser-engine.ts` and nowhere else, so the browser's accident of
+  design does not become the requirement.
+
+  **That used to be a sentence rather than a rule.** Both seams said `speak`
+  "is only ever handed `session.say`" and that reading the user's words out to
+  a third-party synthesiser "is not a thing to do by accident" — while the
+  parameter was a `string` named `protocolCopy`, so the only thing preventing
+  the accident was the name. `GuideCopy` is a nominal type in
+  `packages/client`, branded on the API's `say` field, and it is assignable to
+  `string` so rendering and comparing are unchanged; what it stops is the other
+  direction. A plain string needs a cast, and a cast is conspicuous in review
+  in a way a parameter name is not.
+
+  **The type earned its keep immediately: the sentence was already false.** The
+  phone's voice-setup screen speaks a preview line built from `GUIDE_VOICES`,
+  and had done all along. That is the product's own copy too, so it has a named
+  constructor rather than a cast at the call site — and those two are the whole
+  set. `grep 'as GuideCopy'` across the surfaces returns exactly two lines:
+  `voicePreview`, and one named helper in the voice test, which has no session
+  to take copy from. That grep is the audit.
+
+  The call sites also lost their `?? ''`: an empty string is not `GuideCopy`,
+  and the honest fix was to check for nothing to say rather than cast a blank
+  into the type.
+
 - **`UserEar` — hearing the user.** Deliberately unbound, and it says so. Every
   option today sends the user's audio somewhere: Chrome's `SpeechRecognition`
   uploads it to Google, every hosted service uploads it by definition, and an

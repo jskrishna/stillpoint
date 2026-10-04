@@ -40,6 +40,14 @@ export interface ApiHelpline {
   readonly kind: string;
 }
 
+/**
+ * A string the guide is allowed to say aloud: the protocol's own copy.
+ *
+ * A nominal type with no runtime shape — the only values of it are the ones
+ * the API hands back as a session's `say`. See that field for why.
+ */
+export type GuideCopy = string & { readonly __guideCopy: unique symbol };
+
 export interface ApiSession {
   readonly id: string;
   readonly kind: string;
@@ -61,7 +69,31 @@ export interface ApiSession {
   readonly untouched: boolean;
   readonly ended: boolean;
   readonly endReason: string | null;
-  readonly say: string | null;
+  /**
+   * What the guide says back, and the **only** text the guide may speak aloud.
+   *
+   * Branded, because the comment saying so was the whole guarantee. Both voice
+   * seams promised that `speak` "is only ever handed `session.say`" — which was
+   * already untrue, and the type is how that came out: the phone's setup screen
+   * speaks a preview line built from `GUIDE_VOICES`. That is the product's own
+   * copy too, so it has a named constructor of its own (`voicePreview`) rather
+   * than a cast at the call site, and those two are the whole set. They also
+   * promised that
+   * reading the user's own words out to a third-party synthesiser "is not a
+   * thing to do by accident" — while the parameter's type was `string`, so the
+   * only thing preventing the accident was the parameter's *name*. Some
+   * engines synthesise locally and some send the text away; the user's answers
+   * are the most personal text the product holds, and the setup screen's "Your
+   * voice is never saved" is a promise about the microphone that would read
+   * very differently beside a synthesiser given somebody's crisis disclosure.
+   *
+   * `GuideCopy` is assignable to `string`, so rendering and comparing are
+   * unchanged. What it stops is the other direction: a plain string cannot be
+   * passed to `speak` without a cast, and a cast is conspicuous. The server
+   * builds this from the step's own question (`openingLine()`), which is
+   * already on the screen, so speaking it discloses nothing new.
+   */
+  readonly say: GuideCopy | null;
   readonly data: {
     readonly whatHappened: string | null;
     readonly feelings: readonly string[];

@@ -8,6 +8,7 @@
  * a rewrite.
  */
 
+import type { GuideCopy } from '@stillpoint/client';
 import type { Availability, GuideVoice } from './types';
 
 /**
@@ -42,7 +43,7 @@ export interface SpeechStyle {
  */
 export interface SpeechEngine {
   /** Says `text`. Calls `done` exactly once, on finishing or on failing. */
-  speak(text: string, style: SpeechStyle, done: () => void): void;
+  speak(text: GuideCopy, style: SpeechStyle, done: () => void): void;
   /** Stops whatever is being said. Safe to call when nothing is. */
   cancel(): void;
 }
@@ -69,8 +70,10 @@ export const GUIDE_STYLE: SpeechStyle = { lang: 'en-CA', rate: 0.92, pitch: 0.95
  * **What leaves the device.** Some engines synthesise locally and some send the
  * text away. What is sent is the protocol's copy — the question for the step —
  * which the server has already put on the screen, so this adds no disclosure.
- * It is **not** the user's own words, and the interface is shaped so it cannot
- * be: `speak` is only ever handed `session.say`.
+ * It is **not** the user's own words, and the interface is now shaped so it
+ * cannot be: `GuideCopy`'s only values are what the API returns as a session's
+ * `say`. That sentence used to end "the interface is shaped so it cannot be"
+ * while the parameter was a `string`, which made the name the guarantee.
  */
 export function engineGuideVoice(
   engine: SpeechEngine | undefined,
@@ -87,7 +90,7 @@ export function engineGuideVoice(
     id: 'speech-engine',
     availability,
 
-    speak(protocolCopy: string): Promise<void> {
+    speak(protocolCopy: GuideCopy): Promise<void> {
       // A guide that cannot speak must not stall a session: resolve, and let
       // the screen carry the question as it already does.
       if (engine === undefined || protocolCopy.trim() === '') return Promise.resolve();

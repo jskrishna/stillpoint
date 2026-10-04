@@ -13,6 +13,26 @@
  * the session screen falls back to typing, which is what the web does.
  */
 import * as Speech from 'expo-speech';
+import type { GuideCopy } from '@stillpoint/client';
+
+/**
+ * The line that previews a voice, which is the **only** guide copy that does
+ * not come from a session.
+ *
+ * Named, and in one place, because the set of ways to make a `GuideCopy` is
+ * the whole guarantee: every one of them has to be the product's own copy
+ * rather than anything a person typed. This one is built from
+ * `GUIDE_VOICES` — the protocol's own names and descriptions — on the setup
+ * screen, so a listener can hear a voice before choosing it.
+ *
+ * It is also how the type earned its keep immediately: both seams said
+ * `speak` "is only ever handed `session.say`", and this call had been there
+ * the whole time. The sentence was wrong and nothing could tell, because the
+ * parameter was a `string`.
+ */
+export function voicePreview(voice: { readonly name: string; readonly description: string }) {
+  return `This is ${voice.name}. ${voice.description}.` as GuideCopy;
+}
 
 /** Whether a half of the loop can run, and if not, why not in plain words. */
 export interface Availability {
@@ -21,8 +41,18 @@ export interface Availability {
 }
 
 export interface GuideVoice {
-  /** Speaks, resolving when it has finished or been cut off. */
-  readonly say: (text: string) => Promise<void>;
+  /**
+   * Speaks, resolving when it has finished or been cut off.
+   *
+   * `GuideCopy`, not `string`: the only values of it are what the API returns
+   * as a session's `say`, so the user's own answers cannot reach a synthesiser
+   * without an explicit cast. `expo-speech` uses the platform's engine, and
+   * whether that engine synthesises on the device or sends the text away is
+   * the platform's business rather than ours — which is the reason this is a
+   * type and not a comment. The web's seam has the same shape and the same
+   * reasoning, in `apps/web/src/lib/voice/types.ts`.
+   */
+  readonly say: (text: GuideCopy) => Promise<void>;
   /** Stops mid-sentence. Called when a session ends or the user leaves. */
   readonly hush: () => void;
   readonly availability: Availability;

@@ -156,8 +156,10 @@ export default function Session() {
    */
   useEffect(() => {
     if (voice === null || session === null) return;
-    const say = session.say ?? '';
-    if (say === '' || say === spoken.current) return;
+    // No `?? ''`: an empty string is not `GuideCopy`, and nothing should be
+    // cast into it to paper over a session with nothing to say.
+    const say = session.say;
+    if (say === null || say === '' || say === spoken.current) return;
 
     spoken.current = say;
     void voice.say(say);

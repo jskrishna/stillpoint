@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
 import { ApiError, api } from '../../api';
-import { NO_EAR_REASON, guideVoiceFor } from '../../voice';
+import { NO_EAR_REASON, guideVoiceFor, voicePreview } from '../../voice';
 import { Button, Card } from '../../ui';
 import { useTheme } from '../../use-theme';
 
@@ -32,7 +32,7 @@ export default function VoiceSetup() {
     const chosen = GUIDE_VOICES.find((v) => v.id === id);
     if (chosen === undefined) return;
     const speaker = guideVoiceFor(id);
-    void speaker.say(`This is ${chosen.name}. ${chosen.description}.`);
+    void speaker.say(voicePreview(chosen));
   };
 
   const go = async (talkMode: 'hold' | 'type') => {

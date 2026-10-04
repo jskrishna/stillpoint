@@ -1,6 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { GuideCopy } from '@stillpoint/client';
 import { engineGuideVoice, silentGuide, type SpeechEngine, type SpeechStyle } from './guide-voice';
 import { NO_EAR_REASON, noEar } from './user-ear';
+
+/**
+ * Guide copy, for a test that has no session to take it from.
+ *
+ * The one cast in here, named so it reads as a claim: everything passed to
+ * `speak` below is standing in for a step's question. In the product the only
+ * source is the API's `session.say`, and that is the point of the type — a
+ * plain string cannot reach `speak` without a line like this one, which is
+ * conspicuous in review in a way a parameter named `protocolCopy` was not.
+ */
+const asGuideCopy = (text: string): GuideCopy => text as GuideCopy;
 
 /** An engine that records what it was asked to say and finishes at once. */
 function fakeEngine(): {
@@ -28,7 +40,9 @@ function fakeEngine(): {
 
 describe('the silent guide', () => {
   it('says nothing and reports why', async () => {
-    await expect(silentGuide.speak('You’re upset, and that’s okay.')).resolves.toBeUndefined();
+    await expect(
+      silentGuide.speak(asGuideCopy('You’re upset, and that’s okay.')),
+    ).resolves.toBeUndefined();
     expect(silentGuide.availability()).toEqual({
       available: false,
       reason: 'This session is typed.',
@@ -40,14 +54,16 @@ describe('the spoken guide', () => {
   it('speaks the copy it is given', async () => {
     const { engine, spoken } = fakeEngine();
 
-    await engineGuideVoice(engine).speak('You’re upset, and that’s okay. What happened?');
+    await engineGuideVoice(engine).speak(
+      asGuideCopy('You’re upset, and that’s okay. What happened?'),
+    );
 
     expect(spoken.map((s) => s.text)).toEqual(['You’re upset, and that’s okay. What happened?']);
   });
 
   it('speaks in Indian English, slower and lower than a default voice', async () => {
     const { engine, spoken } = fakeEngine();
-    await engineGuideVoice(engine).speak('What happened?');
+    await engineGuideVoice(engine).speak(asGuideCopy('What happened?'));
 
     // The guide is meant to be calm; a browser's default cadence is a screen
     // reader's. And the product is India-first, so it should not sound
@@ -61,8 +77,8 @@ describe('the spoken guide', () => {
     const { engine, cancels } = fakeEngine();
     const guide = engineGuideVoice(engine);
 
-    await guide.speak('First question');
-    await guide.speak('Second question');
+    await guide.speak(asGuideCopy('First question'));
+    await guide.speak(asGuideCopy('Second question'));
 
     // Two questions overlapping would be worse than silence.
     expect(cancels()).toBe(2);
@@ -72,7 +88,7 @@ describe('the spoken guide', () => {
     const { engine, spoken } = fakeEngine();
     // A step with no question yet is `null` on the wire and empty here. The
     // guide must not announce the gap.
-    await engineGuideVoice(engine).speak('   ');
+    await engineGuideVoice(engine).speak(asGuideCopy('   '));
 
     expect(spoken).toEqual([]);
   });
@@ -81,7 +97,7 @@ describe('the spoken guide', () => {
     const guide = engineGuideVoice(undefined);
 
     // A guide that cannot speak must not stall a session.
-    await expect(guide.speak('What happened?')).resolves.toBeUndefined();
+    await expect(guide.speak(asGuideCopy('What happened?'))).resolves.toBeUndefined();
     expect(guide.availability().available).toBe(false);
   });
 
@@ -95,7 +111,9 @@ describe('the spoken guide', () => {
       cancel: () => undefined,
     };
 
-    await expect(engineGuideVoice(engine).speak('What happened?')).resolves.toBeUndefined();
+    await expect(
+      engineGuideVoice(engine).speak(asGuideCopy('What happened?')),
+    ).resolves.toBeUndefined();
   });
 
   it('stops mid-sentence when asked', async () => {
@@ -115,7 +133,7 @@ describe('the spoken guide', () => {
     };
 
     const guide = engineGuideVoice(engine);
-    const speaking = guide.speak('A long question the user interrupts');
+    const speaking = guide.speak(asGuideCopy('A long question the user interrupts'));
     expect(pending).toBeDefined();
 
     guide.stop();
@@ -136,7 +154,7 @@ describe('the spoken guide', () => {
 
     // And nothing further once the utterance has finished on its own: the one
     // cancel is `speak` clearing the way, not `stop` ending anything.
-    await guide.speak('A question');
+    await guide.speak(asGuideCopy('A question'));
     guide.stop();
     expect(cancels()).toBe(1);
   });

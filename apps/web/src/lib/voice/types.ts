@@ -23,6 +23,8 @@
  * waits on a decision, and neither is blocked on the other.
  */
 
+import type { GuideCopy } from '@stillpoint/client';
+
 /** Whether a piece of the loop can run here, and why not when it cannot. */
 export type Availability =
   | { readonly available: true }
@@ -35,10 +37,16 @@ export type Availability =
 /**
  * The guide speaking.
  *
- * `speak` is only ever given the protocol's copy — the question for the current
- * step, or the safety pause's wording. Never the user's own words: those are
- * the most personal text the product holds, and reading them back out to a
- * third-party synthesiser is not a thing to do by accident.
+ * `speak` takes `GuideCopy` — the protocol's own copy, which is the question
+ * for the current step or the safety pause's wording. **Never the user's own
+ * words**: those are the most personal text the product holds, and reading
+ * them back out to a third-party synthesiser is not a thing to do by accident.
+ *
+ * That used to be a sentence rather than a rule. The parameter was a `string`
+ * named `protocolCopy`, so what stopped the accident was the name. `GuideCopy`
+ * is a nominal type whose only values are what the API hands back as a
+ * session's `say`, so a plain string needs a cast to get in here — and a cast
+ * is conspicuous in a way a parameter name is not.
  */
 export interface GuideVoice {
   /** Which implementation this is, for settings and for diagnostics. */
@@ -48,7 +56,7 @@ export interface GuideVoice {
    * Says `protocolCopy` aloud. Resolves when it has finished, or at once when
    * speech is unavailable — a guide that cannot speak must not stall a session.
    */
-  speak(protocolCopy: string): Promise<void>;
+  speak(protocolCopy: GuideCopy): Promise<void>;
   /** Stops mid-sentence. Called when the user leaves or answers early. */
   stop(): void;
 }
