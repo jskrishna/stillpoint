@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FEELINGS, duration, relativeDay } from '@stillpoint/protocol';
+import {
+  FEELINGS,
+  coachSharingFromStored,
+  duration,
+  mayShareEntry,
+  relativeDay,
+  type CoachSharing,
+} from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
 import styles from '../../app.module.css';
 
@@ -26,11 +33,28 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
   const [now, setNow] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  /**
+   * The owner's standing choice about their coach, because the server enforces
+   * it and a button it will refuse should not be offered. It starts at the
+   * designed default, which permits sharing — the control is left alone until
+   * the account answers rather than withheld, since guessing `never` would
+   * hide a control that works.
+   */
+  const [sharing, setSharing] = useState<CoachSharing>('ask_each_time');
   const loadedNote = useRef<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     setNow(new Date());
+    api
+      .me()
+      .then((profile) => {
+        setSharing(coachSharingFromStored(profile.coachSharing));
+      })
+      .catch(() => {
+        // Left at the default, so the control behaves as it did before this
+        // setting was enforced. The server is the thing that refuses.
+      });
     api
       .journalEntry(entryId)
       .then((found) => {
@@ -91,8 +115,15 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     try {
       setEntry(await api.updateJournalEntry(entry.id, { sharedWithCoach: !entry.sharedWithCoach }));
       setFailed(null);
-    } catch {
-      setFailed('Could not change sharing. Check your connection.');
+    } catch (e: unknown) {
+      // The server's own reason when it has one. "Check your connection" was
+      // told to somebody whose own "Never share" setting had refused it, which
+      // is both wrong and unfixable by anything they would then try.
+      setFailed(
+        e instanceof ApiError && e.message !== ''
+          ? e.message
+          : 'Could not change sharing. Check your connection.',
+      );
     }
   };
 
@@ -170,16 +201,27 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
       )}
 
       <div style={{ marginTop: 'auto', paddingTop: 20, display: 'flex', gap: 10 }}>
-        <button
-          type="button"
-          onClick={() => {
-            void toggleShare();
-          }}
-          className={styles.cta}
-          style={{ flexGrow: 1 }}
-        >
-          {entry.sharedWithCoach ? 'Shared with coach' : 'Share with coach'}
-        </button>
+        {/*
+          Sharing off in settings leaves only the way out: turning it off is
+          always allowed, so an entry already shared keeps a control, and one
+          that is not says why instead of offering a button the server refuses.
+        */}
+        {!mayShareEntry(sharing) && !entry.sharedWithCoach ? (
+          <p className={styles.meta} style={{ flexGrow: 1 }}>
+            Sharing is off in settings.
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              void toggleShare();
+            }}
+            className={styles.cta}
+            style={{ flexGrow: 1 }}
+          >
+            {entry.sharedWithCoach ? 'Shared with coach' : 'Share with coach'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {

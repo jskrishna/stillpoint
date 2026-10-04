@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sharedWith, summarise } from './coach.js';
+import { mayShareEntry, sharedWith, sharesNewEntry, summarise } from './coach.js';
 import type { JournalEntry } from './journal.js';
 
 const at = (iso: string) => new Date(iso);
@@ -95,5 +95,34 @@ describe('summarise', () => {
 
   it('is empty for a client with no sessions at all', () => {
     expect(summarise([])).toEqual({ sharedCount: 0 });
+  });
+});
+
+describe('the setting that decides whether a coach sees a session', () => {
+  it('shares every session when that is the choice and somebody is paired', () => {
+    expect(sharesNewEntry('always', true)).toBe(true);
+  });
+
+  it('shares nothing when that is the choice but nobody is paired', () => {
+    // "Share every session" is sharing it *with somebody*. Flagging entries
+    // while nobody is paired would mean accepting a coach later hands them a
+    // backlog the user chose this setting before ever seeing one.
+    expect(sharesNewEntry('always', false)).toBe(false);
+  });
+
+  it('shares nothing by itself when the choice is to ask', () => {
+    expect(sharesNewEntry('ask_each_time', true)).toBe(false);
+  });
+
+  it('shares nothing when the choice is never', () => {
+    expect(sharesNewEntry('never', true)).toBe(false);
+  });
+
+  it('lets the owner share one entry unless the choice is never', () => {
+    // Without this, `never` and `ask_each_time` are one behaviour under two
+    // labels — which is what they were while nothing read the column.
+    expect(mayShareEntry('ask_each_time')).toBe(true);
+    expect(mayShareEntry('always')).toBe(true);
+    expect(mayShareEntry('never')).toBe(false);
   });
 });

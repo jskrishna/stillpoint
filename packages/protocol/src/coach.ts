@@ -9,6 +9,7 @@
 
 import { recurringBelief, type RecurringBelief } from './insights.js';
 import type { JournalEntry } from './journal.js';
+import type { CoachSharing } from './onboarding.js';
 
 /**
  * Where a client is in their relationship with the coach.
@@ -33,6 +34,48 @@ export interface Client {
   /** When they joined, for "Client since June". */
   readonly since?: Date;
   readonly nextCallAt?: Date;
+}
+
+/**
+ * Whether a session written now is shared with the coach straight away.
+ *
+ * The settings screen offers three choices and they were decoration: the
+ * column was stored, validated and printed back, and nothing in either
+ * language read it. "Share every session" shared nothing. So these two
+ * functions are what the labels already promise, and they live here beside
+ * {@link sharedWith} because sharing is one rule or it is none.
+ *
+ * `hasCoach` is why this takes two arguments. "Share every session" is sharing
+ * it *with somebody*, and marking entries shared while nobody is paired would
+ * mean that accepting a coach later hands them a backlog the user chose the
+ * setting before ever seeing. Nothing to share with, nothing shared.
+ */
+export function sharesNewEntry(setting: CoachSharing, hasCoach: boolean): boolean {
+  return setting === 'always' && hasCoach;
+}
+
+/**
+ * Whether the owner may turn sharing **on** for one entry.
+ *
+ * False only for `never`, which is what makes that choice mean something: with
+ * it off, `never` and `ask_each_time` would be the same behaviour under two
+ * labels. It is a lock the person it protects can unlock, by changing the
+ * setting — which is the only kind of sharing rule worth having, since a rule
+ * the sharer cannot inspect or reverse is a promise about somebody else.
+ *
+ * Turning sharing **off** is always allowed, whatever the setting. Somebody
+ * who has just chosen "Never share" is the last person to be told they cannot
+ * unshare something.
+ *
+ * What this deliberately does **not** do is rewrite entries already shared.
+ * Ending a pairing does not unshare them either — `shared_with_coach` is a
+ * decision the user made about one session and it stays where they put it —
+ * and a setting that silently rewrote the past would be the same surprise in
+ * the other direction. Whether choosing "Never share" should offer to unshare
+ * what is already out there is a product question; `DECISIONS.md` has it.
+ */
+export function mayShareEntry(setting: CoachSharing): boolean {
+  return setting !== 'never';
 }
 
 /**

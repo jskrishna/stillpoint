@@ -117,8 +117,18 @@ final class JournalEntry extends Model
      * diary entry is the wrong thing to put in front of them later. That rule
      * lives here and in the domain, and nowhere else needs to restate it.
      */
-    public static function fromSession(GuidedSession $row, int $durationMinutes): ?self
-    {
+    /**
+     * @param  bool  $sharedWithCoach  From the owner's `coach_sharing`, decided
+     *                                 by `CoachSharing::sharesNewEntry()`. It
+     *                                 was hardcoded `false` here, which is how
+     *                                 "Share every session" came to share
+     *                                 nothing.
+     */
+    public static function fromSession(
+        GuidedSession $row,
+        int $durationMinutes,
+        bool $sharedWithCoach = false,
+    ): ?self {
         $session = $row->toDomain();
 
         if (! $session->hasEnded() || $session->endReason === EndReason::SafetyStop) {
@@ -140,7 +150,7 @@ final class JournalEntry extends Model
             'duration_minutes' => max(1, $durationMinutes),
             'reached_final_step' => $session->endReason === EndReason::Completed,
             'calmer_rating' => $data->calmerRating,
-            'shared_with_coach' => false,
+            'shared_with_coach' => $sharedWithCoach,
             'occurred_at' => $row->started_at,
         ]);
     }

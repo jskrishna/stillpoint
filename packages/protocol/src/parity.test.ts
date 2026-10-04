@@ -18,7 +18,8 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { summarise } from './coach.js';
+import { mayShareEntry, sharesNewEntry, summarise } from './coach.js';
+import type { CoachSharing } from './onboarding.js';
 import { fullSessionsLeft, mayStartSession, type PlanId } from './plans.js';
 import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
 import type { JournalEntry } from './journal.js';
@@ -70,8 +71,16 @@ interface Limits {
   readonly keptFromAnEmojiAnswer: number;
 }
 
+interface SharingCase {
+  readonly setting: CoachSharing;
+  readonly hasCoach: boolean;
+  readonly sharesNewEntry: boolean;
+  readonly mayShareEntry: boolean;
+}
+
 interface Cases {
   readonly risk: readonly RiskCase[];
+  readonly sharing: readonly SharingCase[];
   readonly extraction: readonly ExtractionCase[];
   readonly plans: readonly PlanCase[];
   readonly coach: readonly CoachCase[];
@@ -110,6 +119,17 @@ describe('extraction matches the shared cases', () => {
     it(`reads ${c.stepId}: ${JSON.stringify(c.utterance)}`, () => {
       expect(isSubstantiveAnswer(c.stepId, c.utterance)).toBe(c.substantive);
       expect(literalExtraction(c.stepId, c.utterance) ?? null).toEqual(c.capture);
+    });
+  }
+});
+
+describe('the coach-sharing setting matches the shared cases', () => {
+  for (const c of cases.sharing) {
+    it(`${c.setting} with${c.hasCoach ? '' : 'out'} a coach`, () => {
+      expect({
+        sharesNewEntry: sharesNewEntry(c.setting, c.hasCoach),
+        mayShareEntry: mayShareEntry(c.setting),
+      }).toEqual({ sharesNewEntry: c.sharesNewEntry, mayShareEntry: c.mayShareEntry });
     });
   }
 });

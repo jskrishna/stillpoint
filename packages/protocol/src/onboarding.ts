@@ -90,6 +90,19 @@ export const COACH_SHARING_LABEL = {
   always: 'Share every session',
 } as const satisfies Readonly<Record<CoachSharing, string>>;
 
+/**
+ * A stored string, or asking, when it is not a choice we know.
+ *
+ * The mirror of `CoachSharing::fromStored()`. Asking is the safe default for
+ * the same reason it is the designed one: it shares nothing until the user
+ * says so about a particular session. A client reads this from the API as a
+ * plain string — `packages/client` holds the server's words and not the
+ * domain's unions — so this is where it becomes a choice.
+ */
+export function coachSharingFromStored(value: string | null | undefined): CoachSharing {
+  return value === 'never' || value === 'always' ? value : 'ask_each_time';
+}
+
 /** Every sharing choice, in the order the settings screen lists them. */
 export const COACH_SHARINGS = [
   'ask_each_time',

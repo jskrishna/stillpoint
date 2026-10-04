@@ -791,6 +791,44 @@
       "left": null
     }
   ],
+  "sharing": [
+    {
+      "setting": "ask_each_time",
+      "hasCoach": false,
+      "sharesNewEntry": false,
+      "mayShareEntry": true
+    },
+    {
+      "setting": "ask_each_time",
+      "hasCoach": true,
+      "sharesNewEntry": false,
+      "mayShareEntry": true
+    },
+    {
+      "setting": "never",
+      "hasCoach": false,
+      "sharesNewEntry": false,
+      "mayShareEntry": false
+    },
+    {
+      "setting": "never",
+      "hasCoach": true,
+      "sharesNewEntry": false,
+      "mayShareEntry": false
+    },
+    {
+      "setting": "always",
+      "hasCoach": false,
+      "sharesNewEntry": false,
+      "mayShareEntry": true
+    },
+    {
+      "setting": "always",
+      "hasCoach": true,
+      "sharesNewEntry": true,
+      "mayShareEntry": true
+    }
+  ],
   "coach": [
     {
       "name": "nothing at all",

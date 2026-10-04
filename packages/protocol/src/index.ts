@@ -132,6 +132,8 @@ export {
 } from './version.js';
 
 export {
+  mayShareEntry,
+  sharesNewEntry,
   sharedWith,
   summarise,
   type Client,
@@ -148,6 +150,7 @@ export {
   TALK_MODE_LABEL,
   TALK_MODES,
   COACH_SHARING_LABEL,
+  coachSharingFromStored,
   COACH_SHARINGS,
   DEFAULT_PREFERENCES,
   hasRequiredConsent,

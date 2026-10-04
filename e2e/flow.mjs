@@ -1,4 +1,4 @@
-import { WEB, launch } from './browser.mjs';
+import { API, WEB, launch } from './browser.mjs';
 import { reporter } from './report.mjs';
 
 /**
@@ -721,6 +721,73 @@ await page.waitForTimeout(1500);
 const sharing = await page.locator('select').nth(2).inputValue();
 if (sharing === 'never') ok('a changed preference survives a reload');
 else bad('a changed preference survives a reload', sharing);
+
+// And the preference does something, which it did not. All three choices were
+// stored, validated and printed back, and no code in either language read the
+// column: "Share every session" shared nothing and "Never share" blocked
+// nothing, because the per-entry toggle took whatever it was sent.
+await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
+await page.waitForFunction(
+  () => document.querySelector('a[href^="/app/journal/"]') !== null,
+  null,
+  {
+    timeout: 15000,
+  },
+);
+await page.locator('a[href^="/app/journal/"]').first().click();
+const locked = await page
+  .waitForFunction(() => /Sharing is off in settings/.test(document.body.innerText), null, {
+    timeout: 15000,
+  })
+  .then(
+    () => true,
+    () => false,
+  );
+const entryText = await text();
+
+if (locked) ok('with sharing off, the entry says so');
+else bad('with sharing off, the entry says so', entryText.slice(-400));
+if (!/Share with coach/.test(entryText)) ok('and offers no button the server would refuse');
+else bad('and offers no button the server would refuse', entryText.slice(-400));
+
+// The server is what holds it, not the screen: a sharing rule a client can
+// skip by calling the API directly is not a rule.
+const refused = await page.evaluate(async (api) => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+  const page1 = await fetch(`${api}/journal?limit=1`, { headers }).then((r) => r.json());
+  const id = page1.items?.[0]?.id;
+  const on = await fetch(`${api}/journal/${String(id)}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ sharedWithCoach: true }),
+  });
+  const after = await fetch(`${api}/journal/${String(id)}`, { headers }).then((r) => r.json());
+  return {
+    status: on.status,
+    message: (await on.json()).message ?? '',
+    shared: after.sharedWithCoach,
+  };
+}, API);
+
+if (refused.status === 409) ok('and the server refuses it too (409)');
+else bad('and the server refuses it too', JSON.stringify(refused));
+if (refused.shared === false) ok('and the entry stayed unshared');
+else bad('and the entry stayed unshared', JSON.stringify(refused));
+if (/Never share/.test(refused.message)) ok('and says which setting did it');
+else bad('and says which setting did it', refused.message);
+
+// Back to asking, so the rest of this script sees the ordinary screen.
+await page.goto(`${WEB}/app/settings`, { waitUntil: 'networkidle' });
+await page.waitForFunction(() => document.querySelectorAll('select').length >= 3, null, {
+  timeout: 15000,
+});
+await page.locator('select').nth(2).selectOption('ask_each_time');
+await page.waitForTimeout(1000);
 
 // The budget must never gate the screen. Checked by spending it and then
 // saying something that must stop the session: a rate limit in front of this

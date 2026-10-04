@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Domain\CalmerRating;
+use App\Domain\CoachSharing;
 use App\Domain\Conversation;
 use App\Domain\EndReason;
 use App\Domain\Session as DomainSession;
@@ -280,7 +281,15 @@ final readonly class SessionService
 
         // Start to the last thing said, not to now: this runs when a session
         // ends, and ending can be days after the person stopped answering.
-        $entry = JournalEntry::fromSession($row, $row->activeMinutes());
+        // The owner's standing choice about their coach, which until now was
+        // stored and never read. `hasCoach` matters: "Share every session" is
+        // sharing it with somebody, and flagging entries while nobody is
+        // paired would hand a backlog to whoever is accepted next.
+        $owner = $row->user;
+        $sharing = CoachSharing::fromStored($owner?->coach_sharing);
+        $shared = $sharing->sharesNewEntry($owner !== null && $owner->coaches()->exists());
+
+        $entry = JournalEntry::fromSession($row, $row->activeMinutes(), $shared);
         $entry?->save();
 
         return $entry;

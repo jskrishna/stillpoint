@@ -3,7 +3,13 @@ import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
-import { duration, relativeDay } from '@stillpoint/protocol';
+import {
+  coachSharingFromStored,
+  duration,
+  mayShareEntry,
+  relativeDay,
+  type CoachSharing,
+} from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../api';
 import { describe } from '../../describe';
 import { Button, Card, Field, Tag, Waiting } from '../../ui';
@@ -30,9 +36,26 @@ export default function Entry() {
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [now] = useState(() => new Date());
+  /**
+   * The owner's standing choice about their coach, because the server enforces
+   * it and a switch it will refuse should not be offered. It starts at the
+   * designed default, which permits sharing — the control behaves as it did
+   * until the account answers, since guessing `never` would disable a switch
+   * that works. The web app's entry screen does the same.
+   */
+  const [sharing, setSharing] = useState<CoachSharing>('ask_each_time');
 
   useEffect(() => {
     if (id === undefined) return;
+    void api
+      .me()
+      .then((profile) => {
+        setSharing(coachSharingFromStored(profile.coachSharing));
+      })
+      .catch(() => {
+        // Left at the default, so the switch behaves as it did before this
+        // setting was enforced. The server is the thing that refuses.
+      });
     void api
       .journalEntry(id)
       .then((e) => {
@@ -182,11 +205,20 @@ export default function Entry() {
           <View style={{ flex: 1, gap: SPACE.xs }}>
             <Text style={s.body}>Share with my coach</Text>
             <Text style={s.caption}>
-              Your coach can read a session only once you have shared it. You can stop at any time.
+              {/*
+                Sharing off in settings leaves only the way out: turning it off
+                is always allowed, so an entry already shared keeps a working
+                switch, and one that is not says why rather than offering a
+                switch the server refuses.
+              */}
+              {!mayShareEntry(sharing) && !entry.sharedWithCoach
+                ? 'Sharing is off in settings. Change “Never share” there first.'
+                : 'Your coach can read a session only once you have shared it. You can stop at any time.'}
             </Text>
           </View>
           <Switch
             value={entry.sharedWithCoach}
+            disabled={!mayShareEntry(sharing) && !entry.sharedWithCoach}
             onValueChange={(v) => {
               void setShared(v);
             }}

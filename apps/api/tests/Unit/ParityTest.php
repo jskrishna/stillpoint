@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
+use App\Domain\CoachSharing;
 use App\Domain\CoachView;
 use App\Domain\LiteralExtraction;
 use App\Domain\PhraseRiskScreen;
@@ -55,6 +56,18 @@ final class ParityTest extends TestCase
     }
 
     /** @return array<string, array{array<string, mixed>}> */
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function sharingCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['sharing'] as $case) {
+            $with = $case['hasCoach'] ? 'with a coach' : 'without a coach';
+            $out["{$case['setting']} {$with}"] = [$case];
+        }
+
+        return $out;
+    }
+
     public static function coachCases(): array
     {
         $out = [];
@@ -141,6 +154,21 @@ final class ParityTest extends TestCase
             'limit' => $decision['allowed'] ? null : ($decision['limit'] ?? null),
             'left' => $plan->fullSessionsLeft($case['used']),
         ], "Plan parity broke on: {$case['plan']} / {$case['kind']} after {$case['used']}");
+    }
+
+    /** @param array<string, mixed> $case */
+    #[DataProvider('sharingCases')]
+    public function test_the_coach_sharing_setting_agrees(array $case): void
+    {
+        $setting = CoachSharing::from($case['setting']);
+
+        $this->assertSame([
+            'sharesNewEntry' => $case['sharesNewEntry'],
+            'mayShareEntry' => $case['mayShareEntry'],
+        ], [
+            'sharesNewEntry' => $setting->sharesNewEntry($case['hasCoach']),
+            'mayShareEntry' => $setting->mayShareEntry(),
+        ], "Sharing parity broke on: {$case['setting']}");
     }
 
     /** @param array<string, mixed> $case */

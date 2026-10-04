@@ -1124,6 +1124,48 @@ the shared set only — a belief said twice in private is not a pattern a coach
 gets to see. `packages/protocol/src/coach.ts` is the TypeScript half, and the
 parity fixture covers both.
 
+**The setting that decides it was decoration.** Both settings screens have
+offered "Ask each time", "Never share" and "Share every session" since the
+beginning, `users.coach_sharing` was stored, validated and printed back in the
+profile — and nothing in either language read the column.
+`JournalEntry::fromSession()` wrote `shared_with_coach => false` for everybody,
+so "Share every session" shared nothing; the per-entry toggle took whatever it
+was sent, so "Never share" blocked nothing. A promise the server does not keep
+is the same problem whichever way it points, and this one pointed both ways at
+once.
+
+`App\Domain\CoachSharing` and `sharesNewEntry()` / `mayShareEntry()` in
+`packages/protocol/src/coach.ts` are the rule, with parity cases over all three
+settings against both states:
+
+- **`always` shares a new entry, but only when somebody is paired.** "Share
+  every session" is sharing it _with somebody_, and flagging entries while
+  nobody is paired would mean accepting a coach later hands them a backlog the
+  user chose the setting before ever seeing one.
+- **`never` refuses turning sharing on**, which is what makes it a third
+  choice rather than a second label for `ask_each_time`. It is a lock the
+  person it protects can unlock, by changing the setting — the only kind of
+  sharing rule worth having, since one the sharer cannot inspect or reverse is
+  a promise about somebody else. Refused by the **server** with a 409 naming
+  the setting; a screen that merely hides the control is a rule a client can
+  skip.
+- **Turning sharing off is always allowed**, whatever the setting. Somebody who
+  has just chosen "Never share" is the last person to be told they cannot
+  unshare something.
+- **It never rewrites entries already shared.** Ending a pairing does not
+  either — `shared_with_coach` is a decision the user made about one session and
+  it stays where they put it — and a setting that silently rewrote the past
+  would be the same surprise in the other direction. Whether choosing "Never
+  share" should _offer_ to unshare what is already out there is in
+  `DECISIONS.md`.
+
+Both entry screens read the setting and say "Sharing is off in settings"
+instead of offering a control the server will refuse. The web's toggle also
+used to answer a refusal with "Could not change sharing. Check your
+connection." — told to somebody whose own setting had refused it, which is both
+wrong and unfixable by anything they would then try; it shows the server's
+sentence now, as `apps/mobile/src/describe.ts` already required.
+
 Two gates, both needed: `EnsureCoach` says this person is a coach at all, and
 `CoachController::authorizePairing()` says they are _this client's_ coach.
 Neither implies the other, and a route with only the first would let any coach

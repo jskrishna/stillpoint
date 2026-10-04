@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\CoachSharing;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\JournalEntryResource;
 use App\Http\Resources\Paged;
@@ -52,7 +53,7 @@ final class JournalController extends Controller
     }
 
     /** The note the user writes, and whether the entry is shared. */
-    public function update(Request $request, JournalEntry $entry): JournalEntryResource
+    public function update(Request $request, JournalEntry $entry): JournalEntryResource|JsonResponse
     {
         $this->authorizeOwnership($request, $entry);
 
@@ -67,7 +68,25 @@ final class JournalController extends Controller
         }
 
         if (array_key_exists('sharedWithCoach', $validated)) {
-            $entry->shared_with_coach = (bool) $validated['sharedWithCoach'];
+            $wanted = (bool) $validated['sharedWithCoach'];
+
+            // "Never share" is a standing instruction, not a label. Without
+            // this it blocked nothing — the toggle took whatever it was sent —
+            // and `never` and `ask_each_time` were one behaviour under two
+            // names. Refused here rather than hidden on a screen, because a
+            // sharing rule a client can skip is not one.
+            //
+            // Turning sharing *off* is always allowed, whatever the setting:
+            // somebody who has just chosen "Never share" is the last person to
+            // be told they cannot unshare something.
+            $sharing = CoachSharing::fromStored($request->user()->coach_sharing);
+            if ($wanted && ! $sharing->mayShareEntry()) {
+                return response()->json([
+                    'message' => 'Sharing is off for your account. Change “Never share” in settings first.',
+                ], Response::HTTP_CONFLICT);
+            }
+
+            $entry->shared_with_coach = $wanted;
         }
 
         $entry->save();
