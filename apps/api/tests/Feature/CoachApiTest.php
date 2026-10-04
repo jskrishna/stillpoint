@@ -337,6 +337,44 @@ final class CoachApiTest extends TestCase
         $this->getJson('/api/me/coaches')->assertOk()->assertJsonCount(0);
     }
 
+    /**
+     * And a row with no status at all, which is the one the test above misses.
+     *
+     * `ClientStatus` has a single case, `active`, and the `invited` case was
+     * removed — but `coach_client.status` still **defaults to `invited`**, a
+     * string the domain no longer has. That reads like a leftover to tidy, and
+     * tidying it is the dangerous move: a default of `active` would mean a row
+     * inserted without a status silently grants somebody the ability to read
+     * another person's shared sessions.
+     *
+     * So the stale default is accidentally the fail-closed one, and this is
+     * what says so. The test above writes `invited` explicitly and would stay
+     * green if the default changed; this one goes red. Checked by changing the
+     * migration's default to `active`.
+     */
+    public function test_a_pairing_written_with_no_status_grants_nothing(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $client = User::factory()->create();
+
+        // No `status` key: whatever the column defaults to is what this row
+        // gets, which is the whole point of the case.
+        DB::table('coach_client')->insert([
+            'coach_id' => $coach->id,
+            'client_id' => $client->id,
+            'since' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($coach);
+        $this->getJson('/api/coach/clients')->assertOk()->assertJsonCount(0);
+        $this->getJson("/api/coach/clients/{$client->id}")->assertNotFound();
+
+        Sanctum::actingAs($client);
+        $this->getJson('/api/me/coaches')->assertOk()->assertJsonCount(0);
+    }
+
     private function pair(User $coach, User $client): void
     {
         $coach->clients()->attach($client->id, [

@@ -103,8 +103,16 @@ stopped, saw the pause screen, and had nothing to call on it. The test that
 pinned that behaviour used Canada as its example of a country we correctly know
 nothing about, which is worth remembering the next time a market changes.
 Adding a country means adding its numbers **and** checking what else assumed
-the old one: the language the screen reads, the currency, the locale, and the
-privacy law the consent screen names.
+the old one: the language the screen reads, the currency and the locale.
+
+That list used to end "and the privacy law the consent screen names", and **no
+screen names a privacy law at all** — grepped: PIPEDA, Law 25 and DPDP appear
+once each, in a comment in `apps/web/src/lib/voice/user-ear.ts`, explaining why
+no listener is bound. Whether the consent screen should name the law is a legal
+and product decision and so is not something to invent here, which is the rule
+about product copy applying to the one kind of copy where guessing is worst. It
+is in `DECISIONS.md`; what is fixed here is the sentence that implied it was
+already done.
 
 ## The risk screen is a backstop, not the detector
 
@@ -1457,6 +1465,18 @@ read shared entries through — sharing is a property of the journal entry, not
 of the pairing, so "they have not accepted yet" would not have saved it. An
 unaccepted invitation is a `coach_invites` row, which is where the coach's
 screen already lists them.
+
+**And `coach_client.status` still defaults to `invited`, which is deliberate
+now rather than left over.** The enum no longer has that case, so the default
+reads like something to tidy — and tidying it is the dangerous move: a default
+of `active` would mean a row inserted without a status silently granting
+somebody the ability to read another person's shared sessions. The stale
+default is accidentally the fail-closed one, so it stays.
+`test_a_pairing_written_with_no_status_grants_nothing` is what says so, and it
+is a second test on purpose: the one beside it writes `invited` explicitly and
+stays green when the default changes. Checked by changing the migration to
+`active` — the new one goes red with the coach reading a client they were never
+paired with, and the old one does not notice.
 
 **The client creates the pairing, and the client ends it.** A coach can open an
 invitation to an email address; they cannot attach themselves to an account.
