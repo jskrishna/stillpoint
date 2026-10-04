@@ -2659,7 +2659,24 @@ a fact about the deployment, which a user's turn should not have to carry.
 **The client is told as little as possible.** `SessionResource` never returns
 the risk level, the category or the matched phrase: a user mid-crisis has no use
 for "you tripped the self-harm rule", and a client that knows the rule can be
-built to dodge it. There is a test asserting the response contains neither.
+built to dodge it.
+
+**"There is a test asserting the response contains neither" was the second
+sentence of this kind to be wrong, and it was found by checking the first.**
+There was no such test. The behaviour was right — measured, a stopped
+session's response carries no level, no category, no matched phrase and none of
+the words that were said — so what was missing was the thing that keeps it
+right: adding `'level' => $this->safety_level` to the resource would have been
+silent.
+
+`TheClientIsNotToldWhyTest` checks the keys **recursively**, by path, because
+the field that leaks is the one nobody thought of: a nested `safety.level`
+passes a check on `array_keys()` and was caught by this one naming
+`safety.level`. It covers the subtler case too — a `medium` disclosure raises a
+flag and the session carries on, and the response must not hint at that either,
+or the line can be found and stayed under. Both halves assert the flag really
+was raised first, so neither can pass vacuously, and a third case checks that
+the key check itself can fail.
 
 API resources are **not** wrapped in a `data` envelope in this Laravel version —
 assert on `step.ordinal`, not `data.step.ordinal`.
