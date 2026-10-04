@@ -2143,6 +2143,39 @@ address exhausting its budget leaves another able to sign in — which is the
 half that was broken, and the only one of the five that goes red when the key
 is put back.
 
+**And two of the three key on an address this API does not always see.**
+`$request->ip()` is whatever opened the TCP connection unless a proxy is
+trusted, and nothing was trusted: there was no `config/trustedproxy.php`, so
+the key `TrustProxies` reads resolved to null. That is correct while nginx is
+the edge, and `deploy/nginx.conf` listens on port 80 and assumes something in
+front of it holds the certificate — so the **documented** topology is the one
+where it bites, and nothing visibly breaks when it does.
+
+The API generates no URLs, so an untrusted proxy costs nothing there: the
+reset link and the invitation link both come from `APP_FRONTEND_URL`, not from
+`url()`. What it costs is these limiters. Behind a terminator every request
+carries the terminator's address, so `Limit::perMinute(60)->by('ip:…')` stops
+being a ceiling on one machine and becomes **sixty requests a minute for the
+whole product**; and the tight bucket keyed by account _and_ address collapses
+to six a minute per account from anywhere — which is exactly the innocent
+lockout the paragraph above says was fixed, arriving back in production only.
+An address is not a secret.
+
+So it is configuration, because the answer is a fact about a deployment's
+topology: `TRUSTED_PROXIES`, a list or `*`, defaulting to trusting nothing.
+`TrustedProxiesTest` pins both halves and the configuration key itself, since
+`TrustProxies::at()` in a test proves the mechanism and says nothing about the
+file a deployment actually sets — checked by pointing the config at a
+different address, which brings the 429 back at the seventh request.
+
+While I was in there: `.env.example` carried a
+`FRONTEND_URL=http://localhost:3000:8000` — two ports, so not a URL — which
+nothing reads, because this app's published `config/app.php` reads
+`APP_FRONTEND_URL` and only the framework's own default reads the shorter name.
+Verified with both set rather than reasoned about. Removed: a variable named
+almost the same as the real one, in the file people copy, is a trap on the one
+path back into a locked-out account.
+
 **A rate limiter writes, and on sqlite that write is a 500.** The
 `throttle:120,1` on the authenticated routes stores a counter in the cache on
 every request, and `CACHE_STORE=database` puts that write in the same database

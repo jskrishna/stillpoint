@@ -66,6 +66,21 @@ front of real people:
 - **TLS terminates somewhere else.** `deploy/nginx.conf` listens on port 80 and
   assumes something in front of it holds the certificate. Bearer tokens over
   plain HTTP are bearer tokens in public.
+- **And the thing that terminates it has to be named in `TRUSTED_PROXIES`.**
+  This one is easy to miss because nothing visibly breaks. The API generates no
+  URLs — the reset link and the invitation link both come from
+  `APP_FRONTEND_URL` — so an untrusted proxy costs nothing there. What it costs
+  is the rate limiters: two of the three `guessable` buckets key on the
+  caller's address, and behind a terminator that is the terminator's address
+  for every request. So `Limit::perMinute(60)->by('ip:…')` stops being a
+  ceiling on one machine and becomes **sixty requests a minute for the whole
+  product** across sign-in, registration, password recovery and opening an
+  invitation; and the tight `6`-a-minute bucket collapses to six per account
+  from anywhere, so anybody who knows an address can keep that person out of
+  their own journal indefinitely. An address is not a secret — a coach types a
+  client's into an invitation. `config/trustedproxy.php` has the argument and
+  `TrustedProxiesTest` pins both halves; the default trusts nothing, which is
+  correct only while nginx is the edge.
 - **No mail driver is chosen.** `MAIL_MAILER=log` writes password-reset links
   into the container's log instead of sending them, which means that in this
   configuration nobody can actually reset a password. It is the one thing here

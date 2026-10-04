@@ -118,6 +118,17 @@ screen where nothing works.
 backup, and TLS terminates somewhere that does not exist. `deploy/README.md`
 has the detail.
 
+**One line to set when the terminator exists, and nothing visibly breaks
+without it.** `TRUSTED_PROXIES` must name it. The API generates no URLs, so an
+untrusted proxy costs nothing in links — what it costs is the rate limiters:
+two of the three on sign-in, registration, password recovery and opening an
+invitation key on the caller's address, and behind a terminator that is the
+terminator's address for every request. The per-IP ceiling becomes sixty
+requests a minute for the whole product, and the tight bucket collapses to six
+a minute per account from anywhere, so anybody who knows an address can keep
+that person out of their own journal. `config/trustedproxy.php` has the
+reasoning and `TrustedProxiesTest` pins both halves.
+
 **Three things on that page that are not optional:**
 
 - **`APP_KEY` is the whole journal.** Every entry, every session's content and
