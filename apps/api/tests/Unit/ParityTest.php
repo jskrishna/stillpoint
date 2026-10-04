@@ -13,6 +13,8 @@ use App\Domain\Insights;
 use App\Domain\LiteralExtraction;
 use App\Domain\PhraseRiskScreen;
 use App\Domain\Plan;
+use App\Domain\SafetyLevel;
+use App\Domain\Session;
 use App\Domain\SessionKind;
 use App\Domain\StepId;
 use App\Domain\Utterance;
@@ -60,6 +62,17 @@ final class ParityTest extends TestCase
     }
 
     /** @return array<string, array{array<string, mixed>}> */
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function sessionCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['sessions'] as $case) {
+            $out[$case['name']] = [$case];
+        }
+
+        return $out;
+    }
+
     /** @return array<string, array{array<string, mixed>}> */
     public static function helplineCases(): array
     {
@@ -181,6 +194,83 @@ final class ParityTest extends TestCase
             'limit' => $decision['allowed'] ? null : ($decision['limit'] ?? null),
             'left' => $plan->fullSessionsLeft($case['used']),
         ], "Plan parity broke on: {$case['plan']} / {$case['kind']} after {$case['used']}");
+    }
+
+    /**
+     * The reducer, which holds the rules CLAUDE.md calls not preferences.
+     *
+     * A crisis signal ends the session. An ended session is terminal apart
+     * from the rating. `safetyLevel` only rises. And `furthestStepId` is a
+     * high-water mark, because ending clears `stepId` and a chart about where
+     * sessions stop cannot read a field that is cleared when they stop.
+     *
+     * All four were in both languages with their own tests in each and nothing
+     * comparing them. The TypeScript side is a reducer over event objects and
+     * this side is a method per event; the fixture names an operation and each
+     * dispatches, which is the only place the two spellings meet.
+     *
+     * @param  array<string, mixed>  $case
+     */
+    #[DataProvider('sessionCases')]
+    public function test_the_session_reducer_agrees(array $case): void
+    {
+        $session = Session::start(SessionKind::from($case['kind']));
+
+        foreach ($case['events'] as $event) {
+            $session = match ($event['op']) {
+                'guide_turn' => $session->withGuideTurn(),
+                'step_satisfied' => $session->withStepSatisfied(self::capture($event['capture'] ?? [])),
+                'safety_signal' => $session->withSafetySignal(SafetyLevel::from($event['level'])),
+                'user_stopped' => $session->withUserStopped(),
+                'rated' => $session->withRating(CalmerRating::from($event['rating'])),
+                // The generator refuses an unknown operation, and so does
+                // this: a case nobody dispatched would pass in silence.
+                default => throw new \LogicException("unknown session event: {$event['op']}"),
+            };
+        }
+
+        $this->assertSame([
+            'stepId' => $case['stepId'],
+            'furthestStepId' => $case['furthestStepId'],
+            'guideTurnsUsed' => $case['guideTurnsUsed'],
+            'safetyLevel' => $case['safetyLevel'],
+            'endReason' => $case['endReason'],
+            'phase' => $case['phase'],
+            'untouched' => $case['untouched'],
+            'data' => $case['data'],
+        ], [
+            'stepId' => $session->stepId?->value,
+            'furthestStepId' => $session->furthestStepId->value,
+            'guideTurnsUsed' => $session->guideTurnsUsed,
+            'safetyLevel' => $session->safetyLevel->value,
+            'endReason' => $session->endReason?->value,
+            'phase' => $session->hasEnded() ? 'ended' : 'in_step',
+            'untouched' => $session->isUntouched(),
+            'data' => [
+                'whatHappened' => $session->data->whatHappened,
+                'feelings' => array_map(fn (FeelingId $f) => $f->value, $session->data->feelings),
+                // A plain array here and an object in TypeScript, with the
+                // same keys. Read as an object first, which in PHP 8 is a
+                // warning and a null rather than an error — so the case
+                // reported an empty memory and looked like a divergence.
+                'memory' => $session->data->memory,
+                'belief' => $session->data->belief,
+                'forgiveness' => $session->data->forgiveness,
+                'title' => $session->data->title,
+                'calmerRating' => $session->data->calmerRating?->value,
+            ],
+        ], "Session parity broke on: {$case['name']}");
+    }
+
+    /**
+     * A fixture capture into what `withStepSatisfied()` takes.
+     *
+     * @param  array<string, mixed>  $capture
+     * @return array<string, mixed>
+     */
+    private static function capture(array $capture): array
+    {
+        return $capture;
     }
 
     /**

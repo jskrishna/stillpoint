@@ -791,6 +791,408 @@
       "left": null
     }
   ],
+  "sessions": [
+    {
+      "name": "a fresh session",
+      "kind": "full",
+      "events": [],
+      "stepId": "notice",
+      "furthestStepId": "notice",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "none",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": true,
+      "data": {
+        "whatHappened": null,
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "a fresh quick session",
+      "kind": "quick",
+      "events": [],
+      "stepId": "notice",
+      "furthestStepId": "notice",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "none",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": true,
+      "data": {
+        "whatHappened": null,
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "a guide turn, nothing gathered",
+      "kind": "full",
+      "events": [
+        {
+          "op": "guide_turn"
+        }
+      ],
+      "stepId": "notice",
+      "furthestStepId": "notice",
+      "guideTurnsUsed": 1,
+      "safetyLevel": "none",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": false,
+      "data": {
+        "whatHappened": null,
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "one step satisfied",
+      "kind": "full",
+      "events": [
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "whatHappened": "I was spoken over"
+          }
+        }
+      ],
+      "stepId": "responsibility",
+      "furthestStepId": "responsibility",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "none",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": false,
+      "data": {
+        "whatHappened": "I was spoken over",
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "all six steps",
+      "kind": "full",
+      "events": [
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "whatHappened": "I was spoken over"
+          }
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {}
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "feelings": ["angry", "ashamed"]
+          }
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "memory": {
+              "description": "A teacher",
+              "age": 9
+            }
+          }
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "belief": "I am not good enough"
+          }
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "forgiveness": "I forgive myself"
+          }
+        }
+      ],
+      "stepId": null,
+      "furthestStepId": "forgive",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "none",
+      "endReason": "completed",
+      "phase": "ended",
+      "untouched": false,
+      "data": {
+        "whatHappened": "I was spoken over",
+        "feelings": ["angry", "ashamed"],
+        "memory": {
+          "description": "A teacher",
+          "age": 9
+        },
+        "belief": "I am not good enough",
+        "forgiveness": "I forgive myself",
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "a safety level never falls",
+      "kind": "full",
+      "events": [
+        {
+          "op": "safety_signal",
+          "level": "medium"
+        },
+        {
+          "op": "safety_signal",
+          "level": "low"
+        },
+        {
+          "op": "safety_signal",
+          "level": "none"
+        }
+      ],
+      "stepId": "notice",
+      "furthestStepId": "notice",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "medium",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": false,
+      "data": {
+        "whatHappened": null,
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "a crisis ends the session",
+      "kind": "full",
+      "events": [
+        {
+          "op": "safety_signal",
+          "level": "high"
+        }
+      ],
+      "stepId": null,
+      "furthestStepId": "notice",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "high",
+      "endReason": "safety_stop",
+      "phase": "ended",
+      "untouched": false,
+      "data": {
+        "whatHappened": null,
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "an ended session ignores everything but the rating",
+      "kind": "full",
+      "events": [
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "whatHappened": "I was spoken over"
+          }
+        },
+        {
+          "op": "safety_signal",
+          "level": "high"
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "belief": "should not land"
+          }
+        },
+        {
+          "op": "guide_turn"
+        },
+        {
+          "op": "user_stopped"
+        },
+        {
+          "op": "safety_signal",
+          "level": "none"
+        },
+        {
+          "op": "rated",
+          "rating": "a_little"
+        }
+      ],
+      "stepId": null,
+      "furthestStepId": "responsibility",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "high",
+      "endReason": "safety_stop",
+      "phase": "ended",
+      "untouched": false,
+      "data": {
+        "whatHappened": "I was spoken over",
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": "a_little"
+      }
+    },
+    {
+      "name": "the furthest step survives the end",
+      "kind": "full",
+      "events": [
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "whatHappened": "I was spoken over"
+          }
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {}
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "feelings": ["sad"]
+          }
+        },
+        {
+          "op": "safety_signal",
+          "level": "high"
+        }
+      ],
+      "stepId": null,
+      "furthestStepId": "remember",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "high",
+      "endReason": "safety_stop",
+      "phase": "ended",
+      "untouched": false,
+      "data": {
+        "whatHappened": "I was spoken over",
+        "feelings": ["sad"],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "the user stops it themselves",
+      "kind": "full",
+      "events": [
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "whatHappened": "I was spoken over"
+          }
+        },
+        {
+          "op": "user_stopped"
+        }
+      ],
+      "stepId": null,
+      "furthestStepId": "responsibility",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "none",
+      "endReason": "user_stopped",
+      "phase": "ended",
+      "untouched": false,
+      "data": {
+        "whatHappened": "I was spoken over",
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "a medium signal flags without stopping",
+      "kind": "full",
+      "events": [
+        {
+          "op": "safety_signal",
+          "level": "medium"
+        },
+        {
+          "op": "step_satisfied",
+          "capture": {
+            "whatHappened": "I cannot go on like this"
+          }
+        }
+      ],
+      "stepId": "responsibility",
+      "furthestStepId": "responsibility",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "medium",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": false,
+      "data": {
+        "whatHappened": "I cannot go on like this",
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": null
+      }
+    },
+    {
+      "name": "a rating on a live session",
+      "kind": "full",
+      "events": [
+        {
+          "op": "rated",
+          "rating": "yes"
+        }
+      ],
+      "stepId": "notice",
+      "furthestStepId": "notice",
+      "guideTurnsUsed": 0,
+      "safetyLevel": "none",
+      "endReason": null,
+      "phase": "in_step",
+      "untouched": false,
+      "data": {
+        "whatHappened": null,
+        "feelings": [],
+        "memory": null,
+        "belief": null,
+        "forgiveness": null,
+        "title": null,
+        "calmerRating": "yes"
+      }
+    }
+  ],
   "helplines": {
     "countries": ["CA", "IN"],
     "defaultCountry": "CA",

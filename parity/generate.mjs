@@ -25,8 +25,11 @@ import { format } from 'prettier';
 // side. Run `pnpm run build:packages` first, which `parity:generate` does.
 import {
   baselineRiskScreen,
+  apply,
   COUNTRIES,
   DEFAULT_COUNTRY,
+  isUntouched,
+  startSession,
   helplinesFor,
   insights,
   isSubstantiveAnswer,
@@ -206,6 +209,52 @@ const JOURNALS = [
   },
 ];
 
+/**
+ * One fixture event into the reducer's own shape.
+ *
+ * The fixture names an operation because the PHP side has a method per event
+ * rather than a tagged union; this is the only place the two spellings meet.
+ */
+const SAFETY_LEVELS = ['none', 'low', 'medium', 'high'];
+const RATINGS = ['yes', 'a_little', 'no'];
+const OPS = ['guide_turn', 'step_satisfied', 'safety_signal', 'user_stopped', 'rated'];
+
+/**
+ * One fixture event into the reducer's own shape.
+ *
+ * The fixture names an operation because the PHP side has a method per event
+ * rather than a tagged union; this is the only place the two spellings meet.
+ *
+ * **It throws on anything it does not know**, and that is not defensive
+ * programming. This file is plain JavaScript, so nothing type-checks the
+ * fixture's own spellings: written with `level: 'crisis'` — which reads
+ * correctly, and is how CLAUDE.md describes the rule in prose — the reducer
+ * found no such level, silently did nothing, and the generator wrote out three
+ * cases saying a crisis signal does not end a session. Both suites would then
+ * have agreed with that, which is worse than a divergence: a red parity test
+ * is a question, and a fixture generated from a typo is a confident answer
+ * nobody asked. It was caught by reading the output, which is not a method.
+ */
+const toEvent = (e) => {
+  if (!OPS.includes(e.op)) throw new Error(`unknown session event: ${String(e.op)}`);
+  if (e.op === 'step_satisfied') return { type: 'step_satisfied', capture: e.capture ?? {} };
+  if (e.op === 'safety_signal') {
+    if (!SAFETY_LEVELS.includes(e.level)) {
+      throw new Error(
+        `unknown safety level: ${String(e.level)} (one of ${SAFETY_LEVELS.join(', ')})`,
+      );
+    }
+    return { type: 'safety_signal', level: e.level };
+  }
+  if (e.op === 'rated') {
+    if (!RATINGS.includes(e.rating)) {
+      throw new Error(`unknown rating: ${String(e.rating)} (one of ${RATINGS.join(', ')})`);
+    }
+    return { type: 'rated', rating: e.rating };
+  }
+  return { type: e.op };
+};
+
 /** A fixed day, so the fixture does not change when it is regenerated. */
 const EPOCH = Date.parse('2026-03-01T10:00:00.000Z');
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -224,6 +273,122 @@ const journalEntry = (e) => ({
   ...(e.belief === undefined ? {} : { belief: e.belief }),
   ...(e.calmer === undefined || e.calmer === null ? {} : { calmerRating: e.calmer }),
 });
+
+/**
+ * Sequences of events applied to a fresh session.
+ *
+ * CLAUDE.md calls three of these rules "not preferences": a crisis signal ends
+ * the session, an ended session is terminal apart from the rating, and
+ * `safetyLevel` only rises. `furthestStepId` is a fourth of the same kind.
+ * All four live in both languages, each with its own tests, and nothing
+ * compared them — so a port that forgot one would be caught only by whichever
+ * suite happened to cover it, and the rule that decides whether somebody is
+ * handed a helpline is the one it is least acceptable to get wrong in one
+ * language.
+ *
+ * The TypeScript side is a reducer over event objects and the PHP side is a
+ * set of `with*` methods; they are one-to-one, so a sequence names an
+ * operation and both dispatch on it.
+ */
+const SESSION_SEQUENCES = [
+  { name: 'a fresh session', kind: 'full', events: [] },
+  { name: 'a fresh quick session', kind: 'quick', events: [] },
+  {
+    // A thin answer spends a guide turn without moving the step, which is why
+    // a screen cannot work out "untouched" from `data` being empty.
+    name: 'a guide turn, nothing gathered',
+    kind: 'full',
+    events: [{ op: 'guide_turn' }],
+  },
+  {
+    name: 'one step satisfied',
+    kind: 'full',
+    events: [{ op: 'step_satisfied', capture: { whatHappened: 'I was spoken over' } }],
+  },
+  {
+    // Six satisfied steps complete the session, and the furthest step stays at
+    // the last one rather than going null with `stepId`.
+    name: 'all six steps',
+    kind: 'full',
+    events: [
+      { op: 'step_satisfied', capture: { whatHappened: 'I was spoken over' } },
+      { op: 'step_satisfied', capture: {} },
+      { op: 'step_satisfied', capture: { feelings: ['angry', 'ashamed'] } },
+      { op: 'step_satisfied', capture: { memory: { description: 'A teacher', age: 9 } } },
+      { op: 'step_satisfied', capture: { belief: 'I am not good enough' } },
+      { op: 'step_satisfied', capture: { forgiveness: 'I forgive myself' } },
+    ],
+  },
+  {
+    // Only ever up. A reducer handed a snapshot of a moment that had passed is
+    // exactly how a safety level got written back down once.
+    name: 'a safety level never falls',
+    kind: 'full',
+    events: [
+      { op: 'safety_signal', level: 'medium' },
+      { op: 'safety_signal', level: 'low' },
+      { op: 'safety_signal', level: 'none' },
+    ],
+  },
+  {
+    name: 'a crisis ends the session',
+    kind: 'full',
+    events: [{ op: 'safety_signal', level: 'high' }],
+  },
+  {
+    // Terminal. Nothing after the stop may move the step, spend a guide turn,
+    // relabel why it ended, or lower the level — and there is no resume path
+    // around a safety stop anywhere in the product.
+    name: 'an ended session ignores everything but the rating',
+    kind: 'full',
+    events: [
+      { op: 'step_satisfied', capture: { whatHappened: 'I was spoken over' } },
+      { op: 'safety_signal', level: 'high' },
+      { op: 'step_satisfied', capture: { belief: 'should not land' } },
+      { op: 'guide_turn' },
+      { op: 'user_stopped' },
+      { op: 'safety_signal', level: 'none' },
+      { op: 'rated', rating: 'a_little' },
+    ],
+  },
+  {
+    // The high-water mark, which is the whole reason it exists: ending clears
+    // `stepId`, and a chart about where sessions stop cannot read a field that
+    // is cleared when they stop.
+    name: 'the furthest step survives the end',
+    kind: 'full',
+    events: [
+      { op: 'step_satisfied', capture: { whatHappened: 'I was spoken over' } },
+      { op: 'step_satisfied', capture: {} },
+      { op: 'step_satisfied', capture: { feelings: ['sad'] } },
+      { op: 'safety_signal', level: 'high' },
+    ],
+  },
+  {
+    name: 'the user stops it themselves',
+    kind: 'full',
+    events: [
+      { op: 'step_satisfied', capture: { whatHappened: 'I was spoken over' } },
+      { op: 'user_stopped' },
+    ],
+  },
+  {
+    // A flag is raised and the session carries on: hopelessness is `medium`
+    // and stopping on it would make the product unusable on an ordinary bad
+    // day.
+    name: 'a medium signal flags without stopping',
+    kind: 'full',
+    events: [
+      { op: 'safety_signal', level: 'medium' },
+      { op: 'step_satisfied', capture: { whatHappened: 'I cannot go on like this' } },
+    ],
+  },
+  {
+    name: 'a rating on a live session',
+    kind: 'full',
+    events: [{ op: 'rated', rating: 'yes' }],
+  },
+];
 
 /**
  * Countries, including the ones this product knows nothing about.
@@ -446,6 +611,33 @@ const cases = {
       allowed: decision.allowed,
       limit: decision.allowed ? null : decision.limit,
       left: fullSessionsLeft(plan, used),
+    };
+  }),
+  sessions: SESSION_SEQUENCES.map(({ name, kind, events }) => {
+    let session = startSession(kind);
+    for (const event of events) {
+      session = apply(session, toEvent(event));
+    }
+    return {
+      name,
+      kind,
+      events,
+      stepId: session.stepId,
+      furthestStepId: session.furthestStepId,
+      guideTurnsUsed: session.guideTurnsUsed,
+      safetyLevel: session.safetyLevel,
+      endReason: session.endReason,
+      phase: session.phase,
+      untouched: isUntouched(session),
+      data: {
+        whatHappened: session.data.whatHappened ?? null,
+        feelings: [...session.data.feelings],
+        memory: session.data.memory ?? null,
+        belief: session.data.belief ?? null,
+        forgiveness: session.data.forgiveness ?? null,
+        title: session.data.title ?? null,
+        calmerRating: session.data.calmerRating ?? null,
+      },
     };
   }),
   helplines: {

@@ -783,6 +783,30 @@ changing both languages. **Regenerating to turn a red parity test green records
 the divergence instead of fixing it**, which is the whole failure the file
 exists to prevent.
 
+**The reducer's invariants are in the fixture now too.** CLAUDE.md calls three
+of them not preferences — a crisis ends the session, an ended session is
+terminal apart from the rating, `safetyLevel` only rises — and
+`furthestStepId` is a fourth of the same kind. All four were in both languages
+with their own tests in each and nothing comparing them. Twelve sequences of
+events now are, and one case carries three of the invariants at once: a crisis,
+then a step satisfied, a guide turn, a user stop and a `none` signal, all of
+which must do nothing, and then a rating, which must land. Each was checked by
+breaking it in the PHP: a crisis that no longer stops turns three cases red, a
+`SafetyLevel::atLeast()` that lets the level fall turns one, and a
+`furthestStepId` that follows `stepId` down turns one.
+
+**And the generator can write a confident lie, which is worse than a
+divergence.** `parity/generate.mjs` is plain JavaScript, so nothing
+type-checks the fixture's own spellings. Written with `level: 'crisis'` —
+which reads correctly, and is how the prose above describes the rule — the
+reducer found no such level, silently did nothing, and the generator wrote
+three cases stating that a crisis signal does not end a session. Both suites
+would then have agreed with that. A red parity test is a question; a fixture
+generated from a typo is an answer nobody asked for. It was caught by reading
+the output, which is not a method, so `toEvent()` throws on an unknown
+operation, level or rating, and the PHP side throws on an operation it cannot
+dispatch — a case nobody dispatched would otherwise pass in silence.
+
 **A fixture with no case for a hazard does not cover it, however well the
 hazard is written down.** `STEP_CASES` carried a note saying that a journal
 title is cut to 60 and that JavaScript counts UTF-16 units where PHP's

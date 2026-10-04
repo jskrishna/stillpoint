@@ -25,9 +25,17 @@ import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
 import { insights } from './insights.js';
 import type { FeelingId } from './feelings.js';
 import type { JournalEntry } from './journal.js';
-import type { CalmerRating, SessionKind } from './session.js';
+import {
+  apply,
+  isUntouched,
+  startSession,
+  type CalmerRating,
+  type SessionData,
+  type SessionEvent,
+  type SessionKind,
+} from './session.js';
 import { baselineRiskScreen } from './risk.js';
-import { COUNTRIES, DEFAULT_COUNTRY, helplinesFor } from './safety.js';
+import { COUNTRIES, DEFAULT_COUNTRY, helplinesFor, type SafetyLevel } from './safety.js';
 import { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
 import type { StepId } from './steps.js';
 
@@ -72,6 +80,35 @@ interface Limits {
   readonly recordedUtterance: number;
   readonly keptFromALongAnswer: number;
   readonly keptFromAnEmojiAnswer: number;
+}
+
+interface SessionCase {
+  readonly name: string;
+  readonly kind: SessionKind;
+  readonly events: readonly {
+    readonly op: string;
+    readonly capture?: Partial<Omit<SessionData, 'feelings'>> & {
+      readonly feelings?: readonly string[];
+    };
+    readonly level?: string;
+    readonly rating?: string;
+  }[];
+  readonly stepId: string | null;
+  readonly furthestStepId: string;
+  readonly guideTurnsUsed: number;
+  readonly safetyLevel: string;
+  readonly endReason: string | null;
+  readonly phase: string;
+  readonly untouched: boolean;
+  readonly data: {
+    readonly whatHappened: string | null;
+    readonly feelings: readonly string[];
+    readonly memory: { readonly description: string; readonly age?: number } | null;
+    readonly belief: string | null;
+    readonly forgiveness: string | null;
+    readonly title: string | null;
+    readonly calmerRating: string | null;
+  };
 }
 
 interface HelplineCases {
@@ -121,6 +158,7 @@ interface SharingCase {
 
 interface Cases {
   readonly risk: readonly RiskCase[];
+  readonly sessions: readonly SessionCase[];
   readonly helplines: HelplineCases;
   readonly insights: readonly InsightsCase[];
   readonly sharing: readonly SharingCase[];
@@ -162,6 +200,53 @@ describe('extraction matches the shared cases', () => {
     it(`reads ${c.stepId}: ${JSON.stringify(c.utterance)}`, () => {
       expect(isSubstantiveAnswer(c.stepId, c.utterance)).toBe(c.substantive);
       expect(literalExtraction(c.stepId, c.utterance) ?? null).toEqual(c.capture);
+    });
+  }
+});
+
+/** A fixture event into the reducer's shape, mirroring `parity/generate.mjs`. */
+function asEvent(e: SessionCase['events'][number]): SessionEvent {
+  if (e.op === 'step_satisfied') return { type: 'step_satisfied', capture: e.capture ?? {} };
+  if (e.op === 'safety_signal') return { type: 'safety_signal', level: e.level as SafetyLevel };
+  if (e.op === 'rated') return { type: 'rated', rating: e.rating as CalmerRating };
+  return { type: e.op as 'guide_turn' | 'user_stopped' };
+}
+
+describe('the session reducer matches the shared cases', () => {
+  for (const c of cases.sessions) {
+    it(c.name, () => {
+      let session = startSession(c.kind);
+      for (const e of c.events) {
+        session = apply(session, asEvent(e));
+      }
+
+      expect({
+        stepId: session.stepId,
+        furthestStepId: session.furthestStepId,
+        guideTurnsUsed: session.guideTurnsUsed,
+        safetyLevel: session.safetyLevel,
+        endReason: session.endReason,
+        phase: session.phase,
+        untouched: isUntouched(session),
+        data: {
+          whatHappened: session.data.whatHappened ?? null,
+          feelings: [...session.data.feelings],
+          memory: session.data.memory ?? null,
+          belief: session.data.belief ?? null,
+          forgiveness: session.data.forgiveness ?? null,
+          title: session.data.title ?? null,
+          calmerRating: session.data.calmerRating ?? null,
+        },
+      }).toEqual({
+        stepId: c.stepId,
+        furthestStepId: c.furthestStepId,
+        guideTurnsUsed: c.guideTurnsUsed,
+        safetyLevel: c.safetyLevel,
+        endReason: c.endReason,
+        phase: c.phase,
+        untouched: c.untouched,
+        data: c.data,
+      });
     });
   }
 });
