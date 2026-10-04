@@ -26,8 +26,11 @@ Expo's `:8081` and a static export's `:4000` for development.
 
 `pnpm run typecheck` and `expo export --platform web` both run in CI's image
 and in the development container, and the export is a real build: it bundles
-every module and statically renders all 15 routes, so a broken import or a
-component that throws on first render fails it.
+every module and statically renders every route, so a broken import or a
+component that throws on first render fails it. Eleven screens, which the
+export emits as 16 pages — the four tab screens are written twice, under
+`(tabs)/` and at the top level, and `_sitemap` and `+not-found` are Expo's
+own.
 
 `e2e/mobile.mjs` goes further: it serves that web export and drives it in a
 real browser at a phone's width against a running API — register, the consent

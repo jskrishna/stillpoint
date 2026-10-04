@@ -10,7 +10,10 @@ It is explicitly **not therapy or medical advice**, and the user can stop at any
 time. If what they say suggests they may be in danger, the session stops and
 helplines are shown immediately.
 
-The product is India-first: ₹ pricing, Tele-MANAS and 112 as the helplines.
+**Canada is the first market and India is the second.** Prices are in CAD, the
+helplines are 9-8-8, Québec's 1-866-APPELLE and 911, and a new account is
+assumed to be in Canada. The design artifacts were drawn India-first, so where
+one of them says ₹ or Tele-MANAS it is older than this line.
 
 ## The six steps
 
@@ -44,11 +47,17 @@ reached step 6, the feelings chosen most, and the belief that keeps coming back.
 | **Admin console** | `apps/web/src/app/admin` | Built: overview, safety queue, step-prompt editor, users and roles.            |
 | **Coach portal**  | `apps/web/src/app/coach` | Built: client list and detail, shared sessions only.                           |
 
+**[`LAUNCH.md`](LAUNCH.md) is what stands between this and a stranger
+finishing a session safely**, in order, with what each item actually needs. The
+first three are a clinician reading the risk screen, a mail provider, and
+somewhere to run it with TLS. It is also honest about the other half: what is
+already done and tested.
+
 **[`DECISIONS.md`](DECISIONS.md) is the list of what is waiting on somebody
 choosing something** rather than on somebody writing code: the step copy, the
-prices, the voice vendor, a mail provider, clinical sign-off for the risk
-screen, and two retention questions. Each is also written down where the code
-waits for it; that page exists so the list can be read in one go.
+voice vendor, a mail provider, clinical sign-off for the risk screen, billing,
+and three retention questions. Each is also written down where the code waits
+for it; that page exists so the list can be read in one go.
 
 Plans: **Free** (3 full sessions a week, unlimited quick sessions, journal),
 **Plus** (unlimited sessions, insights, better voices), **Coach** (up to 25
@@ -153,11 +162,18 @@ than the detector**: it will miss things, and no clinical claim should rest on
 it. A real deployment needs a trained model and sign-off from someone qualified
 to judge it.
 
-It covers English, Hinglish and Hindi, thinly. It used to cover English only,
-and the normaliser dropped every non-Latin character — so a crisis disclosure
-written in Devanagari became an empty string and was graded as nothing, in a
-product that is India-first. That is fixed; the remaining thinness is the
-argument for making the classifier multilingual rather than translating one.
+It covers English, French, Hinglish and Hindi, thinly. It used to cover English
+only, and the normaliser dropped every non-Latin character — so a crisis
+disclosure written in Devanagari became an empty string and was graded as
+nothing. French was the sharper version of the same failure: Latin script, so
+the string was not emptied, only its accents deleted, and "je suis fatigué"
+came back `none` with full confidence in an official language of the first
+market. Both are fixed; the remaining thinness is the argument for making the
+classifier multilingual rather than translating one.
+
+**A Latin-script language it has no phrases for still reports nothing, with
+confidence.** `quiero morirme` normalises cleanly and matches nothing. Do not
+read a clean result as evidence of safety in a language nobody has checked.
 
 It also says when it **could not read** an utterance at all. Bengali, Tamil,
 Telugu, Gujarati, Kannada, Malayalam, Odia, Gurmukhi and Urdu are still outside
@@ -168,9 +184,13 @@ whether the next language is worth covering and the alternatives (grading an
 unreadable sentence up, or flagging every turn a Tamil speaker types) are both
 wrong.
 
-Helplines resolve by country and currently cover India only (Tele-MANAS 14416,
-emergency 112), matching the designs. `helplinesFor()` returns an empty list
-elsewhere rather than something plausible but wrong.
+Helplines resolve by country and cover Canada (9-8-8 call or text, Québec's
+1-866-APPELLE, and 911) and India (Tele-MANAS 14416 and 112).
+`helplinesFor()` returns an empty list anywhere else rather than something
+plausible but wrong — a wrong crisis number is worse than none. Québec is
+listed separately on purpose: it answers through its own line rather than 988,
+and somebody in Montréal dialling the wrong one of those is the failure that
+screen exists to prevent.
 
 ## Personal content is encrypted at rest
 
@@ -295,7 +315,10 @@ every session is typed, and both surfaces say so in the same words.
    PRD, and the admin console is where it goes in.
 2. **Voice stack.** Speech-to-text, text-to-speech and turn-taking are
    unspecified, and kept behind an interface so the choice stays reversible.
-3. **Pricing.** `[PRICE]/mo` placeholders for Plus and Coach. Currency is ₹.
+3. **Billing.** The prices are set, in CAD, and there is no way to pay: no
+   provider, no checkout, no subscription. An admin can _grant_ a plan from the
+   console, which is how a pilot account gets onto Plus, so the paid plans are
+   reachable — nobody can buy one.
 4. **A classifier for risk**, and sign-off from someone qualified to judge it.
 5. **Mail.** No provider is chosen, so a password-reset link is logged rather
    than sent — in a deployment, nobody can yet reset a password.
@@ -303,7 +326,8 @@ every session is typed, and both surfaces say so in the same words.
 7. **A safeguarding question**: a safety flag is deleted with the account,
    because that is what erasure means — which also means a reviewer cannot
    follow up on someone who disclosed danger and then left. Whether an
-   anonymised flag should outlive an erasure is a clinical and DPDP decision.
+   anonymised flag should outlive an erasure is a clinical and privacy-law
+   decision — PIPEDA and Québec's Law 25 first, DPDP behind them.
 
 ## License
 

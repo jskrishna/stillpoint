@@ -1493,6 +1493,12 @@ it is missing from `tsconfig.test.json`'s `include`.
 
 ## Decisions not taken
 
+`LAUNCH.md` is the ordered one: what stands between the code as it is and a
+stranger finishing a session safely, with what each item needs and which of
+them cannot be done without a person, an account or a certificate. It is the
+page to update when one of those is closed, and the one to read before
+describing this product as ready.
+
 `DECISIONS.md` is the consolidated list, for the person deciding rather than
 the person reading code. Every item on it is also written down at the place the
 code waits for it, which is where it belongs — the page is an index, not the
