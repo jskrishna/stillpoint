@@ -126,14 +126,22 @@ Then `cd apps/web && pnpm run dev` for the web app on `:3000`,
 To run the whole thing with no toolchain at all, see [`deploy/`](deploy/README.md):
 `docker compose up --build`.
 
-| Script                     | What it does                                       |
-| -------------------------- | -------------------------------------------------- |
-| `pnpm run check`           | Everything CI runs, in CI's order                  |
-| `pnpm run build`           | Every workspace project, packages first            |
-| `pnpm run typecheck`       | Every source, test and config, no emit             |
-| `pnpm run lint`            | ESLint, type-aware                                 |
-| `pnpm run test`            | Vitest                                             |
-| `pnpm run parity:generate` | Regenerate the cross-language fixture — read first |
+| Script                     | What it does                                         |
+| -------------------------- | ---------------------------------------------------- |
+| `pnpm run check`           | The JavaScript gates CI runs, in CI's order          |
+| `pnpm run verify:clean`    | All of that from nothing built, plus PHP — see below |
+| `pnpm run build`           | Every workspace project, packages first              |
+| `pnpm run typecheck`       | Every source, test and config, no emit               |
+| `pnpm run lint`            | ESLint, type-aware                                   |
+| `pnpm run test`            | Vitest                                               |
+| `pnpm run parity:generate` | Regenerate the cross-language fixture — read first   |
+
+**Before a push, `pnpm run verify:clean`.** It deletes `node_modules` and every
+build directory, reinstalls from the lockfile, and runs the gates in CI's order
+plus the full build, Pint and PHPUnit. `apps/web` resolves `@stillpoint/*`
+through `node_modules` to their **built** output, so an export that was deleted
+or never emitted still resolves against the `dist/` from before the change —
+and a leftover `dist/` has twice made a broken commit look green here.
 
 ## Safety is a hard stop
 

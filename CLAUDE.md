@@ -991,6 +991,8 @@ twelve feelings colours at all.
 pnpm run check   # build:packages, then format:check + lint + typecheck + test
 pnpm run build   # every workspace project, packages first
 
+pnpm run verify:clean  # all of that from nothing built — before a push
+
 # API (from apps/api)
 ./vendor/bin/phpunit     # the domain tests
 ./vendor/bin/pint --test # formatting, as CI runs it
@@ -1037,10 +1039,31 @@ sqlite passing proves nothing about MySQL until CI says so.
 outside consumer would, so lint and typecheck need that output to exist. CI runs
 the same steps in the same order.
 
-**Verify on a clean tree before pushing.** Delete `node_modules`, every
-`packages/*/dist` and `apps/web/.next`, reinstall with `--frozen-lockfile`, then
-run the gates in CI's order. A leftover `dist/` has twice made a broken commit
-look green locally.
+**Verify on a clean tree before pushing: `pnpm run verify:clean`.** It deletes
+`node_modules` and every build directory, reinstalls with `--frozen-lockfile`,
+and runs the gates in CI's order plus the full `build`, Pint and PHPUnit.
+
+It was six manual steps ending in a 1.3GB delete, and the paragraph that asked
+for them said in the same breath that **a leftover `dist/` has twice made a
+broken commit look green locally**. Twice is not bad luck — it is a ritual
+people skip, which is the argument that produced `e2e/run.mjs` as well.
+
+What it is for, precisely: `apps/web` resolves `@stillpoint/*` through
+`node_modules` to their **built** output, so a package export that was deleted,
+renamed or never emitted still resolves against the `dist/` from before the
+change, and lint, typecheck and the web build all pass over a tree that would
+not build on a fresh clone. `tsBuildInfoFile` points inside `dist/`, so
+deleting `dist/` without its `.tsbuildinfo` makes `tsc --build` report success
+and emit nothing — the other half of the same trap, and why it deletes whole
+directories rather than being clever.
+
+It is **not** part of `check` and must not become part of it: `check` is what
+you run many times an hour, this is what you run before a push. `apps/api/vendor`
+is left alone unless `--composer` is passed, and that asymmetry is deliberate:
+PHP here has no build step, so nothing is emitted for a later change to
+contradict and the failure this exists for has no PHP equivalent. It says at the
+end what it does **not** cover — the end-to-end checks, and the MySQL migration
+run only CI has a MySQL for.
 
 ## Running it somewhere
 
