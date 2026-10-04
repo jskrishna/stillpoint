@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api, type ApiSafetyFlag } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { useStaleGuard } from '../../../lib/stale';
 import { ago, describeAge, exact } from '../../../lib/ago';
 import styles from '../admin.module.css';
 
@@ -32,35 +33,50 @@ export default function SafetyQueue() {
 
   const status = showReviewed ? 'all' : 'open';
 
+  // Which answer this screen may believe. Flipping the filter twice used to
+  // show a **reviewed** flag inside "2 open" — see `lib/stale.ts` for the
+  // measurement and for why the cursor is the other half of it.
+  const guard = useStaleGuard();
+
   useEffect(() => {
     setFlags(null);
     setCursor(null);
     setProblem(null);
+    const current = guard();
     api
       .safetyFlags(showReviewed ? 'all' : 'open', PAGE)
       .then((page) => {
+        if (!current()) return;
         setFlags(page.items);
         setCursor(page.nextCursor);
         setTotal(page.total);
       })
       .catch((e: unknown) => {
+        // Gated too: a stale failure over a newer page's rows would report a
+        // problem with a request whose replacement had already succeeded.
+        if (!current()) return;
         setProblem(
           e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
             ? 'The safety queue is for reviewers. Sign in with an admin account.'
             : describe(e),
         );
       });
-  }, [showReviewed]);
+  }, [showReviewed, guard]);
 
   const loadMore = async () => {
     if (cursor === null || loadingMore) return;
     setLoadingMore(true);
+    // Under the same guard as the filter: a page that arrives after the filter
+    // moved would append the other list's rows to this one.
+    const current = guard();
     try {
       const page = await api.safetyFlags(status, PAGE, cursor);
-      setFlags((current) => [...(current ?? []), ...page.items]);
+      if (!current()) return;
+      setFlags((flags) => [...(flags ?? []), ...page.items]);
       setCursor(page.nextCursor);
       setTotal(page.total);
     } catch (e: unknown) {
+      if (!current()) return;
       setProblem(describe(e));
     } finally {
       setLoadingMore(false);

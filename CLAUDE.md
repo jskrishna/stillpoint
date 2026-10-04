@@ -1355,6 +1355,64 @@ block the one request and assert the screen says it could not tell — and, in
 the same place, that it does not say the reassuring thing. All four were
 checked by taking the fix out and rebuilding.
 
+### And it must not report an answer it has been given a newer one than
+
+The same shape with the arrow reversed. A list screen fires a request when its
+filter changes, nothing orders the answers, and the last `setState` wins —
+which can be the **older** one. There a failed request became "nothing"; here
+an answered-but-superseded request becomes "this is what you asked for", which
+is the harder of the two to notice because the screen is showing real rows from
+the real server.
+
+Two screens had it, both in the console, and both measured in a real browser
+with the first response held for 2.5 seconds:
+
+- **The safety queue.** Pressed "Include reviewed", then "Open only" again. The
+  filter button read "Include reviewed" — so the screen was offering to include
+  them, meaning it was showing open work only — the count line read
+  `2 open · most severe first`, and one of the two rows was marked
+  **Reviewed**. A reviewer deciding what still needs following up was shown
+  finished work, counted as open, in the flattering direction. With the guard
+  neutered and a run's worth of flags in the table it reads **5 of 6 rows
+  reviewed**.
+- **The accounts list.** Typed `zzzz-nobody` into the search. The box held that
+  and the screen listed `11 accounts · 1 admin`, every row: every account in
+  the product, under a search matching none of them, on the screen where
+  `admin` is granted.
+
+**The cursor is the other half of it**, and it is the part a server-side test
+cannot catch. Each screen stores the page's `nextCursor` beside its items, so a
+stale answer leaves the cursor pointing into the other ordering —
+`cursorPaginate` encodes the ordering columns and knows nothing about the
+filter, so the cursor is accepted and "Load more" continues a different list
+from the one on screen. On the queue that is the failure the cursor rule above
+is written down for: a reviewer never seeing a flag.
+
+`apps/web/src/lib/stale.ts` is the rule, one module for the same reason
+`describe()` is: both screens had the identical omission, so the third would
+have too. It is a sequence rather than an `AbortController` because
+`packages/client` takes no signal and threading one through every method is a
+larger change than the bug — and an abort arrives as a rejection, so each call
+site would have to tell it apart from a real failure or show a connection error
+for a request it cancelled itself. By the time a stale answer is here its cost
+is already paid; what is left is only whether to believe it. The core is a
+plain function with the hook two lines around it, because `vitest` here runs in
+`node` with no React renderer — the same split as
+`apps/desktop/src/navigation.ts`.
+
+**The failure path is gated too.** A stale rejection setting an error over a
+newer page's rows is the same bug wearing the other face: the screen would
+report a problem with a request whose replacement had already succeeded.
+
+`Accounts`'s "Load more" also had **only** a cursor check where the queue's had
+`loadingMore` as well, so two presses both read the same cursor and both
+appended the same page. The journal's was already right; the accounts list was
+the odd one out, the way the session screen was for live regions.
+
+`e2e/admin.mjs` delays the abandoned request on both screens and asserts the
+newer answer is what is rendered. Both were checked by neutering the guard and
+rebuilding; both go red.
+
 ## A forgotten password is not a lost journal
 
 `auth/forgot-password` and `auth/reset-password` use Laravel's password broker.

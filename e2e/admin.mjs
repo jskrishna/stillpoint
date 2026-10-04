@@ -206,6 +206,48 @@ if (!signedIn) {
     const all = await admin.locator('body').innerText();
     if (all.includes('burden') && /Reviewed/.test(all)) ok('it is still readable as reviewed');
     else bad('it is still readable as reviewed', all.slice(0, 300));
+
+    // ---- a slow answer to an abandoned filter must not be believed --------
+    //
+    // Nothing orders two answers, so the request for `all` can come back after
+    // the request for `open` that replaced it, and the last `setState` wins.
+    // Measured before the guard: the filter button read "Include reviewed" —
+    // so the screen was showing open work only — the count line read
+    // `2 open · most severe first`, and one of the two rows was marked
+    // Reviewed. A reviewer deciding what still needs following up was shown
+    // finished work, counted as open, in the flattering direction.
+    //
+    // Held here rather than hoped for: the `all` request is delayed 2.5s and
+    // the `open` request that follows is not, so the arrival order is the
+    // wrong one every run.
+    await admin.locator('button', { hasText: 'Open only' }).click();
+    await admin.waitForTimeout(1800);
+
+    await admin.route('**/admin/safety-flags*', async (route) => {
+      if (new URL(route.request().url()).search.includes('status=all'))
+        await new Promise((r) => setTimeout(r, 2500));
+      await route.continue();
+    });
+    await admin.locator('button', { hasText: 'Include reviewed' }).click();
+    await admin.waitForTimeout(200);
+    await admin.locator('button', { hasText: 'Open only' }).click();
+    await admin.waitForTimeout(4000);
+    await admin.unroute('**/admin/safety-flags*');
+
+    const offering = await admin
+      .locator('button', { hasText: /Include reviewed|Open only/ })
+      .innerText();
+    const shown = await admin.locator('tbody tr').allInnerTexts();
+    const reviewedRows = shown.filter((r) => /Reviewed/.test(r)).length;
+    if (offering === 'Include reviewed' && reviewedRows === 0)
+      ok(
+        `a late answer for the other filter is not believed (${String(shown.length)} open, 0 reviewed)`,
+      );
+    else
+      bad(
+        'a late answer for the other filter is not believed',
+        `button "${offering}", ${String(reviewedRows)} of ${String(shown.length)} rows reviewed`,
+      );
   }
   // -------------------------------------------------------------------------
   console.log('\n3. Accounts, and who may change a role');
@@ -256,6 +298,38 @@ if (!signedIn) {
   const found = admin.locator('tbody tr', { hasText: promoted }).first();
   if ((await found.count()) === 1) ok('searching finds the one account');
   else bad('searching finds the one account', String(await found.count()));
+
+  // The same race on the screen where `admin` is granted. Measured before the
+  // guard: the box held `zzzz-nobody` and the screen listed `11 accounts ·
+  // 1 admin`, every row of it — every account in the product, under a search
+  // that matches none of them. The earlier query's answer is held back so it
+  // lands second, which is the order a slow network produces by itself.
+  await admin.route('**/admin/users*', async (route) => {
+    if (!new URL(route.request().url()).search.includes('q=zzzz-nobody'))
+      await new Promise((r) => setTimeout(r, 2500));
+    await route.continue();
+  });
+  await admin.getByLabel('Search accounts').fill('promote+');
+  await admin.waitForTimeout(600); // long enough for the debounce to fire it
+  await admin.getByLabel('Search accounts').fill('zzzz-nobody');
+  await admin.waitForTimeout(4000);
+  await admin.unroute('**/admin/users*');
+
+  const searched = await admin.locator('body').innerText();
+  const countLine = /\d+ accounts? · \d+ admins?/.exec(searched)?.[0] ?? 'no count line';
+  if (/No account matches that\./.test(searched) && !searched.includes(promoted))
+    ok('a late answer for an abandoned search is not believed');
+  else
+    bad(
+      'a late answer for an abandoned search is not believed',
+      `box holds "zzzz-nobody", screen says "${countLine}", the abandoned query’s row ${
+        searched.includes(promoted) ? 'is' : 'is not'
+      } listed`,
+    );
+
+  // Put the screen back where the rest of this section expects it.
+  await admin.getByLabel('Search accounts').fill(promoted);
+  await admin.waitForTimeout(1500);
 
   // No session content on an administration screen.
   if (!/dismissed my work|not good enough|burden/i.test(await admin.locator('body').innerText()))

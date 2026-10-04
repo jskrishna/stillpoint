@@ -10,6 +10,7 @@ import {
   type Profile,
 } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { useStaleGuard } from '../../../lib/stale';
 import styles from '../admin.module.css';
 import { LOCALE } from '@stillpoint/protocol';
 
@@ -71,23 +72,34 @@ export default function Accounts() {
   const [plansProblem, setPlansProblem] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Which answer this screen may believe. Typing a search that matches nothing
+  // used to leave every account in the product listed under it — see
+  // `lib/stale.ts` for the measurement.
+  const guard = useStaleGuard();
 
   const load = useCallback(async () => {
+    const current = guard();
     try {
       const page = await api.adminUsers({ q: query, role });
+      if (!current()) return;
       setUsers(page.items);
       setCursor(page.nextCursor);
       setTotal(page.total);
       setAdminCount(page.adminCount);
       setProblem(null);
     } catch (e: unknown) {
+      // Gated too: a stale failure would report a problem with a request whose
+      // replacement had already answered.
+      if (!current()) return;
       setProblem(
         e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
           ? 'Accounts are for staff. Sign in with an admin account.'
           : describe(e),
       );
     }
-  }, [query, role]);
+  }, [query, role, guard]);
 
   useEffect(() => {
     api
@@ -184,13 +196,24 @@ export default function Accounts() {
   };
 
   const loadMore = async () => {
-    if (cursor === null) return;
+    // `loadingMore` as well as the cursor: this had only the cursor check, so
+    // two presses both read the same one and both appended the same page. The
+    // queue's own Load more already guarded that and this one did not.
+    if (cursor === null || loadingMore) return;
+    setLoadingMore(true);
+    // Under the same guard as the search: a page arriving after the query moved
+    // would append rows from the search somebody had already left.
+    const current = guard();
     try {
       const page = await api.adminUsers({ q: query, role }, undefined, cursor);
-      setUsers((current) => [...(current ?? []), ...page.items]);
+      if (!current()) return;
+      setUsers((users) => [...(users ?? []), ...page.items]);
       setCursor(page.nextCursor);
     } catch (e: unknown) {
+      if (!current()) return;
       setProblem(describe(e));
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -339,8 +362,9 @@ export default function Accounts() {
           onClick={() => {
             void loadMore();
           }}
+          disabled={loadingMore}
         >
-          Load more ({rows.length} of {total})
+          {loadingMore ? 'Loading…' : `Load more (${String(rows.length)} of ${String(total)})`}
         </button>
       )}
 
