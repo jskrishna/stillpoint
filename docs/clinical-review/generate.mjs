@@ -15,6 +15,7 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { format, resolveConfig } from 'prettier';
 import {
   BASELINE_RULES,
   COUNTRIES,
@@ -288,6 +289,41 @@ w('until French was added. Spanish and Portuguese are in that position now.');
 w('This is the limitation we would most like your view on: it is not that the');
 w('screen is thin, it is that in these cases it cannot tell that it is.');
 w();
+w('**And the honest answer depends on the keyboard, not on the person.** The');
+w('rows below are the same sentence in the same language, typed two ways. In');
+w('its own script the screen says it could not read it. Typed in Latin letters');
+w('— which is how a great many people type on a phone — the same words come');
+w('back as nothing found, with confidence. Punjabi, Mandarin, Cantonese,');
+w('Arabic and Tagalog all have large communities in Canada, which is the first');
+w('market.');
+w();
+w('| Said | In its own script | Typed in Latin letters |');
+w('| --- | --- | --- |');
+for (const [language, native, roman] of [
+  ['Hindi', 'मुझे मरना है', 'mujhe marna hai'],
+  ['Punjabi', 'ਮੈਂ ਮਰਨਾ ਚਾਹੁੰਦਾ ਹਾਂ', 'main marna chahunda han'],
+  ['Mandarin', '我想死', 'wo xiang si'],
+  ['Russian', 'я хочу умереть', 'ya hochu umeret'],
+]) {
+  const describe = (text) => {
+    const r = baselineRiskScreen.assess(text);
+    if (r.unreadable) return 'Not read, and says so';
+    if (r.level === 'high') return 'Session ends, helplines shown';
+    if (r.level === 'none') return '**Nothing found** — stated confidently';
+    return 'Flag raised';
+  };
+  w(`| ${language}: "${native}" / "${roman}" | ${describe(native)} | ${describe(roman)} |`);
+}
+w();
+w('Hindi is the row that is not a problem, and it shows what closing the gap');
+w('costs: it is graded both ways because somebody wrote out the Hinglish');
+w('spellings by hand. Every other row needs the same work, per language, and a');
+w('missed spelling is a missed disclosure. That is the argument for the');
+w('classifier being multilingual from the start rather than English translated');
+w('— and it is a clinical question as much as an engineering one, because');
+w('somebody has to judge whether a phrase in a language they do not speak');
+w('means what the list says it means.');
+w();
 w('## The phrases, in full');
 w();
 w('Matched as substrings of the answer after lowercasing, straightening curly');
@@ -377,5 +413,21 @@ w('there is one.');
 w();
 
 const out = fileURLToPath(new URL('RISK-SCREEN-REVIEW.md', import.meta.url));
-writeFileSync(out, `${lines.join('\n')}`);
+
+// Through Prettier, with this repository's own config — the lesson
+// `parity/generate.mjs` already carries, which this generator never had.
+//
+// `RISK-SCREEN-REVIEW.md` is a checked-in file and `pnpm run check` runs
+// `format:check` over it, so a regeneration whose output Prettier would rewrite
+// leaves the tree failing that gate. It had passed up to now by luck rather
+// than by design: nothing this file wrote happened to exceed the print width,
+// and then a table of the same sentence in two scripts did, and regenerating
+// turned `check` red in a file nobody had edited by hand.
+//
+// `resolveConfig` matters as much as `format` does. Given only a `filepath`,
+// Prettier uses its own defaults, whose `printWidth` is 80 against this
+// repository's 100 — so formatting without the config would rewrite the whole
+// document to a width the gate does not want.
+const options = (await resolveConfig(out)) ?? {};
+writeFileSync(out, await format(lines.join('\n'), { ...options, filepath: out }));
 console.log(`wrote ${String(total)} phrases and ${String(BASELINE_RULES.length)} rules to ${out}`);

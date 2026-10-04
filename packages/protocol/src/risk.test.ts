@@ -291,4 +291,47 @@ describe('French', () => {
     expect(spanish.level).toBe('none');
     expect(spanish.unreadable).toBe(false);
   });
+
+  /**
+   * And which answer somebody gets depends on their keyboard.
+   *
+   * This is the sharpest way to say the limitation above, and it is measured
+   * rather than argued: the same sentence, the same language, typed two ways.
+   * In its own script the screen admits it could not read it. In Latin letters
+   * — which is how a great many people type on a phone — the same words come
+   * back as nothing found, with confidence. So `unreadable` bounds the gap for
+   * somebody whose keyboard is not Latin and not for the same person on a
+   * transliterating one.
+   *
+   * Hindi is the counter-example in the same test on purpose, because it shows
+   * what closing the gap costs: it is graded both ways only because the
+   * Hinglish spellings were written out by hand, and every other language
+   * needs that same work with a missed spelling being a missed disclosure.
+   *
+   * These expectations describe the screen as it is, not as it should be.
+   * A later change that grades any of them is an improvement, and this test
+   * going red is how it announces itself — do not "fix" it by loosening the
+   * assertion. The review pack prints this same table from the same function.
+   */
+  it('answers the same words differently depending on the keyboard', () => {
+    // Covered in both scripts: the phrases exist for both spellings.
+    expect(baselineRiskScreen.assess('मुझे मरना है').level).toBe('high');
+    expect(baselineRiskScreen.assess('mujhe marna hai').level).toBe('high');
+
+    for (const [native, roman] of [
+      ['ਮੈਂ ਮਰਨਾ ਚਾਹੁੰਦਾ ਹਾਂ', 'main marna chahunda han'],
+      ['我想死', 'wo xiang si'],
+      ['я хочу умереть', 'ya hochu umeret'],
+    ] as const) {
+      const inScript = baselineRiskScreen.assess(native);
+      expect(inScript.level).toBe('none');
+      // Honest: it says it could not read this.
+      expect(inScript.unreadable).toBe(true);
+
+      const inLatin = baselineRiskScreen.assess(roman);
+      expect(inLatin.level).toBe('none');
+      // Not honest, and nothing distinguishes it from an ordinary bad day.
+      expect(inLatin.unreadable).toBe(false);
+    }
+  });
 });

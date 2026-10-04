@@ -185,6 +185,46 @@ reports nothing at all, with confidence. There is a test saying so, and it is
 the thing the clinical review pack asks about most directly. Do not read a
 `none` as evidence of safety in a language nobody has checked.
 
+**Which answer somebody gets depends on their keyboard, not on them.** That is
+the sharpest way to say the gap above, and it is measured rather than argued —
+the same sentence, the same language, typed two ways:
+
+| said                                                       | in its own script     | typed in Latin letters         |
+| ---------------------------------------------------------- | --------------------- | ------------------------------ |
+| Hindi "मुझे मरना है" / "mujhe marna hai"                   | stops the session     | stops the session              |
+| Punjabi "ਮੈਂ ਮਰਨਾ ਚਾਹੁੰਦਾ ਹਾਂ" / "main marna chahunda han" | not read, and says so | **nothing found**, confidently |
+| Mandarin "我想死" / "wo xiang si"                          | not read, and says so | **nothing found**, confidently |
+| Russian "я хочу умереть" / "ya hochu umeret"               | not read, and says so | **nothing found**, confidently |
+
+So `unreadable` bounds the gap for somebody whose keyboard is not Latin, and
+not for the same person on a transliterating one — which on a phone is most of
+them. Punjabi, Mandarin, Cantonese, Arabic and Tagalog all have large
+communities in Canada, the first market.
+
+Hindi is the row that is not a problem, and it is the one that prices the fix:
+it is graded both ways only because the Hinglish spellings were written out by
+hand. Every other language needs that same work, a missed spelling is a missed
+disclosure, and somebody has to judge whether a phrase in a language they do
+not speak means what the list says — which is why this is the classifier's job
+and not a longer list here. **Do not add phrases for a language nobody
+qualified has reviewed.**
+
+There is a test, and it goes red in **both** directions, which is what makes it
+worth having: adding one Punjabi phrase turns it red, so closing the gap
+announces itself rather than passing silently; and adding Gurmukhi to
+`READABLE_SCRIPTS` without phrases turns it red too, which is the wrong fix
+this file already warns about, now caught rather than described. Both were
+checked. The review pack prints the same table from the same function, so the
+document a clinician reads cannot drift from the screen.
+
+And the pack is written **through Prettier with this repository's own config**
+now, which is the lesson `parity/generate.mjs` already carried and this
+generator never had. `RISK-SCREEN-REVIEW.md` is checked in and `format:check`
+runs over it, so a regeneration Prettier would rewrite leaves the tree failing
+that gate. It had passed by luck: nothing the generator wrote happened to
+exceed the print width, and then that two-script table did, and regenerating
+turned `check` red in a file nobody had edited by hand.
+
 It is counted, in `guided_sessions.unreadable_turns`, and the console's
 overview reports it. That is the whole intervention — a count, because a count
 is what says whether the gap is worth closing and for whom, and because the

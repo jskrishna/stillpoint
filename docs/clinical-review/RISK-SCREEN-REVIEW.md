@@ -1,6 +1,6 @@
 # Stillpoint — risk screen, for clinical review
 
-Generated from `packages/protocol/src/risk.ts` at commit `f444213`.
+Generated from `packages/protocol/src/risk.ts` at commit `1033f74`.
 Regenerate with `pnpm run clinical:review` after any change to the screen.
 
 ## What we are asking for
@@ -144,6 +144,30 @@ announce itself.** It normalises cleanly, matches nothing, and comes back
 until French was added. Spanish and Portuguese are in that position now.
 This is the limitation we would most like your view on: it is not that the
 screen is thin, it is that in these cases it cannot tell that it is.
+
+**And the honest answer depends on the keyboard, not on the person.** The
+rows below are the same sentence in the same language, typed two ways. In
+its own script the screen says it could not read it. Typed in Latin letters
+— which is how a great many people type on a phone — the same words come
+back as nothing found, with confidence. Punjabi, Mandarin, Cantonese,
+Arabic and Tagalog all have large communities in Canada, which is the first
+market.
+
+| Said                                                        | In its own script             | Typed in Latin letters                 |
+| ----------------------------------------------------------- | ----------------------------- | -------------------------------------- |
+| Hindi: "मुझे मरना है" / "mujhe marna hai"                   | Session ends, helplines shown | Session ends, helplines shown          |
+| Punjabi: "ਮੈਂ ਮਰਨਾ ਚਾਹੁੰਦਾ ਹਾਂ" / "main marna chahunda han" | Not read, and says so         | **Nothing found** — stated confidently |
+| Mandarin: "我想死" / "wo xiang si"                          | Not read, and says so         | **Nothing found** — stated confidently |
+| Russian: "я хочу умереть" / "ya hochu umeret"               | Not read, and says so         | **Nothing found** — stated confidently |
+
+Hindi is the row that is not a problem, and it shows what closing the gap
+costs: it is graded both ways because somebody wrote out the Hinglish
+spellings by hand. Every other row needs the same work, per language, and a
+missed spelling is a missed disclosure. That is the argument for the
+classifier being multilingual from the start rather than English translated
+— and it is a clinical question as much as an engineering one, because
+somebody has to judge whether a phrase in a language they do not speak
+means what the list says it means.
 
 ## The phrases, in full
 
