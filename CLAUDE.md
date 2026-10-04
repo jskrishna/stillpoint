@@ -944,6 +944,23 @@ Two tests cover the three, and both were checked by taking the fix out. It is gu
 account's own password and a typed confirmation, because it is not reversible
 and should not be something a stray tap on an unlocked phone can do.
 
+**Open question for someone qualified:** "Export everything" does not include
+a safety flag's excerpt, and that excerpt is sometimes the only copy of what
+somebody said. A safety-stopped session is never journalled, so the words from
+the turn that stopped it live in `safety_flags.excerpt` and nowhere the person
+can reach — the export is `account` plus the whole journal, and the journal has
+no row for that session. The copy beneath the button says "Every session you
+have finished", which a stopped one is not, so the sentence is accurate and the
+button's own label is "Export everything".
+
+Two defensible answers and they point opposite ways. A subject access request
+under PIPEDA or DPDP plainly covers it, and it is their own sentence. And
+handing somebody a file containing their own crisis disclosure, with no
+context, unprompted, months later, is not obviously a kindness. Which is why
+this is written down rather than implemented: it is the same kind of decision
+as whether an anonymised flag should outlive an erasure, and it belongs to
+whoever owns safeguarding rather than to whoever is reading this file.
+
 **Open question for someone qualified:** a safety flag is deleted with the
 account, because that is what erasure means and it is what the schema already
 did. But it also means that if a person said they were in danger and then
