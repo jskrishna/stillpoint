@@ -70,7 +70,33 @@ class AppServiceProvider extends ServiceProvider
      * password across many accounts, and is set where only a script reaches
      * it. It is the blunt one of the two, and NAT is why: raise it and the
      * spray gets cheaper, lower it and a carrier's subscribers lock each other
-     * out. The account-keyed limit is the one doing the work.
+     * out.
+     *
+     * ## Three buckets, because two of them were one
+     *
+     * The tight limit used to be keyed on the account **alone**, and that is a
+     * way to lock somebody out of their own journal with six requests a
+     * minute. The address is not a secret — a coach types their client's into
+     * an invitation — so anybody who has it can hold a person out of the
+     * product indefinitely by renewing the burst, and the person it happens to
+     * is somebody who went looking for help with being upset and cannot get to
+     * what they wrote. That is the same innocent-lockout failure the per-IP
+     * limit was replaced for, arriving from the other direction.
+     *
+     * What makes the fix safe rather than a trade is `Password::min(12)`
+     * above. Online guessing is not the threat a tight per-account limit
+     * defends against: thirty attempts a minute is 43,200 a day, which against
+     * twelve characters is nothing. The real threat is credential stuffing — a
+     * password already known from somebody else's breach — and that needs one
+     * attempt, which no rate limit stops. So the tight bucket was buying very
+     * little and costing a trivial denial of service against one person.
+     *
+     * So: tight by account **and** address, which is the shape of a password
+     * guess and cannot lock anybody else out; looser by account across every
+     * address, so a distributed attempt on one account is still capped; and
+     * the per-IP ceiling unchanged. `GuessableRoutesAreLimitedTest` asserts
+     * each of the three, and that one address exhausting its budget leaves
+     * another able to sign in — which is the half that was broken.
      */
     private function rateLimiters(): void
     {
@@ -84,7 +110,15 @@ class AppServiceProvider extends ServiceProvider
                 : 'token:'.hash('sha256', (string) $request->route('token')).'|'.$request->ip();
 
             return [
-                Limit::perMinute(6)->by($target),
+                // One machine against one account: the shape of a password
+                // guess. Keyed by both, so exhausting it locks out the machine
+                // doing the guessing and nobody else.
+                Limit::perMinute(6)->by($target.'|ip:'.$request->ip()),
+                // The same account from many addresses. Looser on purpose —
+                // see the note above on why twelve characters is what makes
+                // that safe — and still a cap on a distributed attempt.
+                Limit::perMinute(30)->by($target),
+                // One machine against many accounts.
                 Limit::perMinute(60)->by('ip:'.$request->ip()),
             ];
         });

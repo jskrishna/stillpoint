@@ -1422,6 +1422,32 @@ cannot reach their journal. A per-IP ceiling stays as a second line against one
 machine spraying many accounts, set where only a script reaches it. Do not
 replace this with `throttle:N,1`, which is per IP and was what it replaced.
 
+**Three buckets, because two of them were one.** The tight limit was keyed on
+the account **alone**, which is a way to lock somebody out of their own journal
+with six requests a minute. An address is not a secret — a coach types their
+client's into an invitation — so anybody holding it can keep a person out of
+the product indefinitely by renewing the burst, and the person it happens to
+went looking for help with being upset and cannot reach what they wrote. It is
+the same innocent-lockout failure the per-IP limit was replaced for, arriving
+from the other direction.
+
+What makes keying it by address as well a fix rather than a trade is
+`Password::min(12)`. Online guessing is not what a tight per-account limit
+defends against: thirty attempts a minute is 43,200 a day, nothing against
+twelve characters. The real threat is credential stuffing — a password already
+known from somebody else's breach — and that needs one attempt, which no rate
+limit stops. So the tight bucket bought very little and cost a trivial denial
+of service against one person.
+
+So: tight by account **and** address, which is the shape of a password guess
+and cannot lock anybody else out; looser by account across every address, so a
+distributed attempt is still capped; and the per-IP ceiling unchanged.
+`GuessableRoutesAreLimitedTest` asserts each of the three, that a request with
+neither an email nor a token does not land in one global bucket, and that one
+address exhausting its budget leaves another able to sign in — which is the
+half that was broken, and the only one of the five that goes red when the key
+is put back.
+
 **A rate limiter writes, and on sqlite that write is a 500.** The
 `throttle:120,1` on the authenticated routes stores a counter in the cache on
 every request, and `CACHE_STORE=database` puts that write in the same database
