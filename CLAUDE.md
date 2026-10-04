@@ -285,8 +285,18 @@ the POST died in a tunnel, three phone numbers appeared, and they were told
 screen became the pause, and they were told none of that either.
 
 It was the odd one out rather than an oversight nobody had thought about:
-seventeen web screens and six on the phone already mark their error as an
-alert, and the session screen was the one that did not.
+fifteen files on the web and six on the phone mark an error as an alert, and
+the session screen was the one that did not. Those two counts are current and
+checkable rather than a measurement from the day this was written, which is the
+only kind of number worth putting in a file like this one:
+
+    grep -rl 'role="alert"' apps/web/src --include=*.tsx
+    grep -rlE 'accessibilityLiveRegion|accessibilityRole="alert"' apps/mobile/src --include=*.tsx
+
+The phone's command needs **both** attributes. Written with
+`accessibilityLiveRegion` alone it returns one file rather than six, which is
+how this paragraph was briefly wrong about the number it had just been
+corrected to — a command that does not reproduce the count is not a check.
 
 Four things, and the ordering of the last two is the part worth keeping:
 
