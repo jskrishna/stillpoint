@@ -16,9 +16,18 @@
       "@stillpoint/client": ["./packages/client/src/index.ts"]
     }
   },
-  // Packages only. Each app is checked by its own tsconfig (see the root
-  // `typecheck` script), which carries the libs and jsx settings it needs —
-  // covering them here as well checked browser code against a Node-only lib.
-  "include": ["packages/*/src/**/*.ts", "*.config.ts"],
+  // Packages, and the desktop shell's tests. Each app is checked by its own
+  // tsconfig (see the root `typecheck` script), which carries the libs and jsx
+  // settings it needs — covering them here as well checked browser code
+  // against a Node-only lib.
+  //
+  // `apps/desktop` is the exception, and only its tests. That app is Node-only
+  // already (`types: ["node"]`, no DOM), so there is no browser code to check
+  // against the wrong lib — and its own tsconfig has to EXCLUDE tests, because
+  // it emits to `dist/` and a compiled test importing `vitest` has no business
+  // in a packaged Electron app. Excluded there and listed nowhere, the file
+  // belongs to no project and ESLint refuses to parse it, which is the gotcha
+  // CLAUDE.md names. This is where it belongs instead.
+  "include": ["packages/*/src/**/*.ts", "apps/desktop/src/**/*.test.ts", "*.config.ts"],
   "exclude": ["**/dist", "**/node_modules"]
 }

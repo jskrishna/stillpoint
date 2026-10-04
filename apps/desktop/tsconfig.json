@@ -6,14 +6,11 @@
     "declarationMap": false,
     "rootDir": "src",
     "outDir": "dist",
-    // ESM, like the rest of the workspace. Electron has run an ES-module main
-    // process since 28, and this is 44; the package is `"type": "module"`, so
-    // relative imports carry `.js` here exactly as they do in `packages/*`.
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2023"],
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }

@@ -11,6 +11,7 @@ import {
 } from 'electron';
 import { PortTakenError, haveBundledWeb, startWeb, type RunningServer } from './server.js';
 import { DEFAULT_STATE, MINIMUM, readState, writeState } from './window-state.js';
+import { mayOpenExternally, sameOrigin } from './navigation.js';
 
 /**
  * Stillpoint on the desktop.
@@ -113,16 +114,23 @@ function createWindow(): BrowserWindow {
 
   // Anything that is not this app opens in the system browser. A helpline's
   // `tel:` link is handed to the system too, which is what opens the dialler.
+  //
+  // Both decisions are in `navigation.ts`, which explains why neither is a
+  // string comparison any more: the pin used to be `url.startsWith(origin)`,
+  // and `http://127.0.0.1:8735@evil.example/` starts with this app's origin
+  // and resolves to `evil.example`.
   created.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    if (mayOpenExternally(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
 
   created.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(origin)) {
-      event.preventDefault();
-      void shell.openExternal(url);
-    }
+    if (sameOrigin(url, origin)) return;
+
+    event.preventDefault();
+    // Not opened at all if the system has no business being handed it. A URL
+    // this refuses is one nothing in this product produces.
+    if (mayOpenExternally(url)) void shell.openExternal(url);
   });
 
   created.on('closed', () => {

@@ -722,7 +722,36 @@ belongs in `apps/web` and the desktop app gets it for free.
 
 The renderer is sandboxed with no Node and no preload, and navigation is pinned
 to the app's own origin: the page in that window is signed in to somebody's
-journal. The bundled server binds to `127.0.0.1` on an allocated port.
+journal. The bundled server binds to `127.0.0.1` on the fixed port below.
+
+**The pin was a string prefix, which is not an origin.** `src/navigation.ts`
+holds it now and `src/navigation.test.ts` pins it. `url.startsWith(origin)`
+with the origin `http://127.0.0.1:8735` allowed
+`http://127.0.0.1:8735@evil.example/phish` — everything before an `@` is
+userinfo, so that string starts with this app's own origin and resolves to
+`evil.example`. Measured, not inferred. It would have navigated the window that
+is signed in to somebody's journal, inside this app's frame, which is the one
+thing the pin exists to prevent. A longer port (`:87351`) and a longer host
+(`:8735.evil.example`) passed it too; those two do not parse as URLs, so
+Chromium would most likely have refused them on its own — and "most likely" is
+not the argument this guard is for.
+
+**And `shell.openExternal` took whatever it was handed.** The renderer is
+sandboxed, but the policy keeps `'unsafe-inline'` and `next.config.ts` is plain
+that injected inline script still runs, so a payload could `window.open` a
+`file:` URL or any scheme another application has registered and the main
+process passed it to the OS. Four schemes go through now — `http:`, `https:`,
+`mailto:`, `tel:` — and `tel:` is in that list because the safety screen's
+helplines are `tel:` links and the system is what opens the dialler.
+
+Both live in their own module rather than inline in `main.ts` because `main.ts`
+imports `electron`, which does not resolve outside an Electron process, and
+these two decisions are the part worth asserting. That module's tests are the
+one app's tests `tsconfig.test.json` includes, and the reason is written there:
+`apps/desktop/tsconfig.json` has to **exclude** tests because it emits to
+`dist/` and a compiled test importing `vitest` has no business in a packaged
+Electron app — excluded there and listed nowhere, the file belongs to no
+project and ESLint refuses to parse it.
 
 **The port is fixed (8735) on purpose, and it is the app's identity.** Asking
 the operating system for a free port is the obvious thing and it is wrong here:

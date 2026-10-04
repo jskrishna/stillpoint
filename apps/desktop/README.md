@@ -70,8 +70,29 @@ is pinned to the app's own origin and anything else is handed to the system
 browser. This matters more here than in most apps: the page in this window is
 signed in to somebody's journal.
 
-The bundled server binds to `127.0.0.1` on a port the operating system
-allocates. It is for this machine.
+**The pin is an origin comparison, and it used to be a string prefix.**
+`src/navigation.ts` holds both decisions and says why. The short version:
+`url.startsWith(origin)` with the origin `http://127.0.0.1:8735` allowed
+`http://127.0.0.1:8735@evil.example/phish`, whose real host is `evil.example` —
+everything before an `@` is userinfo. That would have navigated the window that
+is signed in to somebody's journal, with this app's frame around it. A pin a
+string can step around is not a pin. `src/navigation.test.ts` has the case;
+five of its nine tests go red if the prefix check comes back.
+
+**And `shell.openExternal` is given four schemes, not whatever it is handed.**
+The renderer is sandboxed, but the content policy keeps `'unsafe-inline'` and
+`apps/web/next.config.ts` is plain that injected inline script still runs — so
+a payload in the page could `window.open('file:///…')`, or any scheme another
+application has registered, and the main process passed it straight to the
+operating system. `http:`, `https:`, `mailto:` and `tel:` go through; `tel:`
+because the safety screen's helplines are `tel:` links and the system is what
+opens the dialler.
+
+The bundled server binds to `127.0.0.1` on port **8735**, fixed. This README
+said the operating system allocated it, which is the thing the fixed port was
+chosen against: the port is part of the origin, the origin is what the browser
+keys `localStorage` by, and a new port each launch signs everybody out every
+launch. `src/server.ts` has the reasoning. It is for this machine.
 
 ## What is verified, and what is not
 
