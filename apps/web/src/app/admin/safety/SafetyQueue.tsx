@@ -27,6 +27,7 @@ export default function SafetyQueue() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [showReviewed, setShowReviewed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -87,12 +88,22 @@ export default function SafetyQueue() {
   const selected = ordered.find((f) => f.id === selectedId) ?? ordered[0];
 
   const review = async (id: string) => {
+    // In flight, because nothing else stops a second press. Both `disabled`
+    // and `aria-disabled` here read `selected.status`, which only becomes
+    // `reviewed` once the response lands — so three rapid clicks sent three
+    // POSTs, measured, and did so before this screen used `aria-disabled` too.
+    // Re-marking a reviewed flag is harmless; sending it twice is still a
+    // request nobody wanted, and the same shape on Publish is not harmless.
+    if (reviewing !== null) return;
+    setReviewing(id);
     try {
       const updated = await api.reviewSafetyFlag(id);
       setFlags((current) => (current ?? []).map((f) => (f.id === updated.id ? updated : f)));
       setProblem(null);
     } catch (e: unknown) {
       setProblem(describe(e));
+    } finally {
+      setReviewing(null);
     }
   };
 
@@ -225,13 +236,17 @@ export default function SafetyQueue() {
               <button
                 type="button"
                 className={`${styles.button} ${styles.primary}`}
-                aria-disabled={selected.status === 'reviewed'}
+                aria-disabled={selected.status === 'reviewed' || reviewing !== null}
                 onClick={() => {
                   if (selected.status === 'reviewed') return;
                   void review(selected.id);
                 }}
               >
-                {selected.status === 'reviewed' ? 'Reviewed' : 'Mark as reviewed'}
+                {selected.status === 'reviewed'
+                  ? 'Reviewed'
+                  : reviewing === selected.id
+                    ? 'Marking…'
+                    : 'Mark as reviewed'}
               </button>
             </div>
           )}

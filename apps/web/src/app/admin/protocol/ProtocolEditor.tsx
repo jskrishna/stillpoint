@@ -28,6 +28,7 @@ export default function ProtocolEditor() {
   const [selected, setSelected] = useState('notice');
   const [problem, setProblem] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [publishing, setPublishing] = useState(false);
 
   /** Edits typed but not yet sent, so the fields stay responsive. */
   const [pending, setPending] = useState<Record<string, ApiStepEdit>>({});
@@ -108,6 +109,16 @@ export default function ProtocolEditor() {
   }, []);
 
   const onPublish = async () => {
+    // In flight, because nothing else stops a second press: the guard below
+    // reads `readOnly` and `publishable`, neither of which changes until the
+    // response lands. Measured on the queue's equivalent button — three rapid
+    // clicks, three POSTs — and here it matters more. The server locks
+    // `protocol_versions` in id order, so a second publish cannot leave two
+    // live versions; what it does is answer 422 for a draft that is no longer
+    // open, so an admin who double-clicked a successful publish is shown a
+    // refusal.
+    if (publishing) return;
+    setPublishing(true);
     try {
       const published = await api.publishProtocolDraft();
       setLive(published);
@@ -125,6 +136,8 @@ export default function ProtocolEditor() {
         setLive(versions.live);
         setDraft(versions.draft);
       }
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -210,14 +223,14 @@ export default function ProtocolEditor() {
              * was told nothing. Focusable, the button stays put while the line
              * above announces the new live version. The handler refuses.
              */
-            aria-disabled={readOnly || !editing.publishable || saveState === 'saving'}
+            aria-disabled={readOnly || !editing.publishable || saveState === 'saving' || publishing}
             title={
               editing.publishable
                 ? undefined
                 : `${String(problems.length)} problems block publishing`
             }
           >
-            Publish
+            {publishing ? 'Publishing…' : 'Publish'}
           </button>
         </div>
       </div>

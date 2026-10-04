@@ -360,10 +360,11 @@ Two decisions, and the first is the one worth reusing:
   nowhere to go and lands at the top of the document. Focusable, the button
   stays exactly where the user left it and its own accessible name changes
   from "Mark as reviewed" to "Reviewed" — which is the announcement, with
-  nothing added to the screen. The `onClick` handler is what refuses the
-  second press, and `admin.module.css` styles both spellings so it looks
-  identical. This is why no new focus target or wording had to be invented
-  here, unlike the session screen's pause, where the whole screen is replaced.
+  nothing added to the screen. The `onClick` handler is what refuses a press
+  **once the state has settled**, and `admin.module.css` styles both spellings
+  so it looks identical. This is why no new focus target or wording had to be
+  invented here, unlike the session screen's pause, where the whole screen is
+  replaced.
 - **One live region per screen, holding what that screen is about.** The
   editor's version line is the region, so an autosave and a publish announce
   from one place and after publishing it reads exactly the news: "Live version
@@ -373,6 +374,34 @@ Two decisions, and the first is the one worth reusing:
   `role="alert"`. A failure stays in its own `role="alert"` through
   `describe()`, and a failed save goes back to **idle** rather than "saved":
   a status that lies is worse than no status.
+
+**A press is not refused while it is in flight, and that sentence used to say
+it was.** Both handlers guarded on the state the response changes —
+`selected.status === 'reviewed'` on the queue, `readOnly || !publishable` in
+the editor — and neither changes until the response lands, so the window
+between the press and the answer was wide open. Measured: three rapid clicks,
+three POSTs. Checked the other way first, because the obvious suspect was the
+switch from `disabled` to `aria-disabled` above — with `disabled` restored it
+also sent three, so this was never that change's doing and had been true the
+whole time.
+
+On the queue a second review is a wasted round trip and nothing worse. On
+Publish it is not: the statuses came back **`[200, 422, 422]`**, the live
+version advanced, and the screen was left reading **"There is no draft to
+publish."** — a refusal rendered over the publish that had just worked, which
+is the false-sentence class two sections down with the request succeeding
+rather than failing. The server's id-ordered lock on `protocol_versions` is why
+the damage stops there: two live versions were never reachable, so what was
+reachable was only the wrong sentence.
+
+So both carry an in-flight guard — `reviewing` and `publishing` — which is also
+the label while the request is out ("Marking…", "Publishing…"). `e2e/admin.mjs`
+clicks each three times and asserts **one** request, plus that the editor is
+not left claiming there was no draft. Note the trap in writing that check: the
+label changes under it, so a `getByRole('button', { name: 'Publish' })`
+locator stops resolving after the first click and the second never gets sent —
+the check passes having measured nothing. It holds an element handle across all
+three. All three assertions go red with the guards removed.
 
 **And the status must not become the field's name.** Both note fields are
 labels, so a status inside the label folds into the control's accessible name

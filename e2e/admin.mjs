@@ -195,10 +195,32 @@ if (!signedIn) {
     // `aria-disabled` keeps the button where it is and its own name becomes
     // the announcement. Asserted rather than hoped for, because nothing about
     // the rendered page shows it.
-    const reviewButton = admin.getByRole('button', { name: 'Mark as reviewed' });
+    //
+    // Three clicks, on a handle held across them, for the reason the publish
+    // block below has in full: the label becomes "Marking…" in flight, so a
+    // role+name locator stops resolving and a second click would never be
+    // sent. Re-marking a reviewed flag is harmless in itself; the request
+    // nobody wanted is the thing, and the same shape on Publish is not
+    // harmless.
+    const reviewRequests = [];
+    const countReviews = (request) => {
+      if (/\/admin\/safety-flags\/[^/]+\/review$/.test(request.url()))
+        reviewRequests.push(request.url());
+    };
+    admin.on('request', countReviews);
+
+    const reviewButton = await admin
+      .getByRole('button', { name: 'Mark as reviewed' })
+      .elementHandle();
     await reviewButton.focus();
     await reviewButton.click();
+    await reviewButton.click({ force: true });
+    await reviewButton.click({ force: true });
     await admin.waitForTimeout(1200);
+    admin.off('request', countReviews);
+
+    if (reviewRequests.length === 1) ok('a double-tapped review sends one request');
+    else bad('a double-tapped review sends one request', `sent ${String(reviewRequests.length)}`);
 
     const stayed = await admin.evaluate(() => {
       const a = document.activeElement;
@@ -638,10 +660,34 @@ if (!signedIn) {
   const liveLine = admin.locator('p[role="status"]').first();
   const beforePublish =
     (await liveLine.count()) > 0 ? await liveLine.innerText() : '(no live region)';
-  const publish = admin.getByRole('button', { name: 'Publish' });
+  //
+  // Three clicks rather than one, on a handle held across them, because a
+  // double-tap on this button used to publish once and then tell the admin
+  // "There is no draft to publish." — measured, 3 POSTs answering
+  // [200, 422, 422], with the 422's wording on the screen after a publish
+  // that had worked and advanced the live version. The server's id-ordered
+  // lock on `protocol_versions` means two live versions were never possible;
+  // what was possible was a refusal shown for the thing that succeeded. The
+  // handle matters: the label becomes "Publishing…" while the request is in
+  // flight, so a role+name locator stops resolving after the first click and
+  // would pass without ever sending a second.
+  const publishRequests = [];
+  const countPublish = (request) => {
+    if (request.url().endsWith('/admin/protocol-versions/draft/publish'))
+      publishRequests.push(request.url());
+  };
+  admin.on('request', countPublish);
+
+  const publish = await admin.getByRole('button', { name: 'Publish' }).elementHandle();
   await publish.focus();
   await publish.click();
+  await publish.click({ force: true });
+  await publish.click({ force: true });
   await admin.waitForTimeout(2500);
+  admin.off('request', countPublish);
+
+  if (publishRequests.length === 1) ok('a double-tapped publish sends one request');
+  else bad('a double-tapped publish sends one request', `sent ${String(publishRequests.length)}`);
 
   const announced = (await liveLine.count()) > 0 ? await liveLine.innerText() : '(no live region)';
   const held = await admin.evaluate(() => {
@@ -658,6 +704,15 @@ if (!signedIn) {
   else bad('and the button it was pressed on keeps focus', `focus is ${held}`);
   if (!/not published/.test(await admin.locator('body').innerText())) ok('and the draft is gone');
   else bad('and the draft is gone');
+
+  // And the screen does not end up contradicting what just happened. This is
+  // the half the request count cannot see: a second request is a wasted round
+  // trip, a 422 rendered over a successful publish is a false sentence about
+  // state, which is the class `CLAUDE.md` names.
+  const afterPublish = await admin.locator('body').innerText();
+  if (!/no draft to publish/i.test(afterPublish))
+    ok('and it is not told there was no draft to publish');
+  else bad('and it is not told there was no draft to publish');
 
   // A fresh draft for the refusal checks below, since publishing closed the
   // one they were going to use.
