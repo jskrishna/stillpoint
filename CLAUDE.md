@@ -106,9 +106,26 @@ Adding a country means adding its numbers **and** checking what else assumed
 the old one: the language the screen reads, the currency and the locale.
 
 That list used to end "and the privacy law the consent screen names", and **no
-screen names a privacy law at all** — grepped: PIPEDA, Law 25 and DPDP appear
-once each, in a comment in `apps/web/src/lib/voice/user-ear.ts`, explaining why
-no listener is bound. Whether the consent screen should name the law is a legal
+screen names a privacy law at all** — grepped across both client surfaces,
+both packages, the API and the migrations: three mentions, in **two** files,
+and both of them doc comments. `apps/web/src/lib/voice/user-ear.ts` names all
+three, explaining why no listener is bound, and
+`packages/protocol/src/onboarding.ts` names Law 25, explaining that nothing
+reads the "improve the app" consent item. Not one of the three is a string a
+person can see. That sentence said "once each, in a comment in `user-ear.ts`"
+until the second file was written, which is the risk in citing a grep: the
+claim it supports stayed true and the count stopped being.
+
+So the claim is a **test** now and the count is nobody's to maintain.
+`apps/web/src/lib/no-privacy-law-in-copy.test.ts` reads every TypeScript and
+PHP file under both client surfaces, both copy-holding packages, and the API —
+found with `git ls-files`, so a file written tomorrow is covered the day it is
+written — and asserts a law's name appears on **comment lines only**. It is
+deliberately not a ban: those three comments are where the reasoning for an
+unbound listener and an unread consent item lives, so a second case asserts
+they are still there. Checked both ways — a `PIPEDA` in the consent screen's
+heading goes red naming the file and the line, and removing the names from the
+two comments turns the other case red. Whether the consent screen should name the law is a legal
 and product decision and so is not something to invent here, which is the rule
 about product copy applying to the one kind of copy where guessing is worst. It
 is in `DECISIONS.md`; what is fixed here is the sentence that implied it was
@@ -869,9 +886,11 @@ Two things the designs state and this deliberately does **not** enforce:
   say, like the step copy.
 
 **And `Plan` decides exactly one thing, which is less than the pricing page
-ticks.** `plan` is consulted in two places in the whole API — the session
-allowance and the profile response — so full sessions a week is the only rule
-it carries. Four of the nine feature lines on `/pricing` name something else:
+ticks.** `plan` decides something in exactly one place — the session allowance
+in `SessionController` — so full sessions a week is the only rule it carries.
+The column is _read_ in three: that one, the profile response, and the grant
+route, which reads the old value to record it in `plan_changes`. Neither of
+those two asks it to decide anything. Four of the nine feature lines on `/pricing` name something else:
 `Insights` has no plan check and a Free account has them, `Better voices` is
 not gated and both voices are offered to everyone, `Up to 25 clients` is the
 item above, and `Shared sessions and notes` is backwards — the portal is gated
