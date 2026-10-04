@@ -940,6 +940,36 @@ Five things only a running app shows, and the third is the one that matters:
 
 It needs a display, so `run.mjs` wraps it in `xvfb-run` and CI does the same.
 
+**The first version of it hung in CI for the job's whole 25-minute limit**, and
+the cause is a property of the app worth knowing. `main.ts` takes a
+single-instance lock, and a copy that cannot get one says so and **quits
+without opening a window** — right for a product that must not serve one
+journal on two ports, and a trap for a check that launches twice. A launch
+killed rather than asked to quit can leave `SingletonLock` behind, and then
+every later launch exits at once while Playwright waits for a window that is
+never coming. It passed here and hung there, which is the shape of a race.
+
+Three things in `desktop.mjs` answer it, and the third is the one that does not
+depend on having guessed right:
+
+- **A user-data directory per run**, in `mkdtemp`, shared by both launches in
+  that run. A stale lock cannot cross runs, and section 5's assertion becomes
+  about what this run stored rather than what an earlier one left.
+- **`stop()` asks the app to quit and waits**, bounded, before relaunching —
+  rather than leaving Playwright to kill it, which is what leaves the lock.
+- **A deadline for the whole script** (`DESKTOP_DEADLINE_MS`, six minutes),
+  plus `timeout-minutes` on the CI step. Checked with
+  `DESKTOP_DEADLINE_MS=2500`: it prints what it was doing and exits 1, so a
+  hang is a red run rather than a cancelled job.
+
+And it launches the app's **own** Electron. `require('electron')` returns the
+binary's path and **downloads it synchronously if it is missing**, so letting
+Playwright resolve one meant a check that could fetch a different Electron from
+the one the app pins, mid-run. Resolved up front now, and a missing binary is a
+sentence and a skip rather than a stall — `electron` is the one install script
+`pnpm-workspace.yaml` allows to run, and where egress to its release host is
+blocked the binary is simply absent.
+
 **It has never been packaged or run on macOS or Windows**, and there is no
 installer, signing, notarisation or auto-update — each of those costs a
 certificate or a server rather than a line of config. A green `desktop.mjs`

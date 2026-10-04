@@ -373,6 +373,14 @@ jobs:
       # `xvfb-run`.
       - name: The desktop shell, actually running
         if: '!cancelled()'
+        # Bounded, because the first version of this step hung until the job's
+        # own 25-minute limit and took the whole run's result with it: the app
+        # takes a single-instance lock and quits without a window when it
+        # cannot get one, so a launch that was killed rather than asked to quit
+        # left `SingletonLock` behind and every later launch exited at once.
+        # The script has its own deadline as well; this is the bound that does
+        # not depend on the script getting to run its own.
+        timeout-minutes: 8
         run: xvfb-run -a node e2e/desktop.mjs
 
       # A restart is not a failure on its own, so it does not fail the job —

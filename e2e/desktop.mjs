@@ -1,4 +1,7 @@
+import { existsSync, mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { reporter } from './report.mjs';
 
@@ -70,6 +73,57 @@ const { ok, bad, finish, watchForThrows } = reporter('the desktop shell');
 watchForThrows();
 
 /**
+ * The app's own Electron binary, or a reason there is none.
+ *
+ * `electron`'s install script is the only one `pnpm-workspace.yaml` allows to
+ * run, because without it `electron .` has nothing to run. Where egress to its
+ * release host is blocked the binary is simply absent, and this says so and
+ * stops rather than letting the require download one — a different Electron
+ * from the one the app pins, fetched mid-check.
+ */
+let electronBinary;
+try {
+  electronBinary = createRequire(join(DESKTOP, 'package.json'))('electron');
+  if (typeof electronBinary !== 'string' || !existsSync(electronBinary))
+    throw new Error(`not at ${String(electronBinary)}`);
+} catch (e) {
+  console.log(`\n  no Electron binary — skipping (${e instanceof Error ? e.message : String(e)})`);
+  console.log('  `pnpm install` runs its install script; see pnpm-workspace.yaml.');
+  await finish();
+}
+
+/**
+ * A deadline for the whole script.
+ *
+ * Everything below is bounded individually, and the first run of this check
+ * still hung in CI for thirteen minutes — so there is one bound that does not
+ * depend on having thought of the right failure.
+ */
+const DEADLINE_MS = Number(process.env.DESKTOP_DEADLINE_MS ?? 360000);
+setTimeout(() => {
+  console.log(`\n  THREW (deadline) nothing finished within ${String(DEADLINE_MS)}ms`);
+  process.exit(1);
+}, DEADLINE_MS).unref?.();
+
+/**
+ * One user-data directory for this run, and nobody else's.
+ *
+ * `main.ts` takes a single-instance lock, and an app that cannot get it says
+ * so and **quits without opening a window** — which is right for a product
+ * that must not serve one journal on two ports, and a trap for a check that
+ * launches twice. A launch that is killed rather than asked to quit can leave
+ * `SingletonLock` behind, and then every later launch quits at once: the first
+ * run of this check hung for thirteen minutes in CI waiting for a window that
+ * was never going to appear.
+ *
+ * So the profile is fresh per run and shared by both launches in it — section
+ * 5 needs the second launch to see what the first stored — which also makes
+ * that assertion about this run rather than about whatever an earlier one left
+ * behind.
+ */
+const profile = mkdtempSync(join(tmpdir(), 'stillpoint-desktop-'));
+
+/**
  * Launches the app.
  *
  * `--no-sandbox` because this runs as root in a container, where Chromium's
@@ -77,13 +131,33 @@ watchForThrows();
  * is **not** the sandbox section 2 is about: that one is `webPreferences`,
  * which decides whether the page can reach Node, and this flag does not touch
  * it. Section 2 asserts the page, not the flag, for exactly this reason.
+ *
+ * `executablePath` is the project's **own** Electron rather than letting
+ * Playwright resolve one. `require('electron')` returns the binary's path and
+ * downloads it synchronously if it is missing, so this is also where a missing
+ * binary turns into a sentence instead of a stall.
  */
 const start = () =>
   _electron.launch({
-    args: ['.', '--no-sandbox'],
+    executablePath: electronBinary,
+    args: ['.', '--no-sandbox', `--user-data-dir=${profile}`],
     cwd: DESKTOP,
     env: { ...process.env, STILLPOINT_PORT: PORT },
+    timeout: 120000,
   });
+
+/**
+ * Asks the app to quit and waits for it, rather than leaving Playwright to
+ * kill it — a killed app is what leaves the lock behind.
+ */
+const stop = async (running) => {
+  await Promise.race([running.close(), new Promise((resolve) => setTimeout(resolve, 20000))]).catch(
+    () => undefined,
+  );
+  // Whatever happened above, do not relaunch into a process that is still
+  // holding the lock.
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+};
 
 // ---------------------------------------------------------------------------
 console.log('\n1. It starts, and serves the app to its own window');
@@ -199,7 +273,7 @@ await win.evaluate((value) => {
 }, planted);
 await win.waitForTimeout(500);
 
-await app.close();
+await stop(app);
 
 app = await start();
 win = await app.firstWindow({ timeout: 120000 });
@@ -264,4 +338,4 @@ for (const [header, want] of [
   else bad(`${header}: ${want}`, served[header] ?? '(absent)');
 }
 
-await finish(() => app.close());
+await finish(() => stop(app));
