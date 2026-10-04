@@ -34,9 +34,20 @@ own.
 
 `e2e/mobile.mjs` goes further: it serves that web export and drives it in a
 real browser at a phone's width against a running API — register, the consent
-gate, voice setup, a full six-step session, the journal, and the safety stop,
-including asking the **server** what it recorded and that it refuses another
-turn on a stopped session. It also holds this app to the rule
+gate, voice setup, a full six-step session, the journal, **a journal entry and
+Insights**, settings, and the safety stop, including asking the **server** what
+it recorded and that it refuses another turn on a stopped session.
+
+Those two were added late and the reason is worth keeping: they were the only
+two of the eleven screens nothing ever rendered. The script pressed the Journal
+tab and stopped there, so `journal/[id].tsx` and `(tabs)/insights.tsx` had only
+ever been statically rendered by `expo export` — which proves the module
+bundles and survives a first render with no data, and says nothing about the
+screen with a real entry on it. Neither turned out to be broken; what was
+missing was the evidence. The entry's note is checked round-trip, and the
+sharing control is checked against both coach-sharing settings, because the
+server refuses turning sharing on under "Never share" and a screen that
+offered it anyway would be offering something that cannot work. It also holds this app to the rule
 `e2e/privacy.mjs` holds the web app to: **nothing leaves this origin.** That one
 caught a real leak once — the web's fonts were linked from Google's CDN, so
 every page load of a product about being upset reached a third party. This app

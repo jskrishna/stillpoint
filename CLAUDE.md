@@ -1137,6 +1137,40 @@ skips the builds and the reseed. See `e2e/README.md`. One of
 them, `mobile.mjs`, is the only thing that executes `apps/mobile` at all: it
 drives the Expo web export in a browser at a phone's width. It does not touch
 anything native, and `apps/mobile/README.md` lists what that leaves.
+
+**Two of the phone's eleven screens were not among them**, which is the same
+gap `a11y.mjs` had and found the same way — by listing the files rather than
+believing the sentence. The script pressed the Journal tab and stopped, so
+`journal/[id].tsx` and `(tabs)/insights.tsx` had only ever been rendered by
+`expo export`: that proves the module bundles and survives a first render with
+no data, and says nothing about the screen with a real entry on it. Neither
+was broken. What was missing was the evidence, and on this surface a browser
+check is the only evidence there is.
+
+What the new sections assert is what matters on those screens rather than that
+they draw: the note round-trips (the Save button only disappears once the saved
+entry comes back matching the field, so it is the round-trip and not an
+optimistic render), and the sharing control is held to **both** coach-sharing
+settings, because the server refuses turning sharing on under "Never share" and
+a screen that offered it anyway would be offering something that cannot work.
+Insights is asserted to count the two feelings that were chosen, not to count
+the ten that were not, and to name **no** recurring belief from a single
+session — the threshold is two, and a threshold nothing checks is one that can
+quietly become one.
+
+Two traps in writing those, both the shape this file keeps finding. The
+first assertion read `/Noticing/` and passed while the journal was still on
+screen, because "Noticing" is that tab's own label and so is on every tab — the
+same false positive `admin.mjs` warns about where it looks for the trail row of
+its own account rather than an arrow anywhere on the page. And the heading is
+uppercased in CSS, so `innerText` returns "FEELINGS YOU CHOSE MOST" and a
+case-sensitive match on the source string fails. Neither was a bug in the app;
+both were a check asserting something it was not looking at.
+
+The entry screen is **not** inside the tabs layout, so there is no tab bar on
+it — `← Journal` is what it has instead — and the export is served by a plain
+file server, so reloading a client-side route asks for a file that is not
+there. Both scripts navigate through the app's own controls for those reasons.
 `flow.mjs` is the web app's: register, consent, a full session, a reply lost on
 the way back, journal, insights, settings, the safety stop and sign-out. It
 needs three servers, so it is not part of `check` — but it **is** in CI, as the

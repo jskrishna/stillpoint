@@ -257,15 +257,19 @@ honest about both halves:
   the client can see who can read their sessions and end it.
 - The plan allowance, enforced, with a quick session always allowed.
 - WCAG AA contrast, asserted for every text role against every surface in both
-  palettes, and axe-core clean across 19 routes at two widths in both.
+  palettes, and axe-core clean across 20 routes at two widths in both.
 - The session screen announced rather than only drawn: the crisis numbers on an
   answer that never sent, and the safety pause, reach a screen reader instead
   of appearing silently. Verified in a real browser on web; on the phone the
   live regions are verified and the spoken announcement is item 6.
 - No third-party origin is contacted from any screen, asserted by a real
   browser.
-- 574 TypeScript tests, 522 PHP tests, a cross-language parity fixture both
-  suites assert against, and six end-to-end scripts — `pnpm run e2e`.
+- 654 TypeScript tests, 577 PHP tests, a cross-language parity fixture both
+  suites assert against, and six end-to-end scripts — `pnpm run e2e`. Every one
+  of the phone's eleven screens is rendered by one of them, and every one of
+  the web app's twenty routes is audited by `a11y.mjs`; both of those sentences
+  were false until recently, and a count in a list like this is exactly the
+  kind nothing checks.
 
 A green build means "this will start". It does not mean "this is ready", and
 items 1 to 3 are why.

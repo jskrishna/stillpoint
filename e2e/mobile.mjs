@@ -249,6 +249,169 @@ if (journal.includes('manager') || /1 session|Today/.test(journal))
 else bad('the finished session is in the journal', journal.slice(0, 500));
 
 // ---------------------------------------------------------------------------
+console.log('\n4b. The entry itself, which nothing here used to open');
+
+// `journal/[id].tsx` was one of two screens on the phone that nothing
+// rendered: this script is the only thing that executes `apps/mobile` at all,
+// and it pressed the Journal tab and stopped there. `expo export` proves the
+// module bundles and renders statically with no data; it says nothing about
+// the screen with a real entry on it. Insights was the other, in 4c below.
+const card = page.getByRole('button').filter({ hasText: 'manager' }).first();
+if ((await card.count()) === 0) {
+  bad('the entry opens from the list', (await body()).slice(0, 400));
+} else {
+  await card.click();
+  await page.waitForTimeout(2500);
+  const entry = await body();
+
+  if (/← Journal/.test(entry)) ok('the entry opens from the list');
+  else bad('the entry opens from the list', entry.slice(0, 400));
+
+  // The session's own answers, which is what this screen is for. The belief is
+  // the one that cannot come from anywhere else.
+  if (entry.includes('I am not good enough')) ok('it shows back what was said');
+  else bad('it shows back what was said', entry.slice(0, 600));
+
+  // The note. Unique per run, because filling the same text twice is not an
+  // edit — the Save button is only offered while the field differs from the
+  // entry — so a second run against one database would have nothing to save.
+  const note = `a note typed on the phone (${String(Date.now())})`;
+  const field = page.locator('textarea').first();
+  if ((await field.count()) === 0) {
+    bad('the note can be typed');
+  } else {
+    await field.fill(note);
+    await page.waitForTimeout(400);
+    await press('Save the note');
+    await page.waitForTimeout(2000);
+
+    // The Save button disappearing is the confirmation, and it only
+    // disappears once the saved entry comes back matching the field — so it
+    // is the round-trip, not an optimistic render. What cannot be checked
+    // here is the spoken announcement beside it: there is no screen reader,
+    // which is `apps/mobile/README.md`'s list with the `tel:` links.
+    const gone = (await page.getByRole('button', { name: 'Save the note' }).count()) === 0;
+    if (gone) ok('the note saves, and the Save button goes with it');
+    else bad('the note saves, and the Save button goes with it', (await body()).slice(-400));
+
+    // Away and back rather than a reload: the export is served by a plain file
+    // server, so reloading a client-side route asks it for a file that is not
+    // there. Re-mounting the screen re-fetches the entry, which is what this
+    // is checking.
+    await press('← Journal');
+    await page.waitForTimeout(1500);
+    await page.getByRole('button').filter({ hasText: 'manager' }).first().click();
+    await page.waitForTimeout(2500);
+    const kept = await page.locator('textarea').first().inputValue();
+    if (kept === note) ok('and it is still there when the screen is opened again');
+    else bad('and it is still there when the screen is opened again', kept);
+  }
+
+  // The coach-sharing setting decides whether this control is offered at all,
+  // and the server refuses it with a 409 naming the setting — so a screen that
+  // offered it anyway would be offering something that cannot work. With the
+  // default setting it is offered.
+  const offered = await body();
+  if (/Share with my coach/.test(offered) && !/Sharing is off in settings/.test(offered))
+    ok('sharing is offered under the default setting');
+  else bad('sharing is offered under the default setting', offered.slice(-500));
+
+  // And with "Never share" chosen it says so rather than offering it. Set
+  // through the API and set back, so section 5b below still meets the account
+  // it expects.
+  const set = async (value) =>
+    page.evaluate(
+      async ([base, coachSharing]) => {
+        const token = window.localStorage.getItem('stillpoint.token.v1');
+        const r = await fetch(`${base}/me`, {
+          method: 'PATCH',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ coachSharing }),
+        });
+        return r.status;
+      },
+      [process.env.API_URL ?? 'http://localhost:8000/api', value],
+    );
+
+  if ((await set('never')) !== 200) {
+    bad('“Never share” can be chosen, to have something to refuse');
+  } else {
+    // Away and back, for the reason above: the screen reads the setting when
+    // it mounts.
+    await press('← Journal');
+    await page.waitForTimeout(1500);
+    await page.getByRole('button').filter({ hasText: 'manager' }).first().click();
+    await page.waitForTimeout(2500);
+    const locked = await body();
+    if (/Sharing is off in settings/.test(locked))
+      ok('with “Never share” chosen the screen says so instead of offering it');
+    else
+      bad(
+        'with “Never share” chosen the screen says so instead of offering it',
+        locked.slice(-500),
+      );
+
+    // Back to the default, so section 5b meets the account it expects.
+    await set('ask_each_time');
+  }
+
+  // Back out through the screen's own link. The entry is not inside the tabs
+  // layout, so there is no tab bar on it to press — which is what `← Journal`
+  // is for.
+  await press('← Journal');
+  await page.waitForTimeout(1500);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n4c. Insights, the other screen nothing used to render');
+
+await page.getByRole('tab', { name: 'Noticing' }).click();
+
+// Waited for, and anchored on something only this screen has. The first
+// attempt asserted `/Noticing/` and passed while the journal was still on
+// screen — "Noticing" is the tab's own label, so it is on every tab. It is the
+// same false positive `e2e/admin.mjs` warns about where it looks for the trail
+// row of its own account rather than an arrow anywhere on the page.
+const arrived = await page
+  .waitForFunction(() => /felt calmer|Nothing to show yet/.test(document.body.innerText), null, {
+    timeout: 20000,
+  })
+  .then(
+    () => true,
+    () => false,
+  );
+const noticing = await body();
+
+if (arrived && !/Could not load this/.test(noticing)) ok('the insights screen loads');
+else bad('the insights screen loads', noticing.slice(0, 500));
+
+// The feelings picked at step 3, counted. One session is not a ranking —
+// twelve feelings each counted once is a ranking of nothing — but the two
+// that were chosen are the ones that must be here and the ten that were not
+// must not be.
+// Case-insensitive: the heading is uppercased in CSS and `innerText` returns
+// what is rendered, so "Feelings you chose most" reads back as
+// "FEELINGS YOU CHOSE MOST".
+if (/feelings you chose most/i.test(noticing) && /Angry/.test(noticing) && /Hurt/.test(noticing))
+  ok('it counts the feelings that were chosen');
+else bad('it counts the feelings that were chosen', noticing.slice(-700));
+
+if (!/Ashamed|Lonely|Numb/.test(noticing)) ok('and not the ones that were not');
+else bad('and not the ones that were not', noticing.slice(-700));
+
+// The recurring belief needs two sessions and this account has one, so the
+// right answer here is its absence rather than a belief named from a single
+// mention. Asserted, because a threshold nothing checks is a threshold that
+// can quietly become one.
+if (!/Belief that comes back/.test(noticing))
+  ok('one session names no recurring belief (the threshold is two)');
+else bad('one session names no recurring belief', noticing.slice(-700));
+
+// ---------------------------------------------------------------------------
 console.log('\n5. The safety stop is the server’s here too');
 
 await page.getByRole('tab', { name: 'Today' }).click();
