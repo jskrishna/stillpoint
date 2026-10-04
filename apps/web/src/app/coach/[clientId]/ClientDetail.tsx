@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FEELINGS, duration, relativeDay } from '@stillpoint/protocol';
+import { FEELINGS, LOCALE, duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiClientDetail } from '../../../lib/api';
 import styles from '../coach.module.css';
 
@@ -100,10 +100,10 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
       <p className={styles.sub}>
         {client.since === null
           ? 'Invited'
-          : `Client since ${new Date(client.since).toLocaleDateString('en-IN', { month: 'long' })}`}
+          : `Client since ${new Date(client.since).toLocaleDateString(LOCALE, { month: 'long' })}`}
         {client.nextCallAt === null
           ? ''
-          : ` · Next call ${new Date(client.nextCallAt).toLocaleString('en-IN', {
+          : ` · Next call ${new Date(client.nextCallAt).toLocaleString(LOCALE, {
               weekday: 'short',
               hour: 'numeric',
               minute: '2-digit',

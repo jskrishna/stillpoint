@@ -52,7 +52,7 @@ describe('the spoken guide', () => {
     // The guide is meant to be calm; a browser's default cadence is a screen
     // reader's. And the product is India-first, so it should not sound
     // imported.
-    expect(spoken[0]?.style.lang).toBe('en-IN');
+    expect(spoken[0]?.style.lang).toBe('en-CA');
     expect(spoken[0]?.style.rate).toBeLessThan(1);
     expect(spoken[0]?.style.pitch).toBeLessThan(1);
   });

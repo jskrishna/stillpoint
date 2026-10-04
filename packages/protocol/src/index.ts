@@ -201,4 +201,4 @@ export {
 
 export { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
 
-export { duration, greeting, partOfDay, relativeDay, type PartOfDay } from './display.js';
+export { LOCALE, duration, greeting, partOfDay, relativeDay, type PartOfDay } from './display.js';

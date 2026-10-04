@@ -9,6 +9,7 @@ import {
   type Profile,
 } from '../../../lib/api';
 import styles from '../admin.module.css';
+import { LOCALE } from '@stillpoint/protocol';
 
 const ROLES = [
   { value: 'user', label: 'User' },
@@ -277,7 +278,7 @@ export default function Accounts() {
             {trail.map((c) => (
               <tr key={c.id}>
                 <td className={styles.td}>
-                  {c.at === null ? '—' : new Date(c.at).toLocaleString('en-IN')}
+                  {c.at === null ? '—' : new Date(c.at).toLocaleString(LOCALE)}
                 </td>
                 <td className={styles.td}>{c.userEmail}</td>
                 <td className={styles.td}>

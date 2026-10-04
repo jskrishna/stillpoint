@@ -51,10 +51,17 @@ export interface SpeechEngine {
  * How the guide sounds.
  *
  * Slower and lower than a default voice, because the guide is meant to be calm
- * and a browser's default cadence is a screen reader's. `en-IN` because the
- * product is India-first and the guide should not sound imported.
+ * and a browser's default cadence is a screen reader's. `en-CA` because Canada
+ * is the first market and the guide should not sound imported.
+ *
+ * Deliberately **not** `LOCALE` from `@stillpoint/protocol`, which is the date
+ * and number locale. They happen to be the same string and they are not the
+ * same decision: this one is which voice a synthesiser picks, and Canada has
+ * two official languages, so a French-speaking user is a reason for this to
+ * become `fr-CA` while dates stay as they are. Coupling them now would hide
+ * that.
  */
-export const GUIDE_STYLE: SpeechStyle = { lang: 'en-IN', rate: 0.92, pitch: 0.95 };
+export const GUIDE_STYLE: SpeechStyle = { lang: 'en-CA', rate: 0.92, pitch: 0.95 };
 
 /**
  * The guide, spoken by an engine.

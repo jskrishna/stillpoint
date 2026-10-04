@@ -435,7 +435,21 @@ own summary from the marketing site, and it is rows in a table with an editor
 in front of them precisely so the person who owns the product's voice can
 replace it. Do not treat it as settled, and do not copy it into `steps.ts`.
 
-The same goes for pricing: the designs show `[PRICE]/mo` placeholders.
+Pricing is **set** now, and the rule above is why it took a market decision to
+set it: the designs show `[PRICE]/mo` placeholders, so the figures could not
+come from them. They are in `apps/web/src/app/plans.ts`, in CAD, with the
+comparison that produced them written beside them. `priceLabel()` still returns
+`[PRICE]/mo` for a `null`, because that is still the right answer for a plan
+nobody has priced.
+
+And the locale is **one constant**, `LOCALE` in `packages/protocol/src/display.ts`,
+exported and imported by the surfaces. It was `en-IN` written out in eleven
+places, so changing market meant finding all eleven — which is the drift that
+package exists to prevent, happening inside it. The guide's speech locale is
+deliberately **separate** (`GUIDE_STYLE.lang` on web, `GUIDE_STYLE.language` on
+the phone): the same string today, but Canada has two official languages, so a
+French-speaking user is a reason for that one to become `fr-CA` while dates stay
+as they are.
 
 ## The fonts are ours, not Google's
 

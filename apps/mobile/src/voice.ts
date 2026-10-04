@@ -35,12 +35,17 @@ export interface UserEar {
 /**
  * How the guide sounds.
  *
- * Indian English, and slower than default: this is someone being talked
+ * Canadian English, and slower than default: this is someone being talked
  * through six steps while upset, and the designs' pacing is unhurried. The
  * same numbers as the web's `GUIDE_STYLE`, so the two surfaces do not drift
  * into different voices.
+ *
+ * Deliberately not `LOCALE` from `@stillpoint/protocol`, which is the date and
+ * number locale. Same string today, different decision: this is which voice a
+ * synthesiser picks, and Canada has two official languages — a French-speaking
+ * user is a reason for this to become `fr-CA` while dates stay as they are.
  */
-export const GUIDE_STYLE = { language: 'en-IN', rate: 0.92, pitch: 0.95 } as const;
+export const GUIDE_STYLE = { language: 'en-CA', rate: 0.92, pitch: 0.95 } as const;
 
 /** A voice that says nothing, for the "text only" setting and for tests. */
 export const silentGuide: GuideVoice = {

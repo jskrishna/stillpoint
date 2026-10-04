@@ -132,9 +132,9 @@ if (said.length > 0) ok(`the guide spoke (${String(said.length)} utterance)`);
 else bad('the guide spoke', 'nothing was handed to the engine');
 if (said[0]?.text === question) ok('it spoke the step’s own question');
 else bad('it spoke the step’s own question', String(said[0]?.text));
-if (said[0]?.lang === 'en-IN' && said[0].rate < 1 && said[0].pitch < 1)
-  ok('calm and Indian English, not a screen reader’s default');
-else bad('calm and Indian English', JSON.stringify(said[0]));
+if (said[0]?.lang === 'en-CA' && said[0].rate < 1 && said[0].pitch < 1)
+  ok('calm and Canadian English, not a screen reader’s default');
+else bad('calm and Canadian English', JSON.stringify(said[0]));
 
 // And it never reads the user's own words back out.
 await voicePage.locator('textarea, input[type=text]').first().fill('My manager dismissed my work');

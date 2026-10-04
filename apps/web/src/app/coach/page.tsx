@@ -5,7 +5,7 @@ import Link from 'next/link';
 import InviteClient from './InviteClient';
 import { ApiError, api, type ApiClient } from '../../lib/api';
 import styles from './coach.module.css';
-import { relativeDay } from '@stillpoint/protocol';
+import { LOCALE, relativeDay } from '@stillpoint/protocol';
 
 /**
  * The coach's client list.
@@ -81,7 +81,7 @@ export default function Clients() {
                   <td className={styles.td}>
                     {client.nextCallAt === null
                       ? '—'
-                      : new Date(client.nextCallAt).toLocaleString('en-IN', {
+                      : new Date(client.nextCallAt).toLocaleString(LOCALE, {
                           weekday: 'short',
                           hour: 'numeric',
                           minute: '2-digit',

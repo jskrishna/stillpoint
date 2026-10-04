@@ -15,6 +15,8 @@
  * `en-IN`, like every other date in this app.
  */
 
+import { LOCALE } from '@stillpoint/protocol';
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -54,7 +56,7 @@ export function describeAge(iso: string | null | undefined, now: number = Date.n
 export function exact(iso: string | null | undefined): string | undefined {
   const at = parse(iso);
 
-  return at === null ? undefined : new Date(at).toLocaleString('en-IN');
+  return at === null ? undefined : new Date(at).toLocaleString(LOCALE);
 }
 
 function parse(iso: string | null | undefined): number | null {

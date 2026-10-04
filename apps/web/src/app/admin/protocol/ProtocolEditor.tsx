@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type ApiProtocolVersion, type ApiStepEdit } from '../../../lib/api';
 import styles from '../admin.module.css';
+import { LOCALE } from '@stillpoint/protocol';
 
 /** How long after the last keystroke an edit is sent. */
 const SAVE_AFTER_MS = 600;
@@ -295,7 +296,7 @@ export default function ProtocolEditor() {
           Version {live.label} is live
           {live.publishedAt === null
             ? ''
-            : `, published ${new Date(live.publishedAt).toLocaleString('en-IN')}`}
+            : `, published ${new Date(live.publishedAt).toLocaleString(LOCALE)}`}
           . It can no longer be edited.
         </p>
       ) : null}

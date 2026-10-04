@@ -21,7 +21,7 @@ import { useTheme } from '../../use-theme';
  * this screen's, and the server enforces it again — a session cannot start
  * without it whatever a client believes.
  *
- * The helplines come from `helplinesFor()`, which covers India only and
+ * The helplines come from `helplinesFor()`, which covers Canada and India and
  * returns nothing for anywhere else. Nothing is substituted when it does: a
  * wrong crisis number is worse than none.
  */

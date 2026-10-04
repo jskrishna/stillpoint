@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api, type ApiCoachInvite } from '../../lib/api';
 import styles from './coach.module.css';
+import { LOCALE } from '@stillpoint/protocol';
 
 /**
  * Inviting a client.
@@ -127,7 +128,7 @@ export default function InviteClient({ onAccepted }: { onAccepted?: () => void }
             <div key={i.id}>
               <p className={styles.inviteNote}>
                 <strong>{i.email}</strong> · expires{' '}
-                {new Date(i.expiresAt).toLocaleDateString('en-IN', {
+                {new Date(i.expiresAt).toLocaleDateString(LOCALE, {
                   day: 'numeric',
                   month: 'short',
                 })}{' '}

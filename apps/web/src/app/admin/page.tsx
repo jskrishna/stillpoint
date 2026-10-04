@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { STEP_LIST } from '@stillpoint/protocol';
+import { LOCALE, STEP_LIST } from '@stillpoint/protocol';
 import { describeAge } from '../../lib/ago';
 import { ApiError, api, type ApiAdminOverview } from '../../lib/api';
 import styles from './admin.module.css';
@@ -54,7 +54,7 @@ export default function Overview() {
       <p className={styles.sub}>Last {overview.windowDays} days</p>
 
       <div className={styles.stats}>
-        <Stat value={overview.sessions.toLocaleString('en-IN')} label="sessions" />
+        <Stat value={overview.sessions.toLocaleString(LOCALE)} label="sessions" />
         <Stat value={`${String(overview.reachedFinalStepPct)}%`} label="reached step 6" />
         <Stat value={`${String(overview.feltCalmerPct)}%`} label="felt calmer" />
         <Stat value={String(overview.openFlags)} label="open safety flags" />

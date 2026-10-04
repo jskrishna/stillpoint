@@ -8,10 +8,26 @@
  * and then disagree about what "Yesterday" means.
  *
  * Dates read as the journal and home screens write them: "Today", a weekday
- * within the last week, then a date. The locale is `en-IN` throughout, because
- * the product is India-first and a weekday rendered in the device's locale
- * would be the one thing on the screen in another language.
+ * within the last week, then a date. The locale is fixed rather than the
+ * device's, because a weekday rendered in whatever the phone is set to would
+ * be the one thing on the screen in another language.
  */
+
+/**
+ * The locale every surface formats dates and numbers in.
+ *
+ * `en-CA`, because Canada is the first market. It was `en-IN`, written in
+ * eleven places across the web app as well as here — so changing market meant
+ * finding all eleven, which is exactly the drift this package exists to
+ * prevent. One constant now, exported, and the surfaces import it.
+ *
+ * It is deliberately **not** the viewer's locale. The journal writes
+ * "Yesterday" and a weekday, and a device set to another language would render
+ * that one word differently from everything around it. When the product is
+ * localised properly this becomes a choice the user makes, and that is a
+ * product decision rather than a format string.
+ */
+export const LOCALE = 'en-CA';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -24,8 +40,8 @@ export function relativeDay(at: Date, now: Date): string {
   const days = Math.round((startOfDay(now) - startOfDay(at)) / DAY_MS);
   if (days <= 0) return 'Today';
   if (days === 1) return 'Yesterday';
-  if (days < 7) return at.toLocaleDateString('en-IN', { weekday: 'long' });
-  return at.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (days < 7) return at.toLocaleDateString(LOCALE, { weekday: 'long' });
+  return at.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
 }
 
 /** "14 min", as the journal shows alongside the day. */
