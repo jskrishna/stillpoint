@@ -569,6 +569,35 @@ if (!signedIn) {
   const after = await admin.locator('body').innerText();
   if (!/Step 3 has no main question/.test(after)) ok('the step’s problems clear once it is filled');
   else bad('the step’s problems clear once it is filled');
+
+  // And a refusal says what the server said.
+  //
+  // `main` is capped at 500 characters, and this screen used to answer every
+  // failed save with "Could not save that edit. Check your connection." — told
+  // to an admin writing the step copy that `LAUNCH.md` item 4 asks them to
+  // write the hour a deployment is up, about a request that arrived perfectly
+  // well. They would lose the edit and have nothing to try. Measured against
+  // the running API: it answers "The main field must not be greater than 500
+  // characters.", which is the sentence that helps.
+  await admin.locator('textarea').first().fill('x'.repeat(600));
+  const refused = await admin
+    .waitForFunction(() => /must not be greater than 500/.test(document.body.innerText), null, {
+      timeout: 15000,
+    })
+    .then(
+      () => true,
+      () => false,
+    );
+  const shown = await admin.locator('body').innerText();
+  if (refused) ok('an over-long step prompt is refused in the server’s own words');
+  else bad('an over-long step prompt is refused in the server’s own words', shown.slice(0, 400));
+  if (!/Could not save that edit/.test(shown)) ok('and not blamed on the connection');
+  else bad('and not blamed on the connection', shown.slice(0, 400));
+
+  // Put the step back, so a later run of this script starts from a complete
+  // draft rather than one this check left too long to publish.
+  await admin.locator('textarea').first().fill(copy);
+  await admin.waitForTimeout(1800);
 }
 await admin.close();
 

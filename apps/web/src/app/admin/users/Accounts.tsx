@@ -9,6 +9,7 @@ import {
   type ApiRoleChange,
   type Profile,
 } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import styles from '../admin.module.css';
 import { LOCALE } from '@stillpoint/protocol';
 
@@ -83,7 +84,7 @@ export default function Accounts() {
       setProblem(
         e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
           ? 'Accounts are for staff. Sign in with an admin account.'
-          : 'Could not load accounts. Check your connection.',
+          : describe(e),
       );
     }
   }, [query, role]);
@@ -159,9 +160,7 @@ export default function Accounts() {
     } catch (e: unknown) {
       // The server's own reason, not a guess at one: it knows whether this is
       // the last admin and this screen does not.
-      setProblem(
-        e instanceof ApiError ? e.message : 'Could not change that. Check your connection.',
-      );
+      setProblem(describe(e));
     } finally {
       setSaving(null);
     }
@@ -178,9 +177,7 @@ export default function Accounts() {
     } catch (e: unknown) {
       // The server's own reason: it knows this is the actor's own account and
       // this screen would only be guessing.
-      setProblem(
-        e instanceof ApiError ? e.message : 'Could not change that. Check your connection.',
-      );
+      setProblem(describe(e));
     } finally {
       setSaving(null);
     }
@@ -192,8 +189,8 @@ export default function Accounts() {
       const page = await api.adminUsers({ q: query, role }, undefined, cursor);
       setUsers((current) => [...(current ?? []), ...page.items]);
       setCursor(page.nextCursor);
-    } catch {
-      setProblem('Could not load more. Check your connection.');
+    } catch (e: unknown) {
+      setProblem(describe(e));
     }
   };
 

@@ -14,6 +14,7 @@ import {
   type TalkMode,
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import styles from '../app.module.css';
 
 /**
@@ -52,7 +53,7 @@ export default function Settings() {
           router.push('/welcome');
           return;
         }
-        setFailed('Could not load your settings. Check your connection.');
+        setFailed(describe(e));
       });
   }, [router]);
 
@@ -60,8 +61,8 @@ export default function Settings() {
     try {
       setProfile(await api.updateMe(changes));
       setFailed(null);
-    } catch {
-      setFailed('Could not save that. Check your connection.');
+    } catch (e: unknown) {
+      setFailed(describe(e));
     }
   };
 
@@ -80,8 +81,8 @@ export default function Settings() {
       a.click();
       URL.revokeObjectURL(url);
       setFailed(null);
-    } catch {
-      setFailed('Could not export your data. Check your connection.');
+    } catch (e: unknown) {
+      setFailed(describe(e));
     } finally {
       setExporting(false);
     }
@@ -94,7 +95,7 @@ export default function Settings() {
       setEntryCount(0);
       setConfirming(false);
       setFailed(null);
-    } catch {
+    } catch (e: unknown) {
       // Re-read the count, so what the screen says is what survived.
       setEntryCount(
         await api
@@ -102,7 +103,10 @@ export default function Settings() {
           .then((p) => p.total)
           .catch(() => entryCount),
       );
-      setFailed('Some entries were not deleted. Check your connection and try again.');
+      // The partial failure is the news and the reason comes after it: a
+      // refusal mid-loop is not a connection problem, and this screen had no
+      // way to say which.
+      setFailed(`Some entries were not deleted. ${describe(e)}`);
     }
   };
 
@@ -120,8 +124,8 @@ export default function Settings() {
       setCoaches((current) => current.filter((c) => c.id !== coach.id));
       setEndingCoach(null);
       setFailed(null);
-    } catch {
-      setFailed('Could not end that. Check your connection and try again.');
+    } catch (e: unknown) {
+      setFailed(describe(e));
     }
   };
 
@@ -139,11 +143,7 @@ export default function Settings() {
       await api.deleteAccount(erasePassword, eraseConfirm);
       router.push('/welcome');
     } catch (e: unknown) {
-      setEraseProblem(
-        e instanceof ApiError
-          ? (Object.values(e.errors)[0]?.[0] ?? e.message)
-          : 'Could not delete your account. Check your connection.',
-      );
+      setEraseProblem(describe(e));
       setErasingBusy(false);
     }
   };

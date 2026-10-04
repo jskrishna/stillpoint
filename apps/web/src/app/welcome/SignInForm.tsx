@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ApiError, api } from '../../lib/api';
+import { api } from '../../lib/api';
+import { describe } from '../../lib/describe';
 import styles from './welcome.module.css';
 
 /**
@@ -154,14 +155,4 @@ export default function SignInForm() {
       </form>
     </div>
   );
-}
-
-function describe(e: unknown): string {
-  if (e instanceof ApiError) {
-    const first = Object.values(e.errors)[0]?.[0];
-    if (first !== undefined) return first;
-    if (e.status === 429) return 'Too many attempts. Wait a minute and try again.';
-    return e.message;
-  }
-  return 'Could not reach Stillpoint. Check your connection and try again.';
 }

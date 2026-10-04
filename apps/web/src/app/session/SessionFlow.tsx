@@ -17,6 +17,7 @@ import {
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
 import { ApiError, api, hasToken, type ApiHelpline, type ApiSession } from '../../lib/api';
+import { describe } from '../../lib/describe';
 import { browserVoiceLoop, type VoiceLoop } from '../../lib/voice';
 import styles from './session.module.css';
 
@@ -492,16 +493,6 @@ export default function SessionFlow() {
       </div>
     </div>
   );
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  // Not "something went wrong", which tells somebody nothing they can act on.
-  // The error that reaches here is the request not arriving — the case the
-  // `unsentCrisis` note above is about — and the same sentence the sign-in
-  // screen uses for it. The comment at the top of this file quoted this
-  // wording while the code said the other thing.
-  return 'Could not reach Stillpoint. Check your connection and try again.';
 }
 
 function FeelingPicker({

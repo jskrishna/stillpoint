@@ -1,0 +1,106 @@
+{
+  "note": [
+    "How a refusal is worded, asserted by both surfaces against this one file.",
+    "",
+    "`parity/cases.json` pins rules across two LANGUAGES. This pins one rule",
+    "across two SURFACES: `apps/web/src/lib/describe.ts` and",
+    "`apps/mobile/src/describe.ts` are the same function word for word, because",
+    "the two answer to the same API and somebody who meets a limit on their",
+    "phone and then on their laptop should not be told two different things",
+    "about it. The phone's file claimed that parity in a comment while the web",
+    "had a dozen hand-rolled versions, several of which threw the server's own",
+    "sentence away and blamed the network. This is what makes the claim true.",
+    "",
+    "Hand-written, unlike `cases.json`: there is no generator, because there is",
+    "no second implementation to generate it from — only two copies of one.",
+    "",
+    "`errors` is the API's validation bag; `message` is its top-level sentence.",
+    "A case with neither stands for a request that never got an answer."
+  ],
+  "cases": [
+    {
+      "why": "A field error is the most specific thing there is, so it wins.",
+      "status": 422,
+      "message": "The given data was invalid.",
+      "errors": { "email": ["That address is already in use."] },
+      "expect": "That address is already in use."
+    },
+    {
+      "why": "The editor's own limit. The screen used to say \"Check your connection\" for this, to an admin writing the step copy LAUNCH.md asks them to write — false, and unfixable by anything they would then try.",
+      "status": 422,
+      "message": "The main field must not be greater than 500 characters.",
+      "errors": { "main": ["The main field must not be greater than 500 characters."] },
+      "expect": "The main field must not be greater than 500 characters."
+    },
+    {
+      "why": "The guide's budget running out mid-session. The API writes this sentence carefully, for somebody upset and part-way through being asked questions.",
+      "status": 429,
+      "message": "That was a lot of answers very quickly. Give it a moment and try again.",
+      "errors": {},
+      "expect": "That was a lot of answers very quickly. Give it a moment and try again."
+    },
+    {
+      "why": "Laravel's throttle middleware on the sign-in routes. \"Too Many Requests\" is the framework answering, not the application, which is what the generic is for.",
+      "status": 429,
+      "message": "Too Many Requests",
+      "errors": {},
+      "expect": "Too many attempts. Wait a minute and try again."
+    },
+    {
+      "why": "And the same when it says nothing at all.",
+      "status": 429,
+      "message": "",
+      "errors": {},
+      "expect": "Too many attempts. Wait a minute and try again."
+    },
+    {
+      "why": "A 409 the application worded itself. Passed through as written.",
+      "status": 409,
+      "message": "This session has ended.",
+      "errors": {},
+      "expect": "This session has ended."
+    },
+    {
+      "why": "The sharing setting refusing. Shown as the server said it, because \"Could not change sharing. Check your connection.\" was told to somebody whose own setting had refused it.",
+      "status": 409,
+      "message": "Sharing is off for your account. Change “Never share” in settings first.",
+      "errors": {},
+      "expect": "Sharing is off for your account. Change “Never share” in settings first."
+    },
+    {
+      "why": "A spent allowance. The server says what it is; the screen offers the quick session beside it.",
+      "status": 402,
+      "message": "That is this week’s three full sessions. A quick session is always available.",
+      "errors": {},
+      "expect": "That is this week’s three full sessions. A quick session is always available."
+    },
+    {
+      "why": "An answer with no words in it. `abort(404)` with no message — how EnsureStaff hides the console and authorizePairing() hides whose clients are whose — sends an empty string, and returning it handed the screen an empty explanation. Measured against the running API.",
+      "status": 404,
+      "message": "",
+      "errors": {},
+      "expect": "Stillpoint would not do that. Reload to see where things stand."
+    },
+    {
+      "why": "Whitespace is no words either.",
+      "status": 403,
+      "message": "   ",
+      "errors": {},
+      "expect": "Stillpoint would not do that. Reload to see where things stand."
+    },
+    {
+      "why": "A 500 the deployment did not explain. Not the connection sentence: the server answered.",
+      "status": 500,
+      "message": "",
+      "errors": {},
+      "expect": "Stillpoint would not do that. Reload to see where things stand."
+    },
+    {
+      "why": "No answer at all — the request died on the way out. This is the one case the connection sentence is for, and the only one.",
+      "status": null,
+      "message": null,
+      "errors": null,
+      "expect": "Could not reach Stillpoint. Check your connection and try again."
+    }
+  ]
+}

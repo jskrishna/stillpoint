@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, hasToken, type ApiInvitation } from '../../../../lib/api';
+import { describe } from '../../../../lib/describe';
 import styles from '../../welcome.module.css';
 
 /**
@@ -48,11 +49,12 @@ export default function AcceptInvite({ token }: { token: string }) {
           setInvitation(null);
           return;
         }
-        setUnreachable(
-          e instanceof ApiError && e.message !== ''
-            ? e.message
-            : 'Could not check this link. Check your connection and try again.',
-        );
+        // Everything that is left: a 429 from the `guessable` limiter, a 5xx,
+        // or no answer at all. `describe()` tells those three apart; the
+        // fallback here said "check your connection" for all of them, which is
+        // false for two. The screen's own trailing sentence carries the part
+        // that matters — that none of this means the link is wrong.
+        setUnreachable(describe(e));
       });
   }, [token]);
 
@@ -70,11 +72,7 @@ export default function AcceptInvite({ token }: { token: string }) {
       const result = await api.acceptInvitation(token);
       setAccepted(result.coachName);
     } catch (e: unknown) {
-      setProblem(
-        e instanceof ApiError
-          ? e.message
-          : 'Could not accept this invitation. Check your connection.',
-      );
+      setProblem(describe(e));
       setBusy(false);
     }
   };

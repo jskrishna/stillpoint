@@ -12,6 +12,7 @@ import {
   type CoachSharing,
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
+import { describe } from '../../../../lib/describe';
 import styles from '../../app.module.css';
 
 const LABEL = new Map<string, string>(FEELINGS.map((f) => [f.id, f.label]));
@@ -85,8 +86,8 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
           setEntry(updated);
           setFailed(null);
         })
-        .catch(() => {
-          setFailed('Your note is not saved. Check your connection.');
+        .catch((e: unknown) => {
+          setFailed(describe(e));
         })
         .finally(() => {
           setSaving(false);
@@ -119,11 +120,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
       // The server's own reason when it has one. "Check your connection" was
       // told to somebody whose own "Never share" setting had refused it, which
       // is both wrong and unfixable by anything they would then try.
-      setFailed(
-        e instanceof ApiError && e.message !== ''
-          ? e.message
-          : 'Could not change sharing. Check your connection.',
-      );
+      setFailed(describe(e));
     }
   };
 
@@ -131,8 +128,8 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     try {
       await api.deleteJournalEntry(entry.id);
       router.push('/app/journal');
-    } catch {
-      setFailed('Could not delete this entry. Check your connection.');
+    } catch (e: unknown) {
+      setFailed(describe(e));
     }
   };
 

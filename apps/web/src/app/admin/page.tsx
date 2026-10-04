@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { LOCALE, STEP_LIST } from '@stillpoint/protocol';
 import { describeAge } from '../../lib/ago';
 import { ApiError, api, type ApiAdminOverview } from '../../lib/api';
+import { describe } from '../../lib/describe';
 import styles from './admin.module.css';
 
 const RESULT_LABEL: Readonly<Record<string, string>> = {
@@ -34,7 +35,7 @@ export default function Overview() {
         setProblem(
           e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
             ? 'The console is for staff. Sign in with an admin account.'
-            : 'Could not load the overview. Check your connection.',
+            : describe(e),
         );
       });
   }, []);

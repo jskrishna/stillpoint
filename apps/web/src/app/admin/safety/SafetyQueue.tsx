@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ApiError, api, type ApiSafetyFlag } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import { ago, describeAge, exact } from '../../../lib/ago';
 import styles from '../admin.module.css';
 
@@ -46,7 +47,7 @@ export default function SafetyQueue() {
         setProblem(
           e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
             ? 'The safety queue is for reviewers. Sign in with an admin account.'
-            : 'Could not load the queue. Check your connection.',
+            : describe(e),
         );
       });
   }, [showReviewed]);
@@ -59,8 +60,8 @@ export default function SafetyQueue() {
       setFlags((current) => [...(current ?? []), ...page.items]);
       setCursor(page.nextCursor);
       setTotal(page.total);
-    } catch {
-      setProblem('Could not load more of the queue. Check your connection.');
+    } catch (e: unknown) {
+      setProblem(describe(e));
     } finally {
       setLoadingMore(false);
     }
@@ -74,8 +75,8 @@ export default function SafetyQueue() {
       const updated = await api.reviewSafetyFlag(id);
       setFlags((current) => (current ?? []).map((f) => (f.id === updated.id ? updated : f)));
       setProblem(null);
-    } catch {
-      setProblem('Could not record that review. Check your connection.');
+    } catch (e: unknown) {
+      setProblem(describe(e));
     }
   };
 

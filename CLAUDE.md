@@ -673,7 +673,8 @@ packages/client/          @stillpoint/client — the typed API client, one per s
 apps/web/                 @stillpoint/web — Next.js: marketing site and web app
 apps/mobile/              @stillpoint/mobile — Expo: the iOS and Android app
 apps/desktop/             @stillpoint/desktop — Electron: a shell around the web app
-parity/                   the cross-language fixture both suites assert against
+parity/                   cases.json: the cross-language fixture both suites assert
+                          against; refusals.json: how a refusal is worded, across both surfaces
 e2e/                      a by-hand browser check of web against a running API
 ```
 
@@ -804,17 +805,60 @@ of the interface widened. Do not widen it.
 URL, a `localStorage` store, and a re-export of everything so no screen has to
 know which package a type came from.
 
-**A refusal's wording is the server's.** `apps/mobile/src/describe.ts` turns an
-`ApiError` into a sentence, and the rule is that the API's own message wins — a
-generic line is a fallback for when the framework answered instead of the
-application. A 429 is where that matters: Laravel's throttle middleware answers
-the sign-in routes with a bare "Too Many Requests", which is not something to
-show a person, but the guide's budget running out mid-session is the API's own
-"That was a lot of answers very quickly." Replacing both with "Too many
-attempts" told somebody upset, part-way through being asked questions, that
-they had made too many attempts at something — and the web app showed the
-server's sentence, so the two surfaces disagreed about the same limit, which is
-the one thing that file's own note promises they do not.
+**A refusal's wording is the server's.** `describe()` turns an `ApiError` into
+a sentence, and the rule is that the API's own message wins — a generic line is
+a fallback for when the framework answered instead of the application. A 429 is
+where that matters: Laravel's throttle middleware answers the sign-in routes
+with a bare "Too Many Requests", which is not something to show a person, but
+the guide's budget running out mid-session is the API's own "That was a lot of
+answers very quickly." Replacing both with "Too many attempts" told somebody
+upset, part-way through being asked questions, that they had made too many
+attempts at something.
+
+**That rule lived on the phone and the web did not have it.** The file said
+"Word for word the web app's", and across the two surfaces there were **three
+separate local `describe()` functions** — one of them the phone's own session
+screen, which did not use the phone's own rule — **six inline reimplementations
+of part of it** (the field-error preference written out four times, the 429
+branch once, an `e.message !== ''` guard twice) and **twenty places that
+implemented none of it** and answered every failure with "Check your
+connection." — about a request that had arrived perfectly well.
+
+The sharpest was the protocol editor: `main` is capped at 500 characters,
+and an admin pasting a longer step prompt — doing the one thing `LAUNCH.md`
+item 4 asks them to do the hour a deployment is up — was told their network was
+bad and lost the edit, while the API had answered "The main field must not be
+greater than 500 characters." Measured against the running API, not inferred.
+
+**And `e.message` can be empty, which is worse than wrong.** A bare
+`abort(404)` — how `EnsureStaff` hides the console and `authorizePairing()`
+hides whose clients are whose — sends `{"message": ""}`, so returning it handed
+a screen an **empty string** as the explanation: a coach whose client ended the
+pairing mid-note got a blank line where the reason should be. One call site had
+noticed and worked around it locally with `e.message !== ''`, which is the shape
+of a rule that needs to be in one place. An answer with no words gets
+"Stillpoint would not do that. Reload to see where things stand." —
+deliberately not the connection sentence, because the connection was fine and
+the server declined to say why, which is itself the rule.
+
+So the function is now **one function in both surfaces**,
+`apps/web/src/lib/describe.ts` and `apps/mobile/src/describe.ts`, and every
+screen on both goes through it. It is **not** in `packages/client`: that package
+is allowed I/O and not copy, and a sentence shown to a person is the surface's.
+
+`parity/refusals.json` is a checked-in table of refusals and the sentence each
+gets, and `apps/web/src/lib/describe.test.ts` asserts every case **and** that
+the phone's copy is byte-for-byte the same file. Both halves are needed: a
+tested function with a drifted twin is exactly the situation this replaced, and
+a promise in a comment is not a promise. The test lives on the web side because
+`apps/mobile`'s tsconfig is Expo's and has no `node` types to read a file with.
+
+Four wordings are deliberately **not** routed through it, and the distinction is
+the one from "A screen must not report an absence it only failed to read": these
+are statements about an absence, not refusals. The role and plan trails'
+"Could not read…", the home screen's "Could not check whether you left a
+session open", the invite screen's 404-and-410-only branching, and the static
+"Could not load your journal" lines, which have no error object to describe.
 
 ### The backend is Laravel, and it owns the rules
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ApiError, api, type ApiCoachInvite } from '../../lib/api';
+import { api, type ApiCoachInvite } from '../../lib/api';
+import { describe } from '../../lib/describe';
 import styles from './coach.module.css';
 import { LOCALE } from '@stillpoint/protocol';
 
@@ -43,11 +44,7 @@ export default function InviteClient({ onAccepted }: { onAccepted?: () => void }
       setEmail('');
       onAccepted?.();
     } catch (e: unknown) {
-      setProblem(
-        e instanceof ApiError
-          ? (Object.values(e.errors)[0]?.[0] ?? e.message)
-          : 'Could not send that invitation. Check your connection.',
-      );
+      setProblem(describe(e));
     } finally {
       setBusy(false);
     }
@@ -59,9 +56,7 @@ export default function InviteClient({ onAccepted }: { onAccepted?: () => void }
       setInvites((current) => current.map((i) => (i.id === updated.id ? updated : i)));
       setProblem(null);
     } catch (e: unknown) {
-      setProblem(
-        e instanceof ApiError ? e.message : 'Could not withdraw that. Check your connection.',
-      );
+      setProblem(describe(e));
     }
   };
 

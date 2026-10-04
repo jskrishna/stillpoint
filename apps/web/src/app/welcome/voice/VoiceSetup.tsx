@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
 import { ApiError, api } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import { NO_EAR_REASON } from '../../../lib/voice';
 import styles from '../welcome.module.css';
 
@@ -32,7 +33,7 @@ export default function VoiceSetup() {
         router.push('/welcome');
         return;
       }
-      setError('Could not save that. Check your connection and try again.');
+      setError(describe(e));
       setBusy(false);
     }
   };

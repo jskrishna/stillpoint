@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type ApiProtocolVersion, type ApiStepEdit } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import styles from '../admin.module.css';
 import { LOCALE } from '@stillpoint/protocol';
 
@@ -43,7 +44,7 @@ export default function ProtocolEditor() {
         setProblem(
           e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
             ? 'The step-prompt editor is for staff. Sign in with an admin account.'
-            : 'Could not load the protocol. Check your connection.',
+            : describe(e),
         );
       });
   }, []);
@@ -68,8 +69,14 @@ export default function ProtocolEditor() {
           if (latest !== null) setDraft(latest);
           setPending({});
           setProblem(null);
-        } catch {
-          setProblem('Could not save that edit. Check your connection.');
+        } catch (e: unknown) {
+          // The server's own sentence. This said "Check your connection" for
+          // every failure including a 422 — so an admin pasting a step prompt
+          // over 500 characters, doing the one thing LAUNCH.md asks them to do
+          // the hour a deployment is up, was told their network was bad and
+          // lost the edit. Measured: the API answers "The main field must not
+          // be greater than 500 characters."
+          setProblem(describe(e));
         } finally {
           setSaving(false);
         }
@@ -102,11 +109,11 @@ export default function ProtocolEditor() {
       setDraft(null);
       setProblem(null);
     } catch (e: unknown) {
-      setProblem(
-        e instanceof ApiError
-          ? `The server refused: ${e.message}`
-          : 'Could not publish. Check your connection.',
-      );
+      // No "The server refused:" prefix any more: it read as a refusal
+      // either way, and prefixing an empty message — which is what a bare
+      // `abort(404)` sends, reachable here if the admin's role was taken
+      // mid-edit — produced "The server refused: " and nothing after it.
+      setProblem(describe(e));
       // Re-read, so the problems shown are the ones the server named.
       const versions = await api.protocolVersions().catch(() => null);
       if (versions !== null) {
@@ -120,8 +127,8 @@ export default function ProtocolEditor() {
     try {
       setDraft(await api.openProtocolDraft());
       setProblem(null);
-    } catch {
-      setProblem('Could not open a draft. Check your connection.');
+    } catch (e: unknown) {
+      setProblem(describe(e));
     }
   };
 

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ApiError, api } from '../../../../lib/api';
+import { api } from '../../../../lib/api';
+import { describe } from '../../../../lib/describe';
 import styles from '../../welcome.module.css';
 
 /**
@@ -39,11 +40,7 @@ export default function ResetPassword({ token }: { token: string }) {
       await api.resetPassword(email, token, password);
       setDone(true);
     } catch (e: unknown) {
-      setProblem(
-        e instanceof ApiError
-          ? (Object.values(e.errors)[0]?.[0] ?? e.message)
-          : 'Could not reach Stillpoint. Check your connection and try again.',
-      );
+      setProblem(describe(e));
       setBusy(false);
     }
   };

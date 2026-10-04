@@ -12,6 +12,7 @@ import {
   type ConsentId,
 } from '@stillpoint/protocol';
 import { ApiError, api } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import styles from '../welcome.module.css';
 
 /**
@@ -94,7 +95,7 @@ export default function ConsentForm() {
         router.push('/welcome');
         return;
       }
-      setError('Could not save that. Check your connection and try again.');
+      setError(describe(e));
       setBusy(false);
     }
   };

@@ -74,7 +74,9 @@ src/use-theme.ts      palette and shared styles for the current colour scheme
 src/ui.tsx            Button, Field, Card, Tag — the controls the screens use
 src/voice.ts          the guide's voice, behind the same seam as the web's
 src/mark.tsx          the Stillpoint mark
-src/describe.ts       an API refusal in words, word for word the web app's
+src/describe.ts       an API refusal in words — byte for byte the web app's,
+                      asserted by apps/web/src/lib/describe.test.ts against
+                      parity/refusals.json. Do not edit one copy.
 src/exports.ts        the journal export's cache file, and discarding it
 ```
 

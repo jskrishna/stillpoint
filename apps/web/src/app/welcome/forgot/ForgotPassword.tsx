@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ApiError, api } from '../../../lib/api';
+import { api } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import styles from '../welcome.module.css';
 
 /**
@@ -28,11 +29,10 @@ export default function ForgotPassword() {
       await api.forgotPassword(email.trim());
       setSent(true);
     } catch (e: unknown) {
-      setProblem(
-        e instanceof ApiError && e.status === 429
-          ? 'Too many attempts. Wait a minute and try again.'
-          : 'Could not reach Stillpoint. Check your connection and try again.',
-      );
+      // This threw the server's message away for everything but a 429 — so
+      // "The email field must be a valid email address." became "Could not
+      // reach Stillpoint", on a form whose whole job is to take an address.
+      setProblem(describe(e));
     } finally {
       setBusy(false);
     }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FEELINGS, LOCALE, duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiClientDetail } from '../../../lib/api';
+import { describe } from '../../../lib/describe';
 import styles from '../coach.module.css';
 
 const LABEL = new Map<string, string>(FEELINGS.map((f) => [f.id, f.label]));
@@ -61,8 +62,13 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
           setClient(updated);
           setProblem(null);
         })
-        .catch(() => {
-          setProblem('Your notes are not saved. Check your connection.');
+        .catch((e: unknown) => {
+          // Including the case this screen is most likely to meet: the client
+          // ended the pairing while the coach was typing. That is a bare 404,
+          // so `describe()` says the server would not do it and to reload —
+          // which is what shows them the client is gone. "Check your
+          // connection" was false and left them retrying.
+          setProblem(describe(e));
         })
         .finally(() => {
           setSaving(false);

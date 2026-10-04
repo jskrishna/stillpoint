@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import InviteClient from './InviteClient';
 import { ApiError, api, type ApiClient } from '../../lib/api';
+import { describe } from '../../lib/describe';
 import styles from './coach.module.css';
 import { LOCALE, relativeDay } from '@stillpoint/protocol';
 
@@ -28,7 +29,7 @@ export default function Clients() {
         setProblem(
           e instanceof ApiError && (e.isUnauthenticated || e.status === 404)
             ? 'The coach portal is for coaches. Sign in with a coach account.'
-            : 'Could not load your clients. Check your connection.',
+            : describe(e),
         );
       });
   }, []);

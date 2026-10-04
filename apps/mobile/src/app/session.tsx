@@ -16,6 +16,7 @@ import {
   type FeelingId,
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiHelpline, type ApiSession } from '../api';
+import { describe } from '../describe';
 import { FAMILY, leading } from '../theme';
 import { guideVoiceFor, silentGuide, type GuideVoice } from '../voice';
 import { Button, Card, Field, Tag } from '../ui';
@@ -481,11 +482,6 @@ export default function Session() {
       />
     </ScrollView>
   );
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  return 'Something went wrong. Please try again.';
 }
 
 function FeelingPicker({
