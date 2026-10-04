@@ -137,6 +137,20 @@ const STEP_CASES = [
   ['feel', 'sad sad'],
   ['feel', 'I do not know what I feel'],
   ['feel', ''],
+
+  // The cap, which was a rule only the two grids kept: `MAX_FEELINGS` refused
+  // the fourth tap and `FeelingId::MAX_CHOICES` was used by nothing, so a turn
+  // naming all twelve recorded all twelve — the journal listed twelve and
+  // insights counted twelve for one session, which is a ranking of nothing.
+  // The first three in the order given, so these also pin the order, which is
+  // where the two languages could disagree without the count noticing.
+  ['feel', 'angry hurt sad afraid'],
+  [
+    'feel',
+    'angry afraid anxious sad guilty ashamed rejected unworthy lonely hurt ' +
+      'overwhelmed powerless humiliated',
+  ],
+  ['feel', 'powerless lonely angry sad'],
   ['remember', 'Being talked over at school when I was nine'],
   ['inquire', 'I am not good enough'],
   ['inquire', '“I’m not good enough.”'],

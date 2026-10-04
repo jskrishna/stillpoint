@@ -503,7 +503,25 @@ exist in both languages, and the parity fixture covers them.
 
 Step 3 is not answered in prose. The designs give it a grid of the twelve
 feelings and "Choose up to 3", so `answerKindOf('feel')` is `'feelings'` and the
-client posts feeling **ids**, not labels. The guide's word-count heuristic is
+client posts feeling **ids**, not labels.
+
+**And "up to 3" was a rule only the two grids kept.** `toggleFeeling` refuses
+the fourth tap and `FeelingId::MAX_CHOICES` was declared and used by nothing,
+so `feelingsIn()` took every recognised token: a turn naming all twelve
+recorded all twelve, the journal's "What you felt" listed twelve, and insights
+counted twelve for one session — which makes "Feelings you chose most" a
+ranking of twelve things at one apiece. No shipped client can send that, and
+that is the point rather than the excuse: a rule only the client keeps is one
+the next client does not, which is the same reason the risk screen's browser
+copy is a convenience and the server is the enforcement.
+
+It is the first three in the order given, not a refusal. At this step the
+answer is a selection, and dropping the fourth is exactly what the screen does
+to the fourth tap, so the journal and the insights end up agreeing with what
+the person was told they could choose. Three fixture cases pin it — four
+feelings, all twelve, and a different order — because the order is where the
+two languages could disagree without a count noticing. Checked by taking the
+cap back out of the PHP: all three go red. The guide's word-count heuristic is
 only applied to prose: judging a selection by its length stalled step 3 for
 anyone who did not happen to pick exactly three feelings. Answer kind belongs to
 the step _id_, not to a protocol version — staff editing prompts in the admin

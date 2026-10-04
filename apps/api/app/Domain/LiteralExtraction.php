@@ -31,6 +31,17 @@ final class LiteralExtraction
             if ($id !== null && ! in_array($id, $found, true)) {
                 $found[] = $id;
             }
+            // Capped, which is what `MAX_CHOICES` was for: it was declared
+            // here and used by nothing, so "Choose up to 3" was a rule only
+            // the two grids kept. A turn naming all twelve recorded all
+            // twelve — the journal listed twelve and insights counted twelve
+            // for one session, which is a ranking of nothing. The first three
+            // in the order given rather than a refusal, because at this step
+            // the answer is a selection and dropping the fourth is what the
+            // screen already does to the fourth tap.
+            if (count($found) === FeelingId::MAX_CHOICES) {
+                break;
+            }
         }
 
         return $found;

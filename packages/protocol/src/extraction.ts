@@ -11,17 +11,38 @@
  * rule that will disagree with itself.
  */
 
-import { isFeelingId, type FeelingId } from './feelings.js';
+import { MAX_FEELINGS, isFeelingId, type FeelingId } from './feelings.js';
 import type { Extraction } from './guide.js';
 import { forgivenessFor } from './session.js';
 import { answerKindOf, type StepId } from './steps.js';
 import { firstCharacters } from './utterance.js';
 
-/** The feeling ids in an answer to step 3, in the order they were given. */
+/**
+ * The feeling ids in an answer to step 3, in the order they were given.
+ *
+ * **Capped at {@link MAX_FEELINGS}, which is the rule and was only the
+ * screen's.** The designs give step 3 a grid of twelve and "Choose up to 3";
+ * `toggleFeeling` refuses the fourth tap, and `FeelingId::MAX_CHOICES` existed
+ * on the PHP side and was used by nothing. So a turn naming all twelve
+ * recorded all twelve: the journal's "What you felt" listed twelve, and
+ * insights counted twelve for one session — which makes "Feelings you chose
+ * most" a ranking of twelve things at one apiece, a ranking of nothing.
+ *
+ * No shipped client can reach it, because both grids cap the selection. That
+ * is the point: a rule only the client keeps is one the next client does not,
+ * and this is the same reason the risk screen's browser copy is a convenience
+ * and the server is the enforcement.
+ *
+ * The first three in the order given, not a refusal. At this step the answer
+ * is a selection rather than prose, and dropping the fourth is exactly what
+ * the screen does to the fourth tap — so the journal and the insights end up
+ * agreeing with what the person was told they could choose.
+ */
 export function feelingsIn(utterance: string): readonly FeelingId[] {
   const seen = new Set<FeelingId>();
   for (const token of utterance.toLowerCase().split(/[^a-z]+/)) {
     if (isFeelingId(token)) seen.add(token);
+    if (seen.size === MAX_FEELINGS) break;
   }
   return [...seen];
 }

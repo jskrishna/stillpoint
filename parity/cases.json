@@ -452,6 +452,30 @@
       "capture": null
     },
     {
+      "stepId": "feel",
+      "utterance": "angry hurt sad afraid",
+      "substantive": true,
+      "capture": {
+        "feelings": ["angry", "hurt", "sad"]
+      }
+    },
+    {
+      "stepId": "feel",
+      "utterance": "angry afraid anxious sad guilty ashamed rejected unworthy lonely hurt overwhelmed powerless humiliated",
+      "substantive": true,
+      "capture": {
+        "feelings": ["angry", "afraid", "anxious"]
+      }
+    },
+    {
+      "stepId": "feel",
+      "utterance": "powerless lonely angry sad",
+      "substantive": true,
+      "capture": {
+        "feelings": ["powerless", "lonely", "angry"]
+      }
+    },
+    {
       "stepId": "remember",
       "utterance": "Being talked over at school when I was nine",
       "substantive": true,
