@@ -656,10 +656,31 @@ is a fill**; they are not interchangeable, which is the whole reason both exist.
 
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
-and 1440 — 76 combinations across 19 routes — and the last run was clean across
+and 1440 — 80 combinations across 20 routes — and the last run was clean across
 all of them. It
-signs in as each role and resolves the client and invitation routes from real
-rows rather than hard-coding an id.
+signs in as each role and resolves the client, invitation and journal-entry
+routes from real rows rather than hard-coding an id.
+
+**"Every route" was 19 of 20 for a while**, and the missing one is the one
+worth knowing about: `/app/journal/[entryId]`, where somebody reads back their
+own session and writes a note on it. It was the only route needing a row to
+exist, and `DemoSeeder` deliberately makes no content, so the script's own
+account had never had a session — the summary said every route was clean and
+that screen had never been looked at. The other two dynamic routes were already
+resolved from real rows; this one now finishes a quick session through the API
+first, by the same method. A route list is exactly the kind of sentence this
+file keeps catching: it reads as complete and nothing checks it against the
+`page.tsx` files.
+
+**And the audit being clean on it says less than it sounds**, which is the same
+point as `axe` not catching a screen with no live region. The note's visible
+label was not its programmatic one: the `<label>` is the textarea's sibling
+with no `htmlFor`, so the accessible name fell back to the placeholder —
+"Anything you want to remember." — and somebody driving the page by voice
+asking for "My note" matched nothing. Measured through Chromium's own
+accessibility tree, before and after: `name="Anything you want to remember."`
+became `name="My note"`. `axe` passes either way, because a placeholder is an
+accepted name source.
 
 ## Stack
 

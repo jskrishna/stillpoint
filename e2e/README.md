@@ -208,8 +208,8 @@ node e2e/coach.mjs
 
 ## The accessibility audit
 
-`a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 76
-combinations across 19 routes — against the same servers. `CLAUDE.md` asks for
+`a11y.mjs` runs axe-core over every route in both palettes at 390 and 1440 — 80
+combinations across 20 routes — against the same servers. `CLAUDE.md` asks for
 it after UI work.
 
 ```bash
@@ -220,8 +220,13 @@ It registers its own account so the routes behind a token render something
 rather than redirecting, and signs in as the admin and coach above for their own
 screens — signed out those render a one-line "this is for staff", which is not
 the screen worth auditing. The client route is resolved from the coach's real
-pairing rather than hard-coded. Without an account for a role those routes are
-skipped, and the run says so rather than passing on a refusal. Contrast is already covered at the token level by
+pairing rather than hard-coded, and the journal-entry route from a quick
+session the script finishes through the API — that one was missing for a while,
+because it is the only route needing a row to exist and `DemoSeeder` makes no
+content on purpose, so "every route" was nineteen of twenty and the one it
+skipped was where somebody reads back their own session. Without an account for
+a role those routes are skipped, and the run says so rather than passing on a
+refusal. Contrast is already covered at the token level by
 `packages/design-tokens/src/contrast.test.ts`; what this catches is the rest — a
 control with no accessible name, a label with nothing to label, a heading level
 skipped, a pairing that only exists once a component is rendered.

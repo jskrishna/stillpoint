@@ -168,10 +168,20 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         ))}
       </div>
 
-      <label className={styles.label} style={{ marginTop: 16 }}>
+      {/*
+        `htmlFor`, because this label is the textarea's sibling rather than its
+        parent. Without it the field's accessible name fell back to the
+        placeholder — "Anything you want to remember." — so the visible label
+        was not the programmatic one, and somebody driving the page by voice
+        asking for "My note" matched nothing. `axe` does not flag it: a
+        placeholder is an accepted name source, which is the same reason it
+        would not have caught the session screen having no live region.
+      */}
+      <label className={styles.label} htmlFor="journal-note" style={{ marginTop: 16 }}>
         My note{saving ? ' · saving…' : ''}
       </label>
       <textarea
+        id="journal-note"
         rows={3}
         value={note}
         onChange={(e) => {

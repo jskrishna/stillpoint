@@ -150,11 +150,78 @@ if (asCoach) {
     inviteRoutes.push(String(made.inviteLink));
 }
 
+/**
+ * A finished session, so the one route that needs content can be audited.
+ *
+ * `/app/journal/[entryId]` was the only one of the app's twenty routes this
+ * script never reached, and the reason is worth keeping: it is the only one
+ * that needs a row to exist. `DemoSeeder` deliberately makes no content — a
+ * fixture that already holds what a test is about is a test that passes
+ * whether or not the code works — and the account this script registers has
+ * never had a session. So the summary said every route was clean while the one
+ * screen where somebody reads back their own words and writes a note on them
+ * had never been looked at.
+ *
+ * The other two dynamic routes were already resolved from real rows rather
+ * than guessed (`/coach/<id>`, the invitation link), which is the same method:
+ * make the thing, then audit the screen that shows it.
+ *
+ * A quick session, because the allowance prices the long one and nothing here
+ * is about the allowance.
+ */
+const entryRoutes = [];
+{
+  const made = await userPage.evaluate(async (api) => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+
+    const started = await fetch(`${api}/sessions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ kind: 'quick' }),
+    });
+    if (!started.ok) return { why: `starting a session: ${String(started.status)}` };
+    const session = await started.json();
+
+    // Six ordinary answers. Nothing here trips the risk screen: a session that
+    // stops for safety is never journalled, so it would leave no entry.
+    for (const utterance of [
+      'The meeting went badly and I said nothing',
+      'I can see how I let it sit with me',
+      'hurt',
+      'A morning when I was nine and nobody asked',
+      'I am not taken seriously',
+      'I am letting that one go',
+    ]) {
+      const turn = await fetch(`${api}/sessions/${String(session.id)}/turns`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ utterance }),
+      });
+      if (turn.status === 409) break;
+      if (!turn.ok) return { why: `taking a turn: ${String(turn.status)}` };
+    }
+
+    const journal = await fetch(`${api}/journal?limit=1`, { headers }).then((r) =>
+      r.ok ? r.json() : { items: [] },
+    );
+    const id = journal.items?.[0]?.id;
+    return id === undefined ? { why: 'the session left no journal entry' } : { id };
+  }, API);
+
+  if (made.id === undefined) console.log(`no journal entry to audit — ${String(made.why)}\n`);
+  else entryRoutes.push(`/app/journal/${String(made.id)}`);
+}
+
 const ROUTES = [
   ...PUBLIC_ROUTES.map((route) => ({ route, as: 'user' })),
   // Audited signed out, which is how it is met.
   ...inviteRoutes.map((route) => ({ route, as: 'anonymous' })),
-  ...PRIVATE_ROUTES.map((route) => ({ route, as: 'user' })),
+  ...[...PRIVATE_ROUTES, ...entryRoutes].map((route) => ({ route, as: 'user' })),
   ...ADMIN_ROUTES.map((route) => ({ route, as: 'admin' })),
   ...[...COACH_ROUTES, ...clientRoutes].map((route) => ({ route, as: 'coach' })),
 ];
