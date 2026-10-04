@@ -350,6 +350,69 @@ if (!coachSignedIn) {
   // the product do the routing. No `goto` anywhere in here.
   await client.goto(link, { waitUntil: 'networkidle' });
   await client.waitForTimeout(1500);
+
+  /*
+   * First, the same journey with a token that exists and does not work.
+   *
+   * The screen guarded on `hasToken()`, which asks whether a token is *there*
+   * and not whether it works — and a thirty-day expiry leaves one in
+   * `localStorage`. So this was a dead end: Accept answered 401, the screen
+   * printed Laravel's **"Unauthenticated."** under an invitation from
+   * somebody's coach, the stale token stayed, and pressing Accept again did
+   * the same thing. Measured in a real browser, twice round.
+   *
+   * It is the second time this one screen has been broken by reasoning about
+   * the request instead of the answer, which is why it is asserted rather
+   * than only fixed. A dead token is the same situation as no token, so it
+   * takes the same path.
+   */
+  await client.evaluate(() =>
+    window.localStorage.setItem('stillpoint.token.v1', 'expired-but-present'),
+  );
+  await client.reload({ waitUntil: 'networkidle' });
+  await client.waitForTimeout(1200);
+  await client.getByRole('button', { name: /^Accept, and share with/ }).click();
+  // Not `waitForURL`: without the fix the screen stays put, and a throw out of
+  // that names a timeout rather than the thing that broke. Checked both ways —
+  // with the fix removed this line goes red by its own name.
+  await client
+    .waitForFunction(() => window.location.pathname === '/welcome', null, { timeout: 15000 })
+    .catch(() => undefined);
+  if (new URL(client.url()).pathname === '/welcome')
+    ok('a token that no longer works sends the invitee to sign in, not to a dead end');
+  else
+    bad(
+      'a token that no longer works sends the invitee to sign in, not to a dead end',
+      `still at ${new URL(client.url()).pathname}, saying "${(await client.locator('body').innerText()).replace(/\n+/g, ' | ').slice(0, 120)}"`,
+    );
+
+  const clearedAndKept = await client.evaluate(() => ({
+    token: window.localStorage.getItem('stillpoint.token.v1'),
+    destination: window.sessionStorage.getItem('stillpoint.after-welcome.v1'),
+  }));
+  if (clearedAndKept.token === null) ok('and the token that did not work is cleared');
+  else bad('and the token that did not work is cleared', String(clearedAndKept.token));
+  if (String(clearedAndKept.destination ?? '').includes('/welcome/invite/'))
+    ok('and the invitation is still where the flow will look for it');
+  else
+    bad(
+      'and the invitation is still where the flow will look for it',
+      String(clearedAndKept.destination),
+    );
+
+  // Nothing of Laravel's own wording reached the person. `describe()` gives a
+  // 401 a sentence now, for the same reason it gives one to a 500.
+  const atSignIn = await client.locator('body').innerText();
+  if (!/Unauthenticated/.test(atSignIn)) ok('and is never shown the word "Unauthenticated."');
+  else bad('and is never shown the word "Unauthenticated."', atSignIn.slice(0, 200));
+
+  // Then the ordinary case: signed out, from the link, with nothing stored.
+  await client.evaluate(() => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  });
+  await client.goto(link, { waitUntil: 'networkidle' });
+  await client.waitForTimeout(1500);
   await client.getByRole('button', { name: /^Accept, and share with/ }).click();
   await client.waitForURL('**/welcome', { timeout: 15000 });
   ok('accepting while signed out sends the invitee to sign in');

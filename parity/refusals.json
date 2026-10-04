@@ -67,6 +67,13 @@
       "expect": "Too many attempts. Wait a minute and try again."
     },
     {
+      "why": "A 401 is the framework answering, like a throttle or a 500: Sanctum's middleware sends \"Unauthenticated.\" and nothing in this API words its own. Measured on the invite screen, which showed that word under an invitation from somebody's coach.",
+      "status": 401,
+      "message": "Unauthenticated.",
+      "errors": {},
+      "expect": "You are signed out. Sign in again to carry on."
+    },
+    {
       "why": "A 409 the application worded itself. Passed through as written.",
       "status": 409,
       "message": "This session has ended.",
@@ -177,6 +184,14 @@
       "message": "Service Unavailable",
       "errors": {},
       "expect": "Could not load your journal. Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment."
+    },
+    {
+      "why": "And a load that answers 401 says the same thing after the statement. Most screens redirect instead of showing this, which is why the one that did not was worth finding.",
+      "what": "your journal",
+      "status": 401,
+      "message": "Unauthenticated.",
+      "errors": {},
+      "expect": "Could not load your journal. You are signed out. Sign in again to carry on."
     }
   ]
 }

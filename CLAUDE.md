@@ -2243,6 +2243,33 @@ So sign-in and consent do not change at all: the destination is not their
 business, it is just still there when the flow ends. **Consent stays first**,
 because it is the server's gate and the screen that names the crisis numbers —
 an invitee is not routed past it to go and accept a sharing arrangement.
+**And it broke a second time, in the same place, for the same reason.** The fix
+above guarded on `hasToken()` — which asks whether a token **exists**, not
+whether it works, and a thirty-day expiry leaves one in `localStorage`. So an
+invitee with a dead token pressed Accept, the accept answered 401, and the
+screen printed Laravel's **"Unauthenticated."** under an invitation from their
+coach. The stale token stayed and pressing Accept again did the same thing.
+Measured in a real browser, twice round: same URL, same screen, same word.
+
+A dead token is the same situation as no token, so it takes the same path —
+clear it, remember the destination, go to sign in. Driven end to end
+afterwards: Accept → sign-in with the token cleared → consent → voice → back
+at the invitation. Both times this screen has broken it was by **reasoning
+about the request instead of the answer**, which is why `coach.mjs` now
+asserts the expired-token case beside the signed-out one rather than only the
+fix being in place. Three of its four assertions go red with the screen
+reverted, each naming itself — `waitForURL` would have thrown a timeout
+instead, so the check reads the pathname after waiting.
+
+**A 401 is the framework answering too, which the earlier sweep missed.**
+`describe()` now gives it a sentence, for the reason a 429 and a 500 get one:
+nothing in this API words its own 401, it comes only from the auth middleware
+with that one string, so there is no application sentence to shadow. Most
+screens never show it — they check `isUnauthenticated` and redirect — and the
+invite screen is the one that proved otherwise. The fourth `coach.mjs`
+assertion pins that half and stays green when only the screen is reverted,
+which is the right behaviour for two independent halves.
+
 `safePath()` is still a single origin comparison by the URL parser, and the
 reason is the same as the desktop's: measured, `//evil.example`,
 `/\evil.example` and `  //evil.example` all resolve to another origin, and a

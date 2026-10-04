@@ -28,6 +28,23 @@ export function describe(e: unknown): string {
     if (e.status === 429) return rateLimited(e.message);
 
     /*
+     * A 401 is the framework answering too, and it says "Unauthenticated."
+     *
+     * Most screens never show this: they check `isUnauthenticated`, clear the
+     * token and go to sign in. The invite screen proved one that does. It
+     * guarded on `hasToken()`, which asks whether a token **exists** and not
+     * whether it works — a thirty-day expiry leaves one in `localStorage` —
+     * so an invitee pressed Accept, the accept answered 401, and the word
+     * **"Unauthenticated."** appeared under an invitation from their coach.
+     * Measured in a real browser.
+     *
+     * Nothing in this API words its own 401: it comes only from the auth
+     * middleware, with that one string. So this cannot be shadowing an
+     * application's sentence, and it says the thing a person can act on.
+     */
+    if (e.status === 401) return 'You are signed out. Sign in again to carry on.';
+
+    /*
      * A 5xx is the framework answering, which is the one case the rule above
      * is not for.
      *

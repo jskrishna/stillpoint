@@ -59,15 +59,25 @@ export default function AcceptInvite({ token }: { token: string }) {
       });
   }, [token]);
 
+  /**
+   * Sends the invitee to sign in and brings them back to this invitation.
+   *
+   * `lib/after-welcome.ts` says why the destination is kept in
+   * `sessionStorage` rather than in the URL.
+   */
+  const signInAndReturn = () => {
+    api.storeToken(null);
+    rememberDestination(`/welcome/invite/${token}`);
+    router.push('/welcome');
+  };
+
   const accept = async () => {
+    // Sign in first, and come back — which it did not, before this. The push
+    // carried `?next=` and nothing read it, so the invitee signed in and
+    // landed on the consent screen with the invitation gone.
     if (!hasToken()) {
-      // Sign in first, and come back — which it did not, before this. The
-      // push carried `?next=` and nothing read it, so the invitee signed in
-      // and landed on the consent screen with the invitation gone. Measured in
-      // a real browser. `lib/after-welcome.ts` says why the destination is not
-      // in the URL.
-      rememberDestination(`/welcome/invite/${token}`);
-      router.push('/welcome');
+      signInAndReturn();
+
       return;
     }
 
@@ -77,6 +87,22 @@ export default function AcceptInvite({ token }: { token: string }) {
       const result = await api.acceptInvitation(token);
       setAccepted(result.coachName);
     } catch (e: unknown) {
+      // `hasToken()` above asks whether a token **exists**, not whether it
+      // works, and a thirty-day expiry leaves one in `localStorage`. So this
+      // was a dead end: accept answered 401, the screen printed
+      // "Unauthenticated." under an invitation from somebody's coach, the
+      // stale token stayed, and pressing Accept again did the same thing.
+      // Measured in a real browser — two attempts, same screen, same word.
+      //
+      // A dead token is the same situation as no token, so it takes the same
+      // path, which already works. The only path by which a coach gets a
+      // client has now been broken twice in the same place by reasoning about
+      // the request instead of the answer.
+      if (e instanceof ApiError && e.isUnauthenticated) {
+        signInAndReturn();
+
+        return;
+      }
       setProblem(describe(e));
       setBusy(false);
     }
