@@ -791,6 +791,100 @@
       "left": null
     }
   ],
+  "steps": {
+    "order": ["notice", "responsibility", "feel", "remember", "inquire", "forgive"],
+    "kinds": [
+      {
+        "id": "notice",
+        "ordinal": 1,
+        "answerKind": "prose"
+      },
+      {
+        "id": "responsibility",
+        "ordinal": 2,
+        "answerKind": "prose"
+      },
+      {
+        "id": "feel",
+        "ordinal": 3,
+        "answerKind": "feelings"
+      },
+      {
+        "id": "remember",
+        "ordinal": 4,
+        "answerKind": "prose"
+      },
+      {
+        "id": "inquire",
+        "ordinal": 5,
+        "answerKind": "prose"
+      },
+      {
+        "id": "forgive",
+        "ordinal": 6,
+        "answerKind": "prose"
+      }
+    ]
+  },
+  "consent": {
+    "items": [
+      {
+        "id": "understands",
+        "required": true
+      },
+      {
+        "id": "adult",
+        "required": true
+      },
+      {
+        "id": "improve",
+        "required": false
+      }
+    ],
+    "required": ["understands", "adult"],
+    "cases": [
+      {
+        "accepted": [],
+        "ok": false,
+        "missing": ["understands", "adult"]
+      },
+      {
+        "accepted": ["understands"],
+        "ok": false,
+        "missing": ["adult"]
+      },
+      {
+        "accepted": ["adult"],
+        "ok": false,
+        "missing": ["understands"]
+      },
+      {
+        "accepted": ["improve"],
+        "ok": false,
+        "missing": ["understands", "adult"]
+      },
+      {
+        "accepted": ["understands", "adult"],
+        "ok": true,
+        "missing": []
+      },
+      {
+        "accepted": ["understands", "improve"],
+        "ok": false,
+        "missing": ["adult"]
+      },
+      {
+        "accepted": ["understands", "adult", "improve"],
+        "ok": true,
+        "missing": []
+      },
+      {
+        "accepted": ["adult", "understands"],
+        "ok": true,
+        "missing": []
+      }
+    ]
+  },
   "sessions": [
     {
       "name": "a fresh session",

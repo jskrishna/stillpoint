@@ -19,17 +19,23 @@
 
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { format } from 'prettier';
+import { format, resolveConfig } from 'prettier';
 // Imported from the built output by path, not by package name: `parity/` is
 // deliberately not a workspace package, because the fixture belongs to neither
 // side. Run `pnpm run build:packages` first, which `parity:generate` does.
 import {
   baselineRiskScreen,
+  answerKindOf,
   apply,
+  CONSENT_ITEMS,
   COUNTRIES,
   DEFAULT_COUNTRY,
+  hasRequiredConsent,
   isUntouched,
+  missingConsent,
+  REQUIRED_CONSENT,
   startSession,
+  STEP_ORDER,
   helplinesFor,
   insights,
   isSubstantiveAnswer,
@@ -273,6 +279,29 @@ const journalEntry = (e) => ({
   ...(e.belief === undefined ? {} : { belief: e.belief }),
   ...(e.calmer === undefined || e.calmer === null ? {} : { calmerRating: e.calmer }),
 });
+
+/**
+ * Consent, which is the server's gate on starting a session at all.
+ *
+ * Both languages hold which items are required, and a disagreement points
+ * either way: a client that thinks fewer are needed walks somebody into a 403
+ * three screens later, and one that thinks more are needed blocks a person who
+ * has already agreed to everything the server asks.
+ *
+ * `improve` is in the list and is not required, which is the case that matters
+ * — a rule that required everything would pass a fixture of only the required
+ * ones.
+ */
+const CONSENT_CASES = [
+  [],
+  ['understands'],
+  ['adult'],
+  ['improve'],
+  ['understands', 'adult'],
+  ['understands', 'improve'],
+  ['understands', 'adult', 'improve'],
+  ['adult', 'understands'],
+];
 
 /**
  * Sequences of events applied to a fresh session.
@@ -613,6 +642,25 @@ const cases = {
       left: fullSessionsLeft(plan, used),
     };
   }),
+  steps: {
+    order: [...STEP_ORDER],
+    // The answer kind belongs to the step id and not to a protocol version:
+    // staff editing prompts in the console must not be able to turn a
+    // selection into a sentence. Step 3 is a grid of twelve feelings and
+    // "choose up to 3", so the client posts ids; a language that thought it
+    // was prose would judge a selection by its word count and stall the step
+    // for anybody who did not happen to pick exactly three.
+    kinds: STEP_ORDER.map((id, i) => ({ id, ordinal: i + 1, answerKind: answerKindOf(id) })),
+  },
+  consent: {
+    items: CONSENT_ITEMS.map((i) => ({ id: i.id, required: i.required })),
+    required: [...REQUIRED_CONSENT],
+    cases: CONSENT_CASES.map((accepted) => ({
+      accepted,
+      ok: hasRequiredConsent(accepted),
+      missing: [...missingConsent(accepted)],
+    })),
+  },
   sessions: SESSION_SEQUENCES.map(({ name, kind, events }) => {
     let session = startSession(kind);
     for (const event of events) {
@@ -727,7 +775,18 @@ const out = fileURLToPath(new URL('cases.json', import.meta.url));
 // and `JSON.stringify` does not agree with it about short arrays. Without this,
 // regenerating left the tree failing that gate and `git diff` full of
 // reformatting that had nothing to do with the rule that changed.
-const formatted = await format(JSON.stringify(cases, null, 2), { filepath: out });
+//
+// **With the repository's own config**, which it did not read: `format()` with
+// only a `filepath` uses Prettier's defaults, and the default `printWidth` is
+// 80 where this repository sets 100. That had never mattered, because no
+// section of the fixture happened to format differently under the two — and
+// then one did, and `pnpm run parity:generate` started leaving the tree
+// failing the gate the line above exists to pass.
+const options = (await resolveConfig(out)) ?? {};
+const formatted = await format(JSON.stringify(cases, null, 2), {
+  ...options,
+  filepath: out,
+});
 writeFileSync(out, formatted);
 console.log(
   `wrote ${String(cases.risk.length)} risk and ${String(cases.extraction.length)} extraction cases to ${out}`,

@@ -19,7 +19,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { mayShareEntry, sharesNewEntry, summarise } from './coach.js';
-import type { CoachSharing } from './onboarding.js';
+import {
+  CONSENT_ITEMS,
+  hasRequiredConsent,
+  missingConsent,
+  REQUIRED_CONSENT,
+  type CoachSharing,
+  type ConsentId,
+} from './onboarding.js';
 import { fullSessionsLeft, mayStartSession, type PlanId } from './plans.js';
 import { isSubstantiveAnswer, literalExtraction } from './extraction.js';
 import { insights } from './insights.js';
@@ -37,7 +44,7 @@ import {
 import { baselineRiskScreen } from './risk.js';
 import { COUNTRIES, DEFAULT_COUNTRY, helplinesFor, type SafetyLevel } from './safety.js';
 import { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
-import type { StepId } from './steps.js';
+import { answerKindOf, STEP_ORDER, type StepId } from './steps.js';
 
 interface RiskCase {
   readonly utterance: string;
@@ -80,6 +87,25 @@ interface Limits {
   readonly recordedUtterance: number;
   readonly keptFromALongAnswer: number;
   readonly keptFromAnEmojiAnswer: number;
+}
+
+interface StepCases {
+  readonly order: readonly string[];
+  readonly kinds: readonly {
+    readonly id: string;
+    readonly ordinal: number;
+    readonly answerKind: string;
+  }[];
+}
+
+interface ConsentCases {
+  readonly items: readonly { readonly id: string; readonly required: boolean }[];
+  readonly required: readonly string[];
+  readonly cases: readonly {
+    readonly accepted: readonly string[];
+    readonly ok: boolean;
+    readonly missing: readonly string[];
+  }[];
 }
 
 interface SessionCase {
@@ -158,6 +184,8 @@ interface SharingCase {
 
 interface Cases {
   readonly risk: readonly RiskCase[];
+  readonly steps: StepCases;
+  readonly consent: ConsentCases;
   readonly sessions: readonly SessionCase[];
   readonly helplines: HelplineCases;
   readonly insights: readonly InsightsCase[];
@@ -211,6 +239,38 @@ function asEvent(e: SessionCase['events'][number]): SessionEvent {
   if (e.op === 'rated') return { type: 'rated', rating: e.rating as CalmerRating };
   return { type: e.op as 'guide_turn' | 'user_stopped' };
 }
+
+describe('the steps match the shared cases', () => {
+  it('are in the same order', () => {
+    expect([...STEP_ORDER]).toEqual(cases.steps.order);
+  });
+
+  for (const k of cases.steps.kinds) {
+    it(`step ${String(k.ordinal)} (${k.id}) is answered in ${k.answerKind}`, () => {
+      expect(STEP_ORDER.indexOf(k.id as StepId) + 1).toBe(k.ordinal);
+      expect(answerKindOf(k.id as StepId)).toBe(k.answerKind);
+    });
+  }
+});
+
+describe('consent matches the shared cases', () => {
+  it('asks for the same items, and requires the same ones', () => {
+    expect(CONSENT_ITEMS.map((i) => ({ id: i.id, required: i.required }))).toEqual(
+      cases.consent.items,
+    );
+    expect([...REQUIRED_CONSENT]).toEqual(cases.consent.required);
+  });
+
+  for (const c of cases.consent.cases) {
+    it(`${c.accepted.length === 0 ? 'nothing accepted' : c.accepted.join(' + ')} is ${
+      c.ok ? 'enough' : 'not enough'
+    }`, () => {
+      const accepted = c.accepted as ConsentId[];
+      expect(hasRequiredConsent(accepted)).toBe(c.ok);
+      expect([...missingConsent(accepted)]).toEqual(c.missing);
+    });
+  }
+});
 
 describe('the session reducer matches the shared cases', () => {
   for (const c of cases.sessions) {

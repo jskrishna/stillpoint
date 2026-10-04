@@ -778,7 +778,12 @@ so a rule that moves in one language and not the other turns one of the two red,
 in whichever CI job runs first.
 
 The TypeScript side generates the file, because its tests were the port's
-specification: `pnpm run parity:generate`. Run that only after deliberately
+specification: `pnpm run parity:generate`. It writes through Prettier **with
+this repository's own config** — `format()` given only a `filepath` uses
+Prettier's defaults, whose `printWidth` is 80 against this repository's 100.
+That had never mattered because no section of the fixture happened to format
+differently under the two, and then one did, and regenerating started leaving
+the tree failing the gate that formatting step exists to pass. Run that only after deliberately
 changing both languages. **Regenerating to turn a red parity test green records
 the divergence instead of fixing it**, which is the whole failure the file
 exists to prevent.
@@ -794,6 +799,17 @@ which must do nothing, and then a rating, which must land. Each was checked by
 breaking it in the PHP: a crisis that no longer stops turns three cases red, a
 `SafetyLevel::atLeast()` that lets the level fall turns one, and a
 `furthestStepId` that follows `stepId` down turns one.
+
+**The step order, how each step is answered, and consent are in there too.**
+Those were the last rules living in both languages with nothing comparing
+them. Step 3's answer kind is the one that bites: it is a grid of twelve
+feelings and "choose up to 3", so the client posts ids, and a language that
+thought it was prose would judge a selection by its word count and stall the
+step for anybody who did not pick exactly three. Consent points both ways — a
+client needing fewer items walks somebody into a 403 three screens later, and
+one needing more blocks a person who has already agreed to everything the
+server asks. Checked by making step 3 prose (one case red) and by making "I am
+18 or older" optional (five red, including the item list itself).
 
 **And the generator can write a confident lie, which is worse than a
 divergence.** `parity/generate.mjs` is plain JavaScript, so nothing

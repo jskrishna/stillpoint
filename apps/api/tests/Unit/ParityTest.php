@@ -7,6 +7,7 @@ namespace Tests\Unit;
 use App\Domain\CalmerRating;
 use App\Domain\CoachSharing;
 use App\Domain\CoachView;
+use App\Domain\ConsentItem;
 use App\Domain\FeelingId;
 use App\Domain\Helpline;
 use App\Domain\Insights;
@@ -62,6 +63,31 @@ final class ParityTest extends TestCase
     }
 
     /** @return array<string, array{array<string, mixed>}> */
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function consentCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['consent']['cases'] as $case) {
+            $what = $case['accepted'] === []
+                ? 'nothing accepted'
+                : implode(' + ', $case['accepted']);
+            $out[$what] = [$case];
+        }
+
+        return $out;
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function stepKindCases(): array
+    {
+        $out = [];
+        foreach (self::cases()['steps']['kinds'] as $case) {
+            $out["step {$case['ordinal']} ({$case['id']})"] = [$case];
+        }
+
+        return $out;
+    }
+
     /** @return array<string, array{array<string, mixed>}> */
     public static function sessionCases(): array
     {
@@ -194,6 +220,76 @@ final class ParityTest extends TestCase
             'limit' => $decision['allowed'] ? null : ($decision['limit'] ?? null),
             'left' => $plan->fullSessionsLeft($case['used']),
         ], "Plan parity broke on: {$case['plan']} / {$case['kind']} after {$case['used']}");
+    }
+
+    public function test_the_steps_are_in_the_same_order(): void
+    {
+        $this->assertSame(
+            self::cases()['steps']['order'],
+            array_map(fn (StepId $id) => $id->value, StepId::cases()),
+        );
+    }
+
+    /**
+     * How a step is answered.
+     *
+     * The answer kind belongs to the step id and not to a protocol version:
+     * staff editing prompts in the console must not be able to turn a
+     * selection into a sentence. Step 3 is a grid of twelve feelings and
+     * "choose up to 3", so the client posts ids — and a language that thought
+     * it was prose would judge a selection by its word count and stall the
+     * step for anybody who did not happen to pick exactly three.
+     *
+     * @param  array<string, mixed>  $case
+     */
+    #[DataProvider('stepKindCases')]
+    public function test_how_a_step_is_answered_agrees(array $case): void
+    {
+        $id = StepId::from($case['id']);
+
+        $this->assertSame($case['ordinal'], $id->ordinal(), "Step ordinal: {$case['id']}");
+        $this->assertSame(
+            $case['answerKind'],
+            $id->answerKind()->value,
+            "Answer kind: {$case['id']}",
+        );
+    }
+
+    public function test_the_consent_items_agree(): void
+    {
+        $this->assertSame(
+            self::cases()['consent']['items'],
+            array_map(
+                fn (ConsentItem $i) => ['id' => $i->id, 'required' => $i->required],
+                ConsentItem::all(),
+            ),
+        );
+        $this->assertSame(self::cases()['consent']['required'], ConsentItem::required());
+    }
+
+    /**
+     * Consent, which is the server's gate on starting a session at all.
+     *
+     * A disagreement points either way: a client that thinks fewer items are
+     * needed walks somebody into a 403 three screens later, and one that
+     * thinks more are needed blocks a person who has already agreed to
+     * everything the server asks.
+     *
+     * @param  array<string, mixed>  $case
+     */
+    #[DataProvider('consentCases')]
+    public function test_what_consent_is_enough_agrees(array $case): void
+    {
+        $this->assertSame(
+            $case['missing'],
+            ConsentItem::missing($case['accepted']),
+            'Missing consent: '.implode(',', $case['accepted']),
+        );
+        $this->assertSame(
+            $case['ok'],
+            ConsentItem::missing($case['accepted']) === [],
+            'Consent enough: '.implode(',', $case['accepted']),
+        );
     }
 
     /**
