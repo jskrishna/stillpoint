@@ -2391,7 +2391,28 @@ step on write.
 
 Page sizes are bounded and a nonsense one falls back to the default. These rows
 are decrypted one at a time, so an unbounded page is a way to make the server do
-unbounded work.
+unbounded work — which the insights read has since shown is not theoretical,
+having died at 4,000 rows against the deployment's own memory limit.
+
+**Nothing tested any of that.** `limit` appeared in no test in the suite, so
+the ceiling, the fallback and the rule that every list applies them were all
+description. `PageSizesAreBoundedTest` has three cases and the middle one is
+the point: a unit test of `Paged::limit()` would pass while an endpoint quietly
+passed the raw request value, and an end-to-end test on one list would pass
+while a sixth list forgot. So it **reads the source** and asserts every
+`cursorPaginate` in the application is handed a `Paged::limit(...)` — the same
+shape as asking the schema for erasure's address columns, and for the same
+reason: the hand-written list of endpoints is the thing that goes stale. It
+counts the calls it found and fails if there are fewer than five, because a
+source-reading test whose pattern stops matching silently stops checking.
+
+Checked by making the journal paginate on the raw query value: the source case
+goes red naming the file and the call, and the end-to-end case returns **105
+encrypted rows where the ceiling is 100**.
+
+`Paged`'s own docblock is the worked example of the drift: it said "these two
+endpoints" and "both lists" for as long as there have been five, and it now
+names them.
 
 ## The API's shape
 
