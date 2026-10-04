@@ -128,10 +128,41 @@ Two things in there are easy to break:
   not possible; rebuild it. That is a property of how Next inlines
   `NEXT_PUBLIC_*`, not a choice made here.
 
+## Does it serve a session?
+
+```bash
+node deploy/smoke.mjs                              # http://localhost:8000/api
+node deploy/smoke.mjs https://api.example.com/api  # a real one
+```
+
+Plain HTTP, no browser, no workspace install — so it runs against a real
+deployment from a laptop. It registers an account, checks that a session is
+refused before consent, consents, starts a session, takes a turn, and then says
+something that must stop the session and asserts the **server** ended it, sent
+helplines, told the client nothing about which rule fired, refuses another turn
+with a 409, and wrote no journal row. Then it erases the account through the
+same guarded route a user would, so a pass leaves the deployment as it found it.
+
+Run it after standing a deployment up, and after changing anything in here. The
+CI `docker` job runs it against the composed stack on every push, which is what
+moves that job from "the images come up" to "the stack serves a session".
+
+It reports **step 2 having no question** as a note rather than a failure, and
+that is correct: production publishes no protocol version by itself, so a fresh
+stack has only the questions the designs specify. Publish one at
+`/admin/protocol` — see item 4 in `LAUNCH.md` — or the guide stops talking
+after step 1.
+
+It does not make an admin or a coach, because neither can be made through the
+API on purpose: `role` is not fillable. A smoke test that needed one would need
+a shell on the server, and this is the check you run when you have a URL.
+
 ## Verified, and not
 
 The Dockerfiles, the compose file and the nginx configuration are built in CI
-(the `docker` job), so they are known to build and the images are known to come
-up. **They have not been run against real traffic**, nobody has restored a
-backup through them, and the TLS and mail gaps above are real. Treat a green
-build as "this will start", not as "this is ready".
+(the `docker` job), the images are known to come up, the migrations are known
+to run against the MySQL the compose file starts, and the stack is known to
+serve a session and stop one — see above. **It has not been run against real
+traffic**, nobody has restored a backup through it, and the TLS and mail gaps
+above are real. Treat a green build as "this will start and work", not as "this
+is ready".

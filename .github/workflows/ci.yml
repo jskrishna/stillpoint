@@ -389,7 +389,7 @@ jobs:
           fi
 
   docker:
-    name: Deployment — the images build and come up
+    name: Deployment — the stack comes up and serves a session
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: [api, check]
@@ -400,6 +400,14 @@ jobs:
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
+
+      # For `deploy/smoke.mjs` below, which is plain `fetch` and needs no
+      # workspace install. Pinned so the job does not depend on whatever the
+      # runner image happens to ship.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       # Built, not pushed. There is no registry and no release process yet;
       # what this job answers is whether `docker compose up` would work for
@@ -514,6 +522,23 @@ jobs:
             || fail "the scheduler container cannot run auth:clear-resets"
           docker compose exec -T scheduler php artisan schedule:list \
             || fail "the scheduler container cannot list its tasks"
+
+      # Building proves the images exist and the step above proves they start.
+      # Neither is a session. This registers an account through nginx and
+      # PHP-FPM against the MySQL the compose file started, consents, runs a
+      # turn, then says something that must stop the session and asserts the
+      # server stopped it and sent helplines — and erases the account again.
+      #
+      # It is the difference between "this will start" and "somebody can use
+      # it", and until it ran, nothing in this repository proved the second one
+      # about the deployment.
+      #
+      # It reports step 2 having no question as a note rather than a failure,
+      # which is correct here: production publishes no protocol version by
+      # itself, so a fresh stack has only the questions the designs specify.
+      # That is item 4 in `LAUNCH.md`, not a broken deployment.
+      - name: Does it serve a session
+        run: node deploy/smoke.mjs http://localhost:8000/api
 
       - name: What the containers said, if anything failed
         if: failure()

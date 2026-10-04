@@ -74,8 +74,15 @@ account exists.
 ## 3. Somewhere to run it, with TLS
 
 **What exists.** `docker-compose.yml` and `deploy/` bring up MySQL, PHP-FPM,
-nginx, Laravel's scheduler and the Next.js app. CI builds all three images and
-starts the stack on every push, so they are known to build and run.
+nginx, Laravel's scheduler and the Next.js app. CI builds all three images,
+starts the stack and then runs `deploy/smoke.mjs` against it, which registers
+an account, runs a session, says something that must stop one, and asserts the
+server stopped it and sent helplines. So the stack is known to build, start and
+serve a session.
+
+**Run that against your own deployment the moment it is up**: `node
+deploy/smoke.mjs https://your-api/api`. It is plain HTTP, it needs nothing
+installed, and it erases the account it makes.
 
 **What does not.** Nothing has run against real traffic, nobody has restored a
 backup, and TLS terminates somewhere that does not exist. `deploy/README.md`

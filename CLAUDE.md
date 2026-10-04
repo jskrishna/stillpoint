@@ -885,8 +885,14 @@ been chosen, so the reset link is written to the log instead of sent. It is the
 one thing in the deployment that is deliberately unfinished, and it needs a
 decision rather than a configuration change.
 
-The CI `docker` job builds all three images and brings the stack up, so they are
-known to build and start. Nothing has run against real traffic, nobody has
+The CI `docker` job builds all three images, brings the stack up, and then runs
+`deploy/smoke.mjs` against it — register, consent, a session, a turn, and a
+crisis utterance that must stop the session and return helplines, through nginx
+and PHP-FPM against the MySQL the compose file starts, then erasing the account
+again. Building proves the images exist and starting proves they run; neither
+was a session, and until that script ran nothing here proved the deployment
+could serve one. It is plain HTTP, so it is also the check to run against a
+real deployment from a laptop. Nothing has run against real traffic, nobody has
 restored a backup, and TLS terminates somewhere that does not exist yet. A green
 build means "this will start", not "this is ready".
 
