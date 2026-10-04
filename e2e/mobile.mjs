@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { launch } from './browser.mjs';
 import { reporter } from './report.mjs';
 
@@ -40,6 +41,70 @@ const PASSWORD = 'a-long-enough-password';
 
 const { ok, bad, finish, watchForThrows } = reporter('the mobile app');
 watchForThrows();
+
+/**
+ * axe-core over the phone's screens, in both palettes.
+ *
+ * **Nothing had ever audited this surface.** `e2e/a11y.mjs` covers the web's
+ * twenty routes in both palettes and the phone's eleven screens were not in
+ * it, because they cannot be reached by URL: the export is served by a plain
+ * file server with no client-side routing, so a direct URL gets the file
+ * server's 404 or expo-router's "Unmatched Route", and both of those pass an
+ * audit having measured nothing. This script is already the only thing that
+ * walks the app, so the audit belongs here.
+ *
+ * It found two things, both on the screens that matter most. The crisis
+ * pause's helpline buttons hardcoded `'#FFFFFF'` where `apps/web` uses
+ * `accent-ink`, so in the dark palette the helpline's name, its detail and
+ * **the number itself** were 2.83:1 and 2.58:1 — on the screen whose only job
+ * is to get somebody to dial one. And every radio and checkbox in the app
+ * rendered with no checked state at all, the consent gate and the
+ * coach-sharing group included.
+ *
+ * `document-title` is the one rule turned off, and the reason is that it is
+ * not about the app: the export serves one `index.html` whose `<title>` Expo
+ * fills from a screen's `options.title`, and there are no titles here because
+ * `headerShown` is false on every stack — a phone has no document to title.
+ * Turning it off here says that; leaving it on would have meant a known
+ * violation on every screen, which is the state in which nobody reads the
+ * next one.
+ */
+const AXE = readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8');
+
+const audit = async (screen) => {
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    // The palette comes from `useColorScheme`, so the screen re-renders.
+    await page.waitForTimeout(600);
+    await page.addScriptTag({ content: AXE });
+    const result = await page.evaluate(async () =>
+      window.axe.run(document, {
+        runOnly: {
+          type: 'tag',
+          values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'],
+        },
+        // See the note above for why one is off and why `target-size` is on.
+        rules: { 'target-size': { enabled: true }, 'document-title': { enabled: false } },
+      }),
+    );
+    const nodes = result.violations.reduce((n, v) => n + v.nodes.length, 0);
+    if (nodes === 0) ok(`${screen} passes axe in ${scheme}`);
+    else
+      bad(
+        `${screen} passes axe in ${scheme}`,
+        result.violations
+          .map(
+            (v) =>
+              `${v.id} (${v.impact}) x${String(v.nodes.length)}: ${
+                v.nodes[0]?.any.map((a) => a.message).join(' ; ') ?? ''
+              }`,
+          )
+          .join(' | '),
+      );
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.waitForTimeout(400);
+};
 
 const browser = await launch();
 // A phone's viewport, because the layout is the thing a browser can check and
@@ -113,6 +178,7 @@ await page.waitForTimeout(2500);
 
 if ((await body()).includes('Welcome to Stillpoint')) ok('the app boots');
 else bad('the app boots', (await body()).slice(0, 300));
+await audit('welcome');
 
 /*
  * The autofill hint on the password field, in both of this screen's modes.
@@ -182,6 +248,7 @@ if (!/14416|Tele-MANAS/.test(gateText) && !/call 112|112 or/.test(gateText))
   ok('and not another market\u2019s');
 else bad('and not another market\u2019s', gateText.slice(0, 400));
 
+await audit('the consent gate');
 await page.getByText('I understand and I can stop any time.').click();
 await page.getByText('I am 18 or older.').click();
 await page.waitForTimeout(300);
@@ -201,6 +268,8 @@ else bad('it does not imply the listener works', voice.slice(0, 400));
 if (voice.includes('Your voice is never saved')) ok('it makes the promise the designs make');
 else bad('it makes the promise the designs make');
 
+await audit('voice setup');
+
 await press('Keep it silent');
 await page.waitForTimeout(2200);
 
@@ -218,6 +287,8 @@ await page.waitForTimeout(2500);
 
 if (await atStep(1)) ok('the session starts at step 1 of 6');
 else bad('the session starts at step 1 of 6', (await body()).slice(0, 400));
+
+await audit('the session');
 
 const answer = async (text) => {
   const field = page.locator('textarea, input[type=text]').first();
@@ -282,6 +353,8 @@ if (journal.includes('manager') || /1 session|Today/.test(journal))
   ok('the finished session is in the journal');
 else bad('the finished session is in the journal', journal.slice(0, 500));
 
+await audit('the journal');
+
 // ---------------------------------------------------------------------------
 console.log('\n4b. The entry itself, which nothing here used to open');
 
@@ -300,6 +373,8 @@ if ((await card.count()) === 0) {
 
   if (/← Journal/.test(entry)) ok('the entry opens from the list');
   else bad('the entry opens from the list', entry.slice(0, 400));
+
+  await audit('the journal entry');
 
   // The session's own answers, which is what this screen is for. The belief is
   // the one that cannot come from anywhere else.
@@ -422,6 +497,8 @@ const noticing = await body();
 
 if (arrived && !/Could not load this/.test(noticing)) ok('the insights screen loads');
 else bad('the insights screen loads', noticing.slice(0, 500));
+
+await audit('what the app noticed');
 
 // The feelings picked at step 3, counted. One session is not a ranking —
 // twelve feelings each counted once is a ranking of nothing — but the two
@@ -564,6 +641,8 @@ else bad('the server refuses another turn on it (409)', String(serverSays.again)
 if (serverSays.entries === 1) ok('the safety-stopped session left no journal row (still 1)');
 else bad('the safety-stopped session left no journal row', String(serverSays.entries));
 
+await audit('the crisis pause');
+
 // ---------------------------------------------------------------------------
 console.log('\n5b. Who can see your sessions, and when the app cannot tell');
 
@@ -580,6 +659,8 @@ const settings = await body();
 if (/Nobody\. A coach can only read a session/.test(settings))
   ok('with the request answering, the screen says nobody can');
 else bad('with the request answering, the screen says nobody can', settings.slice(-500));
+
+await audit('settings');
 
 // This is the screen that answers "who can read my sessions", and it set the
 // list to empty when the request failed — so it printed that reassuring

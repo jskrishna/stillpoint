@@ -1651,6 +1651,64 @@ through to the DOM, so `mobile.mjs` can read the attribute the native
 platforms are handed — it asserts `current-password` before the screen is
 toggled into register mode and `new-password` after, so a later edit cannot
 swap them. Checked by putting `'password'` back: red by name, not by timeout.
+
+**And the phone had no accessibility audit at all, which is where the two
+worst findings in this file's accessibility sections were sitting.**
+`a11y.mjs` covers the web's twenty routes in both palettes; the phone's eleven
+screens were in nothing, because they cannot be reached by URL — the paragraph
+above is why. `mobile.mjs` runs axe at nine of them now, in both palettes,
+since it is the only thing that walks the app.
+
+Two findings, and the first is on the screen this product exists for.
+
+**The crisis pause's helpline buttons hardcoded `'#FFFFFF'`.** White is right
+in the light palette, and `accentInk` _is_ white there — in the dark one it is
+`#1D1714`, because `positive` lightens to `#5FA883`. Measured in dark: the
+helpline's name at **2.83:1**, its detail at **2.58:1**, and **the number
+itself** at 2.83:1, on the screen whose only job is to get somebody to dial
+one. `apps/web` has used `accent-ink` here since it was written, so the two
+surfaces disagreed about one colour and the phone held the wrong one — the
+same shape as the autofill hint above, found in the same hour.
+
+**And an `opacity: 0.9` on the detail line, on both surfaces**, which blends
+that white to `#eaf2ef` and takes it from 5.0:1 to **4.39:1** on `positive` in
+the _light_ palette. Both are gone; the smaller font size is the de-emphasis.
+Note what the token test could and could not say here: it asserts
+`accentInk on positive`, which passes, because the pair is right and an
+opacity on top of it is outside what a token can promise.
+
+**Neither surface had ever audited that screen**, and the reason is worth
+keeping: the pause is not a route. `/session` renders the six steps, and the
+pause only exists after the server has ended a session for safety — so
+"every route in both palettes" was every route's _first_ state. `flow.mjs`
+audits it now, in the section that types crisis language into the page,
+because that is the only place it can be reached.
+
+**The second finding: no radio or checkbox in the app had a checked state.**
+`accessibilityState={{ selected }}` on `accessibilityRole="radio"` is wrong
+twice over. A radio's state is checkedness — TalkBack reads `isChecked()`, so
+the option somebody had just chosen announced as "not checked" — and React
+Native Web does not translate `accessibilityState` at all: measured in the
+export, these rendered `role="radio"` with no state attribute of any kind,
+which axe calls critical. Eleven controls: the consent gate's two checkboxes,
+voice setup's two, and nine on settings including the **coach-sharing** group,
+so the control that decides who may read somebody's sessions never said which
+option was chosen. They use `aria-checked`, which React Native documents as an
+alias for `accessibilityState.checked` — one prop that is right on iOS, on
+Android, and visible to a check in the export.
+
+The two `accessibilityRole="button"` controls with `selected` state — the
+feeling chips and the calmer rating — are deliberately left. `selected` is a
+real trait on both platforms for a button, so they do announce where they
+ship, and adding `aria-selected` to make the export agree would be invalid
+ARIA on that role and a violation of its own.
+
+`document-title` is the one rule turned off in the phone's audit, and the
+reason is that it is not about the app: the export serves one `index.html`
+whose `<title>` Expo fills from a screen's `options.title`, and there are none
+here because `headerShown` is false on every stack. A phone has no document to
+title. Leaving the rule on would have meant a known violation on all nine
+screens, which is the state in which nobody reads the tenth.
 `flow.mjs` is the web app's: register, consent, a full session, a reply lost on
 the way back, journal, insights, settings, the safety stop, sign-out and a
 forgotten password reset. It

@@ -1007,6 +1007,61 @@ else bad('the session is over, no step is shown');
 // numbers that answer that were on screen, and focus was at the top of the
 // document with no announcement. Taking focus is what says so, and it reads
 // the title out as it lands.
+/*
+ * axe over the pause, in both palettes — the one screen state `a11y.mjs`
+ * cannot reach.
+ *
+ * That script audits every route in both palettes and the pause was not among
+ * them, because it is not a route: `/session` renders the six steps, and the
+ * pause only exists after the server has ended a session for safety. So the
+ * screen with the crisis numbers on it had never been audited on either
+ * surface, and it was failing on both. Measured here: the helpline's detail
+ * line was **4.39:1** on `positive`, from an `opacity: 0.9` that blends
+ * `accent-ink` white down to `#eaf2ef`. The phone's copy of the same
+ * component was worse and `e2e/mobile.mjs` has that half.
+ *
+ * It runs here rather than being folded into `a11y.mjs` because reaching this
+ * screen means typing crisis language into the page and letting the server
+ * stop the session, which is this script's section 7 and nothing else's.
+ */
+{
+  const AXE = readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8');
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((t) => {
+      document.documentElement.dataset.theme = t;
+    }, theme);
+    await page.waitForTimeout(300);
+    await page.addScriptTag({ content: AXE });
+    const result = await page.evaluate(async () =>
+      window.axe.run(document, {
+        runOnly: {
+          type: 'tag',
+          values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'],
+        },
+        rules: { 'target-size': { enabled: true } },
+      }),
+    );
+    const nodes = result.violations.reduce((n, v) => n + v.nodes.length, 0);
+    if (nodes === 0) ok(`the pause passes axe in ${theme}`);
+    else
+      bad(
+        `the pause passes axe in ${theme}`,
+        result.violations
+          .map(
+            (v) =>
+              `${v.id} (${v.impact}) x${String(v.nodes.length)}: ${
+                v.nodes[0]?.any.map((a) => a.message).join(' ; ') ?? ''
+              }`,
+          )
+          .join(' | '),
+      );
+  }
+  // Back to the palette the rest of the section measures in.
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'light';
+  });
+}
+
 const paused = await page.evaluate(() => ({
   tag: document.activeElement?.tagName ?? null,
   text: (document.activeElement?.textContent ?? '').trim().slice(0, 60),

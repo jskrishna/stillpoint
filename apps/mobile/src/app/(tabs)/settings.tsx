@@ -440,7 +440,11 @@ function Choice({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected: on }}
+      // `aria-checked` — see the note in `welcome/voice.tsx` for why it is
+      // that and not `accessibilityState`. Nine radios on this screen, the
+      // coach-sharing group among them, so the control that decides who may
+      // read somebody's sessions never said which option was chosen.
+      aria-checked={on}
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => ({

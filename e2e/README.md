@@ -60,6 +60,16 @@ API, through the whole journey and the safety stop. Nothing native is covered;
 `apps/mobile/README.md` lists what that leaves, and the first run on hardware
 is still a test pass that has not happened.
 
+It is also the phone's **accessibility audit**, because there could not be a
+separate one: those screens cannot be reached by URL (the export is a plain
+file server with no client-side routing, so a direct URL gets a 404 or
+expo-router's "Unmatched Route" — and both of those pass an audit having
+measured nothing). So axe runs at nine screens here, in both palettes, as this
+script walks them. `document-title` is the one rule turned off, and why is in
+the comment beside it: the export serves one `index.html` and `headerShown` is
+false on every stack, so there are no titles to find and a phone has no
+document to title.
+
 ## One command
 
 ```bash
@@ -256,6 +266,14 @@ criterion: 2.5.8 Target Size (Minimum). axe has exactly one rule there,
 `target-size`, and it is `enabled: false` in axe's own defaults — so the script
 also asserts that axe _considered_ the rule on at least one combination, since a
 rule that never ran reports no violations and reads exactly like a clean page.
+
+**It does not cover the pause screen, and that is not a route list it forgot.**
+`/session` renders the six steps; the pause with the crisis numbers on it only
+exists after the server has ended a session for safety, so "every route in both
+palettes" is every route's _first_ state. `flow.mjs` audits it in its own
+section 7, where it types crisis language into the page, and `mobile.mjs` does
+the same on the phone — which is where the contrast failures on that screen
+were found, on both surfaces.
 
 ## What the browser sends, and where
 

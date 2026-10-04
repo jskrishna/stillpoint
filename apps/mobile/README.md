@@ -93,6 +93,29 @@ of unproven as the `tel:` link beside it, and on the same screen.
 Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 
+**What the browser can check, it now does: axe runs at nine screens in both
+palettes**, inside `e2e/mobile.mjs`, because these screens cannot be reached
+by URL and so could not have an audit of their own. It found the two things
+worth knowing about here.
+
+The crisis pause's helpline buttons hardcoded `'#FFFFFF'` where the web uses
+`accent-ink`. That is the same colour in the light palette and `#1D1714` in
+the dark one, because `positive` lightens to `#5FA883` — so in dark the
+helpline's name, its detail and **the number itself** were 2.83:1 and 2.58:1,
+on the screen that exists to get somebody to dial one.
+
+And every radio and checkbox rendered with no checked state:
+`accessibilityState={{ selected }}` on `accessibilityRole="radio"` is the
+wrong state for the role (TalkBack reads `isChecked()`, so the chosen option
+announced as "not checked") and React Native Web does not translate
+`accessibilityState` at all. Eleven controls, the consent gate and the
+coach-sharing group among them. They use `aria-checked`, React Native's own
+documented alias, which is right on both platforms and visible in the export.
+
+Note the asymmetry that leaves. The `aria-checked` attribute in the export is
+evidence the prop reaches the DOM; whether VoiceOver and TalkBack then
+announce it is the same unproven as everything in the list above.
+
 ## Layout
 
 ```

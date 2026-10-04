@@ -80,7 +80,22 @@ export default function VoiceSetup() {
             <Pressable
               key={v.id}
               accessibilityRole="radio"
-              accessibilityState={{ selected: on }}
+              /*
+               * `aria-checked`, which was `accessibilityState={{ selected }}`.
+               *
+               * Two things were wrong with that. A radio's state is
+               * checkedness, and `selected` sets a different node property —
+               * TalkBack reads `isChecked()` for a radio, so the option the
+               * person had just chosen announced as "not checked". And
+               * React Native Web does not translate `accessibilityState` at
+               * all: measured in the export, these rendered `role="radio"`
+               * with no state attribute of any kind, which axe calls critical.
+               *
+               * `aria-checked` is React Native's own documented alias for
+               * `accessibilityState.checked`, so it is one prop that is right
+               * on iOS, on Android and in the export the checks can read.
+               */
+              aria-checked={on}
               accessibilityLabel={`${v.name}, ${v.description}`}
               onPress={() => {
                 setVoice(v.id);

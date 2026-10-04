@@ -149,7 +149,10 @@ export default function Consent() {
             <Pressable
               key={item.id}
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: on }}
+              // `aria-checked`, not `accessibilityState` — see the note in
+              // `welcome/voice.tsx`. A checkbox needs the state for the same
+              // reason a radio does, and this is the consent gate.
+              aria-checked={on}
               accessibilityLabel={item.text}
               onPress={() => {
                 toggle(item.id);

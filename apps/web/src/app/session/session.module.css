@@ -324,9 +324,19 @@
   font-weight: var(--sp-weight-bold);
 }
 
+/*
+ * No `opacity` here, deliberately.
+ *
+ * It was `0.9`, which blends `accentInk` white down to `#eaf2ef` and takes
+ * this line from 5.0:1 to **4.39:1** on `positive` — measured by axe on the
+ * pause screen, which `a11y.mjs` had never audited because that screen only
+ * exists after a safety stop. The smaller font size is the de-emphasis; on
+ * the screen whose job is to get somebody to a phone number, legibility is
+ * not something to trade for a shade of hierarchy. The token test asserts the
+ * unblended pair, so an opacity here is outside what it can promise.
+ */
 .helplineDetail {
   font-size: var(--sp-text-caption);
-  opacity: 0.9;
 }
 
 .helplineNumber {
