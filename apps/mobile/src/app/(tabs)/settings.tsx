@@ -150,6 +150,11 @@ export default function Settings() {
    * requirement, not this screen's — so a client cannot skip either.
    */
   const eraseAccount = async () => {
+    // The handler refuses, not the disabled state: React has not applied that
+    // yet when a second tap lands in the same tick. `endCoaching` needs none
+    // of this — it goes through `Alert.alert`, which dismisses on the first
+    // tap, so the phone cannot double-fire it the way the web can.
+    if (erasingBusy) return;
     setErasingBusy(true);
     setEraseProblem(null);
     try {

@@ -36,6 +36,15 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [failed, setFailed] = useState<string | null>(null);
   /**
+   * In flight, on the two controls that send a request on a press.
+   *
+   * Neither guarded on anything that changes before the response: `remove`
+   * navigates away on success, and a second delete answers 404 — which
+   * `describe()` renders as a refusal, racing the navigation. The share
+   * toggle sends the value it read, so two presses send the same value twice.
+   */
+  const [busy, setBusy] = useState(false);
+  /**
    * The owner's standing choice about their coach, because the server enforces
    * it and a button it will refuse should not be offered. It starts at the
    * designed default, which permits sharing — the control is left alone until
@@ -117,6 +126,8 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
   }
 
   const toggleShare = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       setEntry(await api.updateJournalEntry(entry.id, { sharedWithCoach: !entry.sharedWithCoach }));
       setFailed(null);
@@ -125,15 +136,23 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
       // told to somebody whose own "Never share" setting had refused it, which
       // is both wrong and unfixable by anything they would then try.
       setFailed(describe(e));
+    } finally {
+      setBusy(false);
     }
   };
 
   const remove = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
       await api.deleteJournalEntry(entry.id);
+      // Deliberately not cleared on success: this screen is going away, and
+      // re-enabling the button for the frame before it does is an invitation
+      // to send the delete again.
       router.push('/app/journal');
     } catch (e: unknown) {
       setFailed(describe(e));
+      setBusy(false);
     }
   };
 
@@ -230,6 +249,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         ) : (
           <button
             type="button"
+            aria-disabled={busy}
             onClick={() => {
               void toggleShare();
             }}
@@ -241,6 +261,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         )}
         <button
           type="button"
+          aria-disabled={busy}
           onClick={() => {
             void remove();
           }}

@@ -403,6 +403,44 @@ locator stops resolving after the first click and the second never gets sent —
 the check passes having measured nothing. It holds an element handle across all
 three. All three assertions go red with the guards removed.
 
+**The same window is open on five more controls, and the API was words-ing
+its own 404s.** Swept every mutating call on both surfaces — the welcome and
+auth flow all guards on a `busy` flag already, and the session screen's `send`
+does too, which is the one that matters most. Five did not: the journal's
+share toggle and delete, and settings' "Delete my journal", "End coaching"
+and "Delete my account" (which set a flag without refusing on it, so the
+`disabled` attribute React had not applied yet was the only guard).
+
+The journal delete is the worst of them because the handler is a **loop** —
+one request per entry, each authorised on its own — guarded on the entry count,
+which does not change until every request has come back. Measured against a
+seeded account of eight entries: three taps, **ten deletes**, the extra two
+answering 404. Eight for eight after the fix.
+
+And the 404 is the half that reaches a person. Laravel's model-binding message
+is `No query results for model [App\Models\JournalEntry] 01m43t…`, and
+`APP_DEBUG=false` does **not** change it — a `NotFoundHttpException` is an
+`HttpExceptionInterface`, so the framework keeps its own wording in production.
+`describe()` prefers the API's own message, rightly, so the fix is that the API
+stops saying that: `bootstrap/app.php` answers a framework 404 with no words,
+which is what `EnsureStaff` and `authorizePairing()` already do and what
+`describe()` has its "Stillpoint would not do that. Reload to see where things
+stand." for. Writing the test found the second one — a path matching no route
+answers "The route api/admin/users/01m43t…/role could not be found.", which is
+how a shipped phone app meeting a renamed route would explain itself. Both are
+told apart from an `abort(404, 'words')` without matching on the framework's
+sentences: the router throws before a route is resolved, so `$request->route()`
+is null for its 404.
+
+Two things the sweep deliberately left alone. The phone's `endCoaching` goes
+through `Alert.alert`, which dismisses on the first tap, so it cannot
+double-fire the way the web's can. And `flow.mjs`'s two wording assertions are
+guards rather than demonstrations: reverted, the request count goes red and
+those two stayed green, because the duplicate's 404 set the failure line and
+the surviving loop's success path cleared it. Which loop finishes last decides
+it, so the count is what to trust and
+`tests/Feature/NotFoundSaysNothingTest.php` is where the wording is pinned.
+
 **And the status must not become the field's name.** Both note fields are
 labels, so a status inside the label folds into the control's accessible name
 and the name then changes every time a save runs. `aria-labelledby` points at

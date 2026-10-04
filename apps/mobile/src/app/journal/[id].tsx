@@ -35,6 +35,13 @@ export default function Entry() {
   const [note, setNote] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /**
+   * In flight on the share switch, which sends the value it read.
+   *
+   * `sharingBusy`, not `sharing`: that name is already the coach-sharing
+   * *setting* on this screen, which is a different thing entirely.
+   */
+  const [sharingBusy, setSharingBusy] = useState(false);
   const [now] = useState(() => new Date());
   /**
    * The owner's standing choice about their coach, because the server enforces
@@ -73,7 +80,7 @@ export default function Entry() {
   }, [id, router]);
 
   const saveNote = async () => {
-    if (entry === null) return;
+    if (entry === null || saving) return;
     setSaving(true);
     try {
       const updated = await api.updateJournalEntry(entry.id, { note: note.trim() });
@@ -95,12 +102,15 @@ export default function Entry() {
   };
 
   const setShared = async (shared: boolean) => {
-    if (entry === null) return;
+    if (entry === null || sharingBusy) return;
+    setSharingBusy(true);
     try {
       setEntry(await api.updateJournalEntry(entry.id, { sharedWithCoach: shared }));
       setProblem(null);
     } catch (e: unknown) {
       setProblem(describe(e));
+    } finally {
+      setSharingBusy(false);
     }
   };
 

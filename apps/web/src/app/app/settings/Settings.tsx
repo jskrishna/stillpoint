@@ -31,6 +31,21 @@ export default function Settings() {
   const [endingCoach, setEndingCoach] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  /**
+   * In flight, on the three controls that change something and cannot be
+   * undone.
+   *
+   * Each of these used to guard on the state its own response changes — the
+   * coach list, the entry count, a redirect — and none of those changes until
+   * the response lands, so the window between the press and the answer was
+   * open. Measured on the journal delete, where it is worst because the
+   * handler is a loop: three taps sent 10 deletes for 8 entries, the extra
+   * ones answering 404, and the screen then said "Some entries were not
+   * deleted." about a journal that had been deleted entirely. A false sentence
+   * on the screen whose own copy promises "It is removed for good".
+   */
+  const [deletingJournal, setDeletingJournal] = useState(false);
+  const [endingBusy, setEndingBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [erasing, setErasing] = useState(false);
   const [erasePassword, setErasePassword] = useState('');
@@ -89,6 +104,8 @@ export default function Settings() {
   };
 
   const deleteEverything = async () => {
+    if (deletingJournal) return;
+    setDeletingJournal(true);
     try {
       // One request per entry, because each delete is authorised on its own.
       for (const entry of await api.wholeJournal()) await api.deleteJournalEntry(entry.id);
@@ -107,6 +124,8 @@ export default function Settings() {
       // refusal mid-loop is not a connection problem, and this screen had no
       // way to say which.
       setFailed(`Some entries were not deleted. ${describe(e)}`);
+    } finally {
+      setDeletingJournal(false);
     }
   };
 
@@ -119,6 +138,8 @@ export default function Settings() {
    * read them.
    */
   const endCoaching = async (coach: ApiMyCoach) => {
+    if (endingBusy) return;
+    setEndingBusy(true);
     try {
       await api.endCoaching(coach.id);
       setCoaches((current) => current.filter((c) => c.id !== coach.id));
@@ -126,6 +147,8 @@ export default function Settings() {
       setFailed(null);
     } catch (e: unknown) {
       setFailed(describe(e));
+    } finally {
+      setEndingBusy(false);
     }
   };
 
@@ -137,6 +160,10 @@ export default function Settings() {
    * requirement, not this screen's — so a client cannot skip either.
    */
   const eraseAccount = async () => {
+    // The button is `disabled` on `erasingBusy`, which React has not applied
+    // yet when a second click arrives in the same tick. The handler is what
+    // actually refuses.
+    if (erasingBusy) return;
     setErasingBusy(true);
     setEraseProblem(null);
     try {
@@ -247,11 +274,12 @@ export default function Settings() {
                     color: 'var(--sp-color-danger)',
                     boxShadow: 'var(--sp-shadow-button)',
                   }}
+                  aria-disabled={endingBusy}
                   onClick={() => {
                     void endCoaching(coach);
                   }}
                 >
-                  End coaching with {coach.name}
+                  {endingBusy ? 'Ending…' : `End coaching with ${coach.name}`}
                 </button>
               </div>
             ) : null}
@@ -325,11 +353,12 @@ export default function Settings() {
                 color: 'var(--sp-color-danger)',
                 boxShadow: 'var(--sp-shadow-button)',
               }}
+              aria-disabled={deletingJournal}
               onClick={() => {
                 void deleteEverything();
               }}
             >
-              Delete everything
+              {deletingJournal ? 'Deleting…' : 'Delete everything'}
             </button>
           </div>
         </div>

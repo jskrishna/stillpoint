@@ -1085,6 +1085,75 @@ const journalBefore = await page.evaluate(async () => {
 if (journalBefore > 0) ok(`the account has ${String(journalBefore)} entries to lose`);
 else bad('the account has entries to lose', String(journalBefore));
 
+/*
+ * "Delete my journal", double-tapped.
+ *
+ * Here because it consumes the journal, and the count above is what it is
+ * measured against. The handler is a loop — one delete per entry, each
+ * authorised on its own — and it guarded on the entry count, which does not
+ * change until every request has come back. So two overlapping loops both
+ * walked the same list: measured against a seeded account with eight entries,
+ * three taps sent ten deletes, the extra two answering 404, and the screen
+ * then read "Some entries were not deleted." about a journal that had been
+ * deleted entirely — on the screen whose own copy promises "It is removed for
+ * good".
+ *
+ * The 404 was the second half of it. Laravel's model-binding message is "No
+ * query results for model [App\Models\JournalEntry] 01m43t…", `APP_DEBUG` does
+ * not change it, and `describe()` prefers the API's own words — rightly, which
+ * is why the fix is that the API stops saying that rather than that the
+ * surface stops listening.
+ */
+const journalDeletes = [];
+const countJournalDeletes = (request) => {
+  if (request.method() === 'DELETE' && /\/journal\/[^/]+$/.test(request.url()))
+    journalDeletes.push(request.url());
+};
+page.on('request', countJournalDeletes);
+
+await page.getByRole('button', { name: 'Delete my journal' }).click();
+await page.waitForTimeout(400);
+// A handle, not a locator: the label becomes "Deleting…" while the loop runs,
+// so a role+name locator stops resolving after the first tap and the second
+// would never be sent — the check would pass having measured nothing.
+const wipe = await page.locator('button', { hasText: /^Delete everything$/ }).elementHandle();
+await wipe.click();
+await wipe.click({ force: true });
+await wipe.click({ force: true });
+await page.waitForTimeout(4000);
+page.off('request', countJournalDeletes);
+
+if (journalDeletes.length === journalBefore)
+  ok(`a double-tapped journal delete sends one request per entry (${String(journalBefore)})`);
+else
+  bad(
+    'a double-tapped journal delete sends one request per entry',
+    `${String(journalBefore)} entries, ${String(journalDeletes.length)} deletes`,
+  );
+
+/*
+ * The two assertions below are guards rather than demonstrations, and the
+ * difference is worth knowing before trusting them.
+ *
+ * Measured with both halves of the fix reverted: the count assertion above
+ * goes red (6 entries, 8 deletes) and these two stayed **green**. The
+ * duplicate delete's 404 did set the failure line, and then the surviving
+ * loop's success path cleared it — so whether the false sentence is on screen
+ * when this reads it depends on which loop finishes last. That makes the
+ * count the assertion to trust here, and these two cheap insurance against a
+ * future where the race lands the other way.
+ *
+ * The 404's wording is pinned where it can be pinned:
+ * `apps/api/tests/Feature/NotFoundSaysNothingTest.php`, with `app.debug` off.
+ */
+const afterWipe = await page.locator('body').innerText();
+if (!/Some entries were not deleted/.test(afterWipe))
+  ok('and it is not told that some entries survived');
+else bad('and it is not told that some entries survived', afterWipe.slice(0, 300));
+if (!/No query results for model/.test(afterWipe))
+  ok('and no screen shows Laravel naming a model it could not find');
+else bad('and no screen shows Laravel naming a model it could not find', afterWipe.slice(0, 300));
+
 const savedToken = await page.evaluate(() => window.localStorage.getItem('stillpoint.token.v1'));
 
 await page.getByRole('button', { name: 'Delete my account' }).click();
