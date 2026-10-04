@@ -1100,6 +1100,21 @@ trail:
 A no-op (setting the role it already has) records nothing: a trail of no-ops is
 a trail nobody reads.
 
+**And a trail that could not be read is not an empty trail.** `refreshTrail()`
+swallowed a failed `GET /admin/role-changes` so that failing to show the record
+could not stop anybody administering an account — which is right — and the
+screen then printed "No role has been changed yet." over it, which is not.
+Those are opposite facts on the one screen anyone would look at: one says
+nobody has been granted the safety queue, the other says this screen does not
+know who has. It is the same shape as the risk screen reporting `none` for text
+it could not read, and it was found the same way — by a check believing it.
+`e2e/admin.mjs` reported the role change as never recorded through two CI runs
+while the change had in fact been made and only the trail could not be read, so
+it now asserts the server's record and the screen's **separately**: which half
+failed is the whole diagnosis. It also asserts the trail row for its own
+account rather than `User → Coach` anywhere on the page, which an earlier run
+left there — measured, 1 round in 10 passed with nothing recorded.
+
 `AdminOverviewService` reads only plain columns — kind, the furthest step, end
 reason, rating, the count of turns the safety screen could not read, and when
 the longest-waiting open flag was raised.
@@ -1209,6 +1224,17 @@ shares, and the people it locks out are strangers to each other — one of whom
 cannot reach their journal. A per-IP ceiling stays as a second line against one
 machine spraying many accounts, set where only a script reaches it. Do not
 replace this with `throttle:N,1`, which is per IP and was what it replaced.
+
+**A rate limiter writes, and on sqlite that write is a 500.** The
+`throttle:120,1` on the authenticated routes stores a counter in the cache on
+every request, and `CACHE_STORE=database` puts that write in the same database
+as the data the request is about. On MySQL it is fine. On sqlite — which is the
+development container and the documented end-to-end stack — it is not:
+measured at 8 server workers, **33 of 60** concurrent reads of
+`/admin/role-changes` answered 500 `database is locked`, from the limiter
+rather than from anything the request asked for. It reads as a flaky console
+and it is configuration. `CACHE_STORE=file` whenever `DB_CONNECTION=sqlite`;
+`.env.example` and `e2e/README.md` both say so beside the line that needs it.
 
 The web client keeps its token in `localStorage`, which an XSS can read. The
 right answer is Sanctum's cookie mode; the shortcut is documented at the top of

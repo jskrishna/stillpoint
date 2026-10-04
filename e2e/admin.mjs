@@ -264,28 +264,71 @@ if (!signedIn) {
 
   await found.locator('select').selectOption('coach');
 
-  // Waits for the trail to say it, rather than for a duration. This was
-  // `waitForTimeout(1800)` and it went red in CI, where the API runs against
-  // MySQL behind several workers and a round trip takes longer than it does
-  // here — the screen was simply still waiting, and the check read that as
-  // "the change was not recorded". A fixed sleep asserts the speed of the
-  // machine; this asserts the thing the test is about, and still fails if the
-  // change genuinely never records.
+  const mail = promoted;
+
+  // Two assertions rather than one, because they fail for different reasons
+  // and which one failed is the whole diagnosis. The server's record says
+  // whether the change was made; the screen says whether the trail can be
+  // read. One check on the page could not tell those apart: when
+  // `GET /admin/role-changes` failed, the screen printed "No role has been
+  // changed yet." and this read it as the change never happening, which cost
+  // two CI runs to work out.
+  //
+  // And it matched "User → Coach" anywhere on the page, so a change from an
+  // earlier run of this script left that text in the trail and the check
+  // passed with this run's change never recorded. Measured: 1 of 10 rounds.
+  // Both halves are scoped to this run's own account now.
+  const readTrail = () =>
+    admin.evaluate(
+      async ([api, mail]) => {
+        const token = window.localStorage.getItem('stillpoint.token.v1');
+        const r = await fetch(`${api}/admin/role-changes?limit=50`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        });
+        if (!r.ok) return { status: r.status, count: 0, change: null };
+        const page = await r.json();
+        const mine = (page.items ?? []).filter((c) => c.userEmail === mail);
+        return { status: r.status, count: mine.length, change: mine[0] ?? null };
+      },
+      [API, mail],
+    );
+
+  // Polled, because `selectOption` returns when the option is selected and the
+  // PATCH is still in flight: reading the server once, immediately, would
+  // assert that a request which had not finished had not happened.
+  let inTrail = { status: 0, count: 0, change: null };
+  for (let i = 0; i < 30; i++) {
+    inTrail = await readTrail();
+    if (inTrail.count > 0) break;
+    await admin.waitForTimeout(500);
+  }
+
+  const change = inTrail.change;
+  if (inTrail.count === 1 && change.fromRole === 'user' && change.toRole === 'coach')
+    ok('the server recorded the change');
+  else bad('the server recorded the change', JSON.stringify(inTrail));
+
+  if (inTrail.count === 1 && change.changedByEmail === ACCOUNTS.admin) ok('and who made it');
+  else bad('and who made it', JSON.stringify(change?.changedByEmail));
+
+  // The trail row for *this* account, not the arrow anywhere on the page.
   const recorded = await admin
-    .waitForFunction(() => document.body.innerText.includes('User → Coach'), null, {
-      timeout: 15000,
-    })
+    .waitForFunction(
+      (mail) =>
+        [...document.querySelectorAll('tbody tr')].some(
+          (r) => r.innerText.includes(mail) && r.innerText.includes('User → Coach'),
+        ),
+      promoted,
+      { timeout: 15000 },
+    )
     .then(
       () => true,
       () => false,
     );
 
-  if (recorded) ok('the change is recorded in the trail, with who made it');
+  if (recorded) ok('the screen shows it in the trail');
   else
-    bad(
-      'the change is recorded in the trail',
-      (await admin.locator('body').innerText()).slice(-400),
-    );
+    bad('the screen shows it in the trail', (await admin.locator('body').innerText()).slice(-400));
 
   // The server refuses the two changes that should not be easy, whether or not
   // a screen offers them.
@@ -313,6 +356,39 @@ if (!signedIn) {
   else bad('the server refuses an admin changing their own role', String(refusals.own));
   if (refusals.role === 'admin') ok('and they are still an admin');
   else bad('and they are still an admin', String(refusals.role));
+
+  // A trail that could not be read must not read as a trail with nothing in
+  // it. The screen swallowed the failure and printed "No role has been changed
+  // yet." over a trail that may hold every escalation in the product — on the
+  // one screen where anybody would look for them, and where the answer being
+  // wrong says nobody has been granted the safety queue. It is the same shape
+  // as the risk screen reporting `none` for text it could not read, and it was
+  // found the same way: by a check believing it.
+  await admin.route('**/admin/role-changes*', (route) => route.abort());
+  await admin.reload({ waitUntil: 'domcontentloaded' });
+
+  // Waits for the screen to have been told, not for the screen to exist. The
+  // first render legitimately has an empty trail and no failure yet — the
+  // request is still in flight — so reading the page as soon as the heading
+  // appears reads the state before the answer, and that is this check's own
+  // bug rather than the product's. It cost one run to learn, twice.
+  const saidSo = await admin
+    .waitForFunction(
+      () => document.body.innerText.includes('Could not read the role trail'),
+      null,
+      { timeout: 15000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  const blind = await admin.locator('body').innerText();
+  await admin.unroute('**/admin/role-changes*');
+
+  if (saidSo) ok('an unreadable trail says so');
+  else bad('an unreadable trail says so', blind.slice(-400));
+  if (!blind.includes('No role has been changed yet')) ok('and is not reported as an empty one');
+  else bad('and is not reported as an empty one', 'the screen said the trail is empty');
 
   // -------------------------------------------------------------------------
   console.log('\n4. The step-prompt editor');

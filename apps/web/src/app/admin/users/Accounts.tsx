@@ -43,6 +43,7 @@ export default function Accounts() {
   const [total, setTotal] = useState(0);
   const [adminCount, setAdminCount] = useState(0);
   const [trail, setTrail] = useState<readonly ApiRoleChange[]>([]);
+  const [trailProblem, setTrailProblem] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -87,10 +88,18 @@ export default function Accounts() {
       .roleChanges(20)
       .then((page) => {
         setTrail(page.items);
+        setTrailProblem(null);
       })
       .catch(() => {
-        // The trail is a record, not a control. Failing to show it should not
-        // stop anyone administering an account.
+        // Failing to read the trail must not stop anyone administering an
+        // account — it is a record, not a control — but it must not be
+        // reported as an empty trail either. Those are opposite facts: one
+        // says nobody has been granted the safety queue, the other says this
+        // screen does not know who has. Swallowing the failure printed "No
+        // role has been changed yet." over a trail that may hold every
+        // escalation in the product, and the only screen that records them is
+        // the only place anyone would look.
+        setTrailProblem('Could not read the role trail. Reload to see it.');
       });
   }, []);
 
@@ -262,8 +271,17 @@ export default function Accounts() {
       <p className={styles.sub}>
         Granting Admin grants the safety queue. Every change is recorded here, with who made it.
       </p>
+      {trailProblem === null ? null : (
+        <p className={styles.sub} role="alert">
+          {trailProblem}
+        </p>
+      )}
       {trail.length === 0 ? (
-        <p className={styles.sub}>No role has been changed yet.</p>
+        // Only when the trail was actually read. A failure says so above, and
+        // says nothing about whether a role has been changed.
+        trailProblem === null ? (
+          <p className={styles.sub}>No role has been changed yet.</p>
+        ) : null
       ) : (
         <table className={styles.table}>
           <thead>

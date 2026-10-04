@@ -271,11 +271,44 @@ jobs:
       # with `Failed to fetch`. Laravel only passes `PHP_CLI_SERVER_WORKERS`
       # through when reloading is off — without the flag it warns and serves
       # single-threaded anyway.
+      #
+      # Supervised, because workers raised that ceiling and did not remove it:
+      # the server has since died outright part-way through a run. The
+      # evidence was that `storage/logs/laravel.log` did not exist at all — so
+      # nothing ever reached PHP and failed, the failures were at the
+      # connection — and that `php` was absent from the runner's own list of
+      # orphan processes at the end of the job, while `next-server` and
+      # `python3` were still there. The last script then failed on every API
+      # call and reported it as a UI timeout, which is a long way from the
+      # cause.
+      #
+      # So it respawns, and says so loudly enough to find: a restart is
+      # reported as a warning below rather than swallowed, because a server
+      # that needs respawning is news whether or not the checks went green
+      # around it. The alternative is nginx and php-fpm, which `deploy/`
+      # already has and the `docker` job already brings up; that is the real
+      # answer if this recurs.
+      #
+      # The cache is a file rather than the database for the same reason the
+      # turns route has no throttle middleware, only smaller: `throttle:120,1`
+      # writes a counter on every authenticated request, and with the cache in
+      # the database every one of those writes competes with the data under
+      # test. On sqlite that is fatal — measured, 2 of 10 role changes came
+      # back 500 `database is locked`, from the rate limiter and not from
+      # anything the request asked for.
       - name: Start the servers
         env:
-          PHP_CLI_SERVER_WORKERS: '8'
+          PHP_CLI_SERVER_WORKERS: '24'
+          CACHE_STORE: file
         run: |
-          php artisan serve --port=8000 --no-reload &
+          nohup bash -c '
+            for attempt in $(seq 1 50); do
+              echo "--- starting the API (attempt $attempt) at $(date -Is)"
+              php artisan serve --port=8000 --no-reload
+              echo "!!! the API server exited ($?) at $(date -Is)"
+              sleep 1
+            done
+          ' > /tmp/api.log 2>&1 &
           echo $! > /tmp/api.pid
           pnpm --filter @stillpoint/web exec next start --port 3000 &
           echo $! > /tmp/web.pid
@@ -324,10 +357,36 @@ jobs:
         if: '!cancelled()'
         run: node e2e/mobile.mjs
 
-      - name: The API log, if anything failed
+      # A restart is not a failure on its own, so it does not fail the job —
+      # but it is never invisible either, because the run it breaks is the one
+      # after it and the symptom shows up somewhere else entirely.
+      - name: Say so if the API server had to be restarted
+        if: '!cancelled()'
+        run: |
+          deaths=$(grep -c '!!! the API server exited' /tmp/api.log || true)
+          if [ "${deaths:-0}" -gt 0 ]; then
+            echo "::warning::The API server died ${deaths} time(s) during this run and was restarted."
+            grep -n 'starting the API\|the API server exited' /tmp/api.log || true
+          else
+            echo "The API server stayed up for the whole run."
+          fi
+
+      # Both logs, and neither quietly. The previous version tailed only
+      # Laravel's, whose *absence* was the finding — `|| true` swallowed
+      # "No such file or directory" into a line nobody reads twice.
+      - name: The logs, if anything failed
         if: failure()
-        working-directory: apps/api
-        run: tail -n 200 storage/logs/laravel.log || true
+        run: |
+          echo "=== the API server's own output ==="
+          tail -n 60 /tmp/api.log || echo "(no /tmp/api.log)"
+          echo
+          echo "=== Laravel's log ==="
+          if [ -f apps/api/storage/logs/laravel.log ]; then
+            tail -n 200 apps/api/storage/logs/laravel.log
+          else
+            echo "(no laravel.log — nothing reached PHP and threw; look at the"
+            echo " server output above and at the connection, not at the app)"
+          fi
 
   docker:
     name: Deployment — the images build and come up

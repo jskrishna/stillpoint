@@ -76,7 +76,13 @@ final class DemoSeeder extends Seeder
         // fillable — which is the rule that makes this seeder necessary.
         $user->role = $role;
         $user->plan ??= 'free';
-        $user->country ??= 'IN';
+        // No country here on purpose. It used to be `??= 'IN'`, written when
+        // India was the only market, so every demo account's safety stop
+        // offered Tele-MANAS and 112 after Canada became the first one — a
+        // seeder quietly holding the second market's crisis numbers. The
+        // column's default is the answer (`CA`), and leaving it to the column
+        // means the next market change is one migration rather than a search
+        // for everywhere that guessed.
 
         // Consent is the server's gate on starting a session. A seeded account
         // that has not consented cannot do the thing it was seeded to do, and

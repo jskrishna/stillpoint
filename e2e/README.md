@@ -21,8 +21,20 @@ MySQL, which is what ships anyway. A side benefit: `lockForUpdate()` is a no-op
 on sqlite, so the lock guarding a session that has already stopped for safety is
 now exercised by the one check that drives a real browser.
 
-Locally the single-worker server below is right, and sqlite is fine: nothing is
-competing for the file.
+Workers raised that ceiling and did not remove it: the server has since died
+outright part-way through a run, and the last script reported it as a UI
+timeout thirty seconds later. Two things said so — `storage/logs/laravel.log`
+did not exist at all, so nothing had reached PHP and failed, and `php` was
+missing from the runner's own list of orphan processes at the end of the job
+while `next-server` and `python3` were still there. So CI supervises it: the
+server respawns, and a restart is reported as a warning even when the checks
+go green around it, because the run it breaks is the one after it. If that
+warning starts appearing, the answer is nginx and php-fpm — `deploy/` has both
+and the `docker` job already brings them up.
+
+Locally the single-worker server below is right, and sqlite is fine for the
+data: nothing is competing for the file. The cache is the exception, which is
+why the command below moves it out of the database — see the note on it.
 
 `mobile.mjs` is the odd one out and the most useful recently: it is the only
 thing that runs `apps/mobile`. CI typechecked that app and `expo export`
@@ -38,8 +50,13 @@ is still a test pass that has not happened.
 #    public route, so they cannot be made through the API.
 cd apps/api && php artisan db:seed --class=DemoSeeder
 
-# 1. the API, on :8000
-cd apps/api && php artisan serve --port=8000 &
+# 1. the API, on :8000. `CACHE_STORE=file` if your `.env` is on sqlite: the
+#    authenticated routes' `throttle:120,1` writes a counter to the cache on
+#    every request, and with the cache in a sqlite database those writes
+#    compete with the data under test. Measured at 8 server workers: 33 of 60
+#    concurrent reads of `/admin/role-changes` came back 500 `database is
+#    locked`. It looks like a flaky console and it is the rate limiter.
+cd apps/api && CACHE_STORE=file php artisan serve --port=8000 &
 
 # 2. the web app, on :3000  (the API's CORS list allows localhost and 127.0.0.1)
 pnpm run build
