@@ -110,7 +110,16 @@ backups.
 
 ---
 
-## 4. The step copy has to be read by whoever owns the product's voice
+## 4. The step copy has to be published, the hour the deployment is up
+
+**This is not polish.** Until a protocol version is published, the guide asks
+step 1's question and then says nothing for the remaining five steps, because
+only steps 1, 4 and 5 have copy in the designs and the rest are `null` in code
+on purpose. A fresh deployment is in exactly that state —
+`deploy/smoke.mjs` reports it, and I have watched it do so against an unseeded
+database. So this belongs beside item 3 rather than after it: a deployment
+nobody has published on is a product that stops talking to somebody who is
+upset.
 
 **What is there.** The designs specify step 1's question, step 4 in full and
 step 5's question. Everything else is `null` in code, deliberately — a guess in
