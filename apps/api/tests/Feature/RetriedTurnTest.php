@@ -96,7 +96,8 @@ final class RetriedTurnTest extends TestCase
             ->assertJsonPath('endReason', 'safety_stop');
 
         $numbers = array_column($response->json('safety.helplines'), 'number');
-        $this->assertSame(['14416', '112'], $numbers);
+        // The default country's numbers; a factory-made account is in Canada.
+        $this->assertSame(['988', '1-866-277-3553', '911'], $numbers);
     }
 
     public function test_a_stale_answer_still_raises_a_flag_for_review(): void

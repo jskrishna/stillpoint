@@ -48,6 +48,10 @@ export {
   SAFETY_LEVELS,
   SAFETY_CATEGORY_LABEL,
   HELPLINES_IN,
+  HELPLINES_CA,
+  COUNTRIES,
+  DEFAULT_COUNTRY,
+  isCountryCode,
   mustStop,
   mustFlag,
   moreSevere,
@@ -60,6 +64,7 @@ export {
   type SafetyFlag,
   type FlagStatus,
   type Helpline,
+  type CountryCode,
 } from './safety.js';
 
 export {

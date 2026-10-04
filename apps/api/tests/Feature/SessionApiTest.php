@@ -128,10 +128,11 @@ final class SessionApiTest extends TestCase
             ->assertJsonPath('ended', true)
             ->assertJsonPath('endReason', 'safety_stop');
 
-        // And the helplines are there, which is the whole point.
+        // And the helplines are there, which is the whole point. The default
+        // country's, because a factory-made account is in Canada.
         $numbers = array_column($response->json('safety.helplines'), 'number');
-        $this->assertContains('14416', $numbers);
-        $this->assertContains('112', $numbers);
+        $this->assertContains('988', $numbers);
+        $this->assertContains('911', $numbers);
     }
 
     public function test_a_spent_budget_still_raises_a_flag_for_a_medium_signal(): void
@@ -457,7 +458,7 @@ final class SessionApiTest extends TestCase
             ->assertJsonPath('safety.title', 'Let’s pause here.');
 
         $numbers = array_column($response->json('safety.helplines'), 'number');
-        $this->assertSame(['14416', '112'], $numbers);
+        $this->assertSame(['988', '1-866-277-3553', '911'], $numbers);
     }
 
     public function test_a_stopped_session_never_leaks_why_it_stopped(): void

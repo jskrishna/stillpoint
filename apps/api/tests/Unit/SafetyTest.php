@@ -151,6 +151,12 @@ final class SafetyTest extends TestCase
     {
         // A wrong crisis number is worse than none, so this stays empty rather
         // than substituting something plausible.
-        $this->assertSame([], Helpline::forCountry('CA'));
+        //
+        // This named Canada until Canada became the first market — which is
+        // the thing worth noticing about it: the assertion was correct and the
+        // behaviour it pinned meant a Canadian in crisis saw no number at all.
+        $this->assertSame([], Helpline::forCountry('US'));
+        $this->assertSame([], Helpline::forCountry('GB'));
+        $this->assertSame([], Helpline::forCountry(''));
     }
 }

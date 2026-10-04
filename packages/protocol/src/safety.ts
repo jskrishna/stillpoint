@@ -98,13 +98,67 @@ export interface Helpline {
   /** Short qualifier, e.g. "Free · 24 hours". */
   readonly detail: string;
   /** ISO 3166-1 alpha-2 country this helpline serves. */
-  readonly country: 'IN';
+  readonly country: CountryCode;
   /** `emergency` services take precedence over a `helpline`. */
   readonly kind: 'helpline' | 'emergency';
 }
 
+/** A country this product knows crisis numbers for. */
+export type CountryCode = 'CA' | 'IN';
+
+/** Countries with helplines, and the one a new account is assumed to be in. */
+export const COUNTRIES = ['CA', 'IN'] as const satisfies readonly CountryCode[];
+
+export const DEFAULT_COUNTRY: CountryCode = 'CA';
+
+export function isCountryCode(value: string): value is CountryCode {
+  return (COUNTRIES as readonly string[]).includes(value);
+}
+
 /**
- * Helplines for India, the market the designs target.
+ * Helplines for Canada, the first market.
+ *
+ * 9-8-8 is Canada's national suicide crisis line — one number, phone and text,
+ * bilingual, every day. Quebec is listed separately because it answers through
+ * 1-866-APPELLE instead, which is not a nicety: somebody in Montreal dialling
+ * the wrong one of those is the failure this screen exists to prevent, and a
+ * screen that shows only the federal number is wrong for a quarter of the
+ * country.
+ *
+ * Emergency is 911 here, not 112.
+ *
+ * **Not clinically reviewed.** The numbers are verifiable and were checked
+ * against the services' own pages; what needs a clinician is the wording, the
+ * order they appear in, and whether a national line and a provincial one
+ * should sit on one screen at all. That question is in
+ * `docs/clinical-review/RISK-SCREEN-REVIEW.md`.
+ */
+export const HELPLINES_CA: readonly Helpline[] = [
+  {
+    name: 'Suicide Crisis Helpline',
+    number: '988',
+    detail: 'Call or text · 24 hours · Canada',
+    country: 'CA',
+    kind: 'helpline',
+  },
+  {
+    name: 'Québec — 1-866-APPELLE',
+    number: '1-866-277-3553',
+    detail: 'Call · 24 hours · Québec',
+    country: 'CA',
+    kind: 'helpline',
+  },
+  {
+    name: 'Emergency',
+    number: '911',
+    detail: 'If you are in danger now',
+    country: 'CA',
+    kind: 'emergency',
+  },
+];
+
+/**
+ * Helplines for India, the second market.
  *
  * The safety screen also offers "Not in India? See other helplines", so this
  * list is deliberately scoped by country and expected to grow. Resolve by
@@ -127,7 +181,17 @@ export const HELPLINES_IN: readonly Helpline[] = [
   },
 ];
 
-/** Returns the helplines for a country, or an empty list if none are known. */
+/**
+ * Returns the helplines for a country, or an empty list if none are known.
+ *
+ * Still an empty list for an unknown country, and still deliberately: a
+ * plausible-looking wrong crisis number is worse than none. What changed is
+ * that Canada is now a country this knows, because it is the first market —
+ * before that, a Canadian in crisis saw a pause screen with no number on it.
+ */
 export function helplinesFor(country: string): readonly Helpline[] {
-  return country === 'IN' ? HELPLINES_IN : [];
+  if (country === 'CA') return HELPLINES_CA;
+  if (country === 'IN') return HELPLINES_IN;
+
+  return [];
 }

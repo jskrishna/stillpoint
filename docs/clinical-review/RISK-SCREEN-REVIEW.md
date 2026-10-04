@@ -1,6 +1,6 @@
 # Stillpoint — risk screen, for clinical review
 
-Generated from `packages/protocol/src/risk.ts` at commit `efeb815`.
+Generated from `packages/protocol/src/risk.ts` at commit `ab79466`.
 Regenerate with `pnpm run clinical:review` after any change to the screen.
 
 ## What we are asking for
@@ -43,9 +43,23 @@ failure it prevents.
 
 ### What the person sees, and what we never tell them
 
-On a high grade the person sees a pause screen, Tele-MANAS **14416** and
-emergency services **112**. Helplines are India-only; for any other country
-the product shows none rather than a plausible-looking wrong number.
+On a high grade the person sees a pause screen with the crisis numbers for
+their country:
+
+**Canada**
+
+- **988** — Suicide Crisis Helpline. Call or text · 24 hours · Canada.
+- **1-866-277-3553** — Québec — 1-866-APPELLE. Call · 24 hours · Québec.
+- **911** — Emergency. If you are in danger now.
+
+**India**
+
+- **14416** — Tele-MANAS helpline. Free · 24 hours · India.
+- **112** — Emergency. If you are in danger now.
+
+A country this product has no numbers for is shown **none**, rather than a
+plausible-looking number from somewhere else. Canada is the first market and
+is what a new account is assumed to be in; India is covered as well.
 
 The person is **never** told which rule they tripped, the grade, or the
 phrase that matched. A medium or low flag is invisible to them.
@@ -95,7 +109,7 @@ There are 134 phrases in 8 rules.
 
 ### Graded high
 
-**The session ends immediately.** The guide is never consulted. The person is shown a pause screen with Tele-MANAS (14416) and emergency services (112), and the session cannot be resumed or continued. A flag is raised for a reviewer. No journal entry is written.
+**The session ends immediately.** The guide is never consulted. The person is shown a pause screen with the crisis numbers for their country (see below), and the session cannot be resumed or continued. A flag is raised for a reviewer. No journal entry is written.
 
 **Self-harm or suicide** — 52 phrases
 
@@ -294,7 +308,8 @@ graded, and the Bengali one is not read at all.
    burdensomeness ever end a session, when ending it means the person cannot
    continue and is shown helplines?
 3. **Is the pause screen clinically appropriate** — what it says, and showing
-   Tele-MANAS and 112 together?
+   the numbers listed above, and showing a national line and a provincial
+   one (988 and Québec’s 1-866-APPELLE) on the same screen?
 4. **Should a safety flag outlive the person deleting their account?**
    Today it is deleted with everything else, because that is what erasure
    means. Which also means that if somebody said they were in danger and then

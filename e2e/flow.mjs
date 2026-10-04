@@ -727,7 +727,7 @@ if (spent.error !== undefined) {
   if (spent.ended === true && spent.endReason === 'safety_stop')
     ok('it still stops the session for safety');
   else bad('it still stops the session for safety', JSON.stringify(spent));
-  if (spent.numbers.includes('14416') && spent.numbers.includes('112'))
+  if (spent.numbers.includes('988') && spent.numbers.includes('911'))
     ok('the helplines are still given');
   else bad('the helplines are still given', spent.numbers.join(', '));
 }
@@ -762,10 +762,17 @@ await page
 await page.waitForTimeout(2000);
 
 const stopped = await text();
-if (/Tele-MANAS|14416/.test(stopped)) ok('the crisis screen shows the Tele-MANAS helpline');
-else bad('the crisis screen shows the Tele-MANAS helpline', stopped.slice(0, 400));
-if (/112/.test(stopped)) ok('the crisis screen shows emergency 112');
-else bad('the crisis screen shows emergency 112');
+// Canada's numbers, because a new account is assumed to be in Canada — the
+// first market. India's are still shown to an account whose country is `IN`;
+// `CanadianHelplinesTest` covers both, and this asserts what the person who
+// just registered actually sees.
+if (/988/.test(stopped)) ok('the crisis screen shows the 988 crisis line');
+else bad('the crisis screen shows the 988 crisis line', stopped.slice(0, 400));
+if (/APPELLE|1-866-277-3553/.test(stopped))
+  ok('and Québec’s line, which answers instead of 988 there');
+else bad('and Québec’s line', stopped.slice(0, 400));
+if (/\b911\b/.test(stopped)) ok('and the emergency number, 911 here rather than 112');
+else bad('and the emergency number, 911 here rather than 112', stopped.slice(0, 400));
 if (!/Step \d of 6/.test(stopped)) ok('the session is over, no step is shown');
 else bad('the session is over, no step is shown');
 if (requests.some((r) => r.includes('/turns')))

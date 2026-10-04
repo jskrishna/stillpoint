@@ -78,7 +78,7 @@ final class SessionResource extends JsonResource
                     'number' => $h->number,
                     'detail' => $h->detail,
                     'kind' => $h->kind,
-                ], Helpline::forCountry($request->user()?->country ?? 'IN')),
+                ], Helpline::forCountry($request->user()?->country ?? Helpline::DEFAULT_COUNTRY)),
             ] : null,
         ];
     }

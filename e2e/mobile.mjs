@@ -246,10 +246,10 @@ await answer('I want to kill myself');
 await page.waitForTimeout(1500);
 
 const stopped = await body();
-if (/14416|Tele-?MANAS/i.test(stopped)) ok('the crisis screen gives Tele-MANAS');
-else bad('the crisis screen gives Tele-MANAS', stopped.slice(0, 600));
-if (/\b112\b/.test(stopped)) ok('and emergency 112');
-else bad('and emergency 112', stopped.slice(0, 600));
+if (/988/.test(stopped)) ok('the crisis screen gives the 988 crisis line');
+else bad('the crisis screen gives the 988 crisis line', stopped.slice(0, 600));
+if (/\b911\b/.test(stopped)) ok('and the emergency number, 911 here rather than 112');
+else bad('and the emergency number, 911 here rather than 112', stopped.slice(0, 600));
 if (!/step [1-6] of 6/i.test(stopped)) ok('the session is over, no step is shown');
 else bad('the session is over, no step is shown', stopped.slice(0, 600));
 

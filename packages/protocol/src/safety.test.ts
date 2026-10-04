@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COUNTRIES,
+  DEFAULT_COUNTRY,
   HELPLINES_IN,
   SAFETY_ACTION,
   SAFETY_CATEGORY_LABEL,
   SAFETY_LEVELS,
   byUrgency,
   helplinesFor,
+  isCountryCode,
   markReviewed,
   moreSevere,
   mustFlag,
@@ -120,9 +123,59 @@ describe('helplines', () => {
   });
 
   it('resolves by country and admits when it knows none', () => {
+    expect(helplinesFor('CA')).toHaveLength(3);
     expect(helplinesFor('IN')).toHaveLength(2);
-    // The safety screen offers "Not in India? See other helplines", so an empty
-    // list here is a known gap, not a bug — but it must never be silently wrong.
-    expect(helplinesFor('CA')).toEqual([]);
+
+    // An empty list for a country this does not cover is a known gap, not a
+    // bug — but it must never be silently wrong, so a plausible-looking number
+    // from the wrong country is never substituted. This assertion used to name
+    // Canada, which is now the first market: a Canadian in crisis saw a pause
+    // screen with no number on it, and the test said that was fine.
+    expect(helplinesFor('US')).toEqual([]);
+    expect(helplinesFor('GB')).toEqual([]);
+    expect(helplinesFor('')).toEqual([]);
+  });
+
+  /**
+   * Canada is the first market, so its numbers are the ones most people see.
+   *
+   * Québec is listed separately because it answers through 1-866-APPELLE
+   * rather than 988, and somebody in Montréal dialling the wrong one of those
+   * is the failure this screen exists to prevent.
+   */
+  it('gives Canada its national line, Québec’s, and 911', () => {
+    const numbers = helplinesFor('CA').map((h) => h.number);
+    expect(numbers).toEqual(['988', '1-866-277-3553', '911']);
+  });
+
+  it('puts the emergency number last in both countries', () => {
+    for (const country of ['CA', 'IN']) {
+      const lines = helplinesFor(country);
+      const emergencies = lines.filter((h) => h.kind === 'emergency');
+      expect(emergencies, country).toHaveLength(1);
+      expect(lines[lines.length - 1]?.kind, country).toBe('emergency');
+    }
+  });
+
+  it('never hands one country’s numbers to another', () => {
+    for (const country of ['CA', 'IN']) {
+      for (const line of helplinesFor(country)) {
+        expect(line.country, `${country}: ${line.number}`).toBe(country);
+      }
+    }
+  });
+
+  it('assumes a new account is in Canada, the first market', () => {
+    expect(DEFAULT_COUNTRY).toBe('CA');
+    expect(helplinesFor(DEFAULT_COUNTRY)).not.toEqual([]);
+  });
+
+  it('knows which countries it covers', () => {
+    expect([...COUNTRIES].sort()).toEqual(['CA', 'IN']);
+    for (const country of COUNTRIES) {
+      expect(isCountryCode(country), country).toBe(true);
+      expect(helplinesFor(country), country).not.toEqual([]);
+    }
+    expect(isCountryCode('US')).toBe(false);
   });
 });

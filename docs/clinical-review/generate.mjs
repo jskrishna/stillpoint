@@ -15,9 +15,16 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { BASELINE_RULES, baselineRiskScreen } from '../../packages/protocol/dist/index.js';
+import {
+  BASELINE_RULES,
+  COUNTRIES,
+  baselineRiskScreen,
+  helplinesFor,
+} from '../../packages/protocol/dist/index.js';
 
 const LEVELS = ['high', 'medium', 'low'];
+
+const COUNTRY_NAME = { CA: 'Canada', IN: 'India' };
 
 const CATEGORY = {
   self_harm: 'Self-harm or suicide',
@@ -27,7 +34,7 @@ const CATEGORY = {
 };
 
 const WHAT_HAPPENS = {
-  high: '**The session ends immediately.** The guide is never consulted. The person is shown a pause screen with Tele-MANAS (14416) and emergency services (112), and the session cannot be resumed or continued. A flag is raised for a reviewer. No journal entry is written.',
+  high: '**The session ends immediately.** The guide is never consulted. The person is shown a pause screen with the crisis numbers for their country (see below), and the session cannot be resumed or continued. A flag is raised for a reviewer. No journal entry is written.',
   medium:
     'The session continues normally. A flag is raised for a reviewer, with the sentence that matched. The person is not interrupted and is not told anything happened.',
   low: 'The session continues normally. A flag is raised for a reviewer, at the lowest severity. The person is not interrupted and is not told anything happened.',
@@ -89,9 +96,20 @@ w('failure it prevents.');
 w();
 w('### What the person sees, and what we never tell them');
 w();
-w('On a high grade the person sees a pause screen, Tele-MANAS **14416** and');
-w('emergency services **112**. Helplines are India-only; for any other country');
-w('the product shows none rather than a plausible-looking wrong number.');
+w('On a high grade the person sees a pause screen with the crisis numbers for');
+w('their country:');
+w();
+for (const country of COUNTRIES) {
+  w(`**${COUNTRY_NAME[country] ?? country}**`);
+  w();
+  for (const line of helplinesFor(country)) {
+    w(`- **${line.number}** — ${line.name}. ${line.detail}.`);
+  }
+  w();
+}
+w('A country this product has no numbers for is shown **none**, rather than a');
+w('plausible-looking number from somewhere else. Canada is the first market and');
+w('is what a new account is assumed to be in; India is covered as well.');
 w();
 w('The person is **never** told which rule they tripped, the grade, or the');
 w('phrase that matched. A medium or low flag is invisible to them.');
@@ -203,7 +221,8 @@ w('2. **Is the grading boundary right?** Specifically: should hopelessness and')
 w('   burdensomeness ever end a session, when ending it means the person cannot');
 w('   continue and is shown helplines?');
 w('3. **Is the pause screen clinically appropriate** — what it says, and showing');
-w('   Tele-MANAS and 112 together?');
+w('   the numbers listed above, and showing a national line and a provincial');
+w('   one (988 and Québec’s 1-866-APPELLE) on the same screen?');
 w('4. **Should a safety flag outlive the person deleting their account?**');
 w('   Today it is deleted with everything else, because that is what erasure');
 w('   means. Which also means that if somebody said they were in danger and then');
