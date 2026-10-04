@@ -99,6 +99,13 @@ Route::middleware(['auth:sanctum', 'throttle:120,1', EnsureStaff::class])->prefi
     Route::patch('users/{user}', [AdminUserController::class, 'update']);
     Route::get('role-changes', [AdminUserController::class, 'roleChanges']);
 
+    // And what they are allowed to *use*. Its own route rather than a second
+    // field on the one above, because that one carries the rules guarding the
+    // safety queue and a plan has nothing to do with them. It is a grant, not
+    // a purchase: there is no billing in this product at all.
+    Route::patch('users/{user}/plan', [AdminUserController::class, 'updatePlan']);
+    Route::get('plan-changes', [AdminUserController::class, 'planChanges']);
+
     Route::get('protocol-versions', [ProtocolVersionController::class, 'index']);
     Route::post('protocol-versions/draft', [ProtocolVersionController::class, 'openDraft']);
     Route::patch('protocol-versions/draft/steps/{stepId}', [ProtocolVersionController::class, 'editStep']);

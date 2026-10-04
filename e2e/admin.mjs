@@ -262,7 +262,9 @@ if (!signedIn) {
     ok('the accounts screen carries no session text');
   else bad('the accounts screen carries no session text');
 
-  await found.locator('select').selectOption('coach');
+  // By its label, not "the select in this row": the row carries two now, one
+  // for the role and one for the plan, and `locator('select')` matched both.
+  await found.locator('select[aria-label^="Role for"]').selectOption('coach');
 
   const mail = promoted;
 
@@ -330,6 +332,69 @@ if (!signedIn) {
   else
     bad('the screen shows it in the trail', (await admin.locator('body').innerText()).slice(-400));
 
+  // The plan, which until this control existed nothing in the product could
+  // set: registration does not accept one, the profile update whitelists three
+  // unrelated fields, and this screen changed the role. So every account was
+  // Free for ever, and the prices on the marketing site were for plans nobody
+  // could be on. It is a grant and not a purchase — there is no billing here.
+  await found.locator('select[aria-label^="Plan for"]').selectOption('plus');
+
+  const planned = await (async () => {
+    for (let i = 0; i < 30; i++) {
+      const read = await admin.evaluate(
+        async ([api, address]) => {
+          const token = window.localStorage.getItem('stillpoint.token.v1');
+          const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+          const users = await fetch(`${api}/admin/users?q=${encodeURIComponent(address)}`, {
+            headers,
+          }).then((r) => r.json());
+          const trail = await fetch(`${api}/admin/plan-changes?limit=50`, { headers }).then((r) =>
+            r.json(),
+          );
+          const mine = (trail.items ?? []).filter((c) => c.userEmail === address);
+          return { plan: users.items?.[0]?.plan ?? null, change: mine[0] ?? null };
+        },
+        [API, mail],
+      );
+      if (read.plan === 'plus' && read.change !== null) return read;
+      await admin.waitForTimeout(500);
+    }
+    return { plan: null, change: null };
+  })();
+
+  if (planned.plan === 'plus') ok('an admin can grant a paid plan');
+  else bad('an admin can grant a paid plan', JSON.stringify(planned));
+
+  if (
+    planned.change !== null &&
+    planned.change.fromPlan === 'free' &&
+    planned.change.toPlan === 'plus' &&
+    planned.change.changedByEmail === ACCOUNTS.admin
+  )
+    ok('and the grant is recorded, with who made it');
+  else bad('and the grant is recorded, with who made it', JSON.stringify(planned.change));
+
+  const planShown = await admin
+    .waitForFunction(
+      (address) =>
+        [...document.querySelectorAll('tbody tr')].some(
+          (r) => r.innerText.includes(address) && r.innerText.includes('Free → Plus'),
+        ),
+      mail,
+      { timeout: 15000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+
+  if (planShown) ok('and the screen shows it in the plan trail');
+  else
+    bad(
+      'and the screen shows it in the plan trail',
+      (await admin.locator('body').innerText()).slice(-400),
+    );
+
   // The server refuses the two changes that should not be easy, whether or not
   // a screen offers them.
   const refusals = await admin.evaluate(
@@ -346,8 +411,18 @@ if (!signedIn) {
         headers,
         body: JSON.stringify({ role: 'user' }),
       });
+      const ownPlan = await fetch(`${api}/admin/users/${String(me.id)}/plan`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ plan: 'plus' }),
+      });
       const stillAdmin = await fetch(`${api}/me`, { headers }).then((r) => r.json());
-      return { own: own.status, role: stillAdmin.role };
+      return {
+        own: own.status,
+        ownPlan: ownPlan.status,
+        role: stillAdmin.role,
+        plan: stillAdmin.plan,
+      };
     },
     [API],
   );
@@ -356,6 +431,13 @@ if (!signedIn) {
   else bad('the server refuses an admin changing their own role', String(refusals.own));
   if (refusals.role === 'admin') ok('and they are still an admin');
   else bad('and they are still an admin', String(refusals.role));
+
+  // Same argument, one step down: an unlimited allowance one person can give
+  // themselves is a benefit nobody else agreed to.
+  if (refusals.ownPlan === 403) ok('the server refuses an admin granting their own plan (403)');
+  else bad('the server refuses an admin granting their own plan', String(refusals.ownPlan));
+  if (refusals.plan === 'free') ok('and they are still on Free');
+  else bad('and they are still on Free', String(refusals.plan));
 
   // A trail that could not be read must not read as a trail with nothing in
   // it. The screen swallowed the failure and printed "No role has been changed

@@ -223,6 +223,22 @@ export interface ApiRoleChange {
   readonly at: string | null;
 }
 
+/**
+ * One entry in the plan trail.
+ *
+ * `changedByEmail` is null for a change nobody made by hand. Nothing writes
+ * one today — every plan change goes through an admin, because there is no
+ * billing — and that is the field billing would use.
+ */
+export interface ApiPlanChange {
+  readonly id: string;
+  readonly userEmail: string;
+  readonly changedByEmail: string | null;
+  readonly fromPlan: string;
+  readonly toPlan: string;
+  readonly at: string | null;
+}
+
 /** One step of a protocol version, as the editor holds it. */
 export interface ApiProtocolStep {
   readonly id: string;

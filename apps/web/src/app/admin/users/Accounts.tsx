@@ -5,6 +5,7 @@ import {
   ApiError,
   api,
   type ApiAdminUser,
+  type ApiPlanChange,
   type ApiRoleChange,
   type Profile,
 } from '../../../lib/api';
@@ -21,6 +22,27 @@ const ROLE_LABEL: Readonly<Record<string, string>> = {
   user: 'User',
   coach: 'Coach',
   admin: 'Admin',
+};
+
+/**
+ * The three plans, and the only way anybody is put on one.
+ *
+ * There is no billing in this product — no provider, no checkout, no money —
+ * so until this control existed every account was Free for ever and the two
+ * paid plans were states nobody could reach. This grants one: a pilot account,
+ * a coach being set up, a refund honoured by hand. It is not a purchase and
+ * the screen says so rather than implying somebody paid.
+ */
+const PLANS = [
+  { value: 'free', label: 'Free' },
+  { value: 'plus', label: 'Plus' },
+  { value: 'coach', label: 'Coach' },
+] as const;
+
+const PLAN_LABEL: Readonly<Record<string, string>> = {
+  free: 'Free',
+  plus: 'Plus',
+  coach: 'Coach',
 };
 
 /**
@@ -44,6 +66,8 @@ export default function Accounts() {
   const [adminCount, setAdminCount] = useState(0);
   const [trail, setTrail] = useState<readonly ApiRoleChange[]>([]);
   const [trailProblem, setTrailProblem] = useState<string | null>(null);
+  const [plans, setPlans] = useState<readonly ApiPlanChange[]>([]);
+  const [plansProblem, setPlansProblem] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -103,9 +127,24 @@ export default function Accounts() {
       });
   }, []);
 
+  const refreshPlans = useCallback(() => {
+    api
+      .planChanges(20)
+      .then((page) => {
+        setPlans(page.items);
+        setPlansProblem(null);
+      })
+      .catch(() => {
+        // Same rule as the role trail above: a trail that could not be read is
+        // not a trail with nothing in it.
+        setPlansProblem('Could not read the plan trail. Reload to see it.');
+      });
+  }, []);
+
   useEffect(() => {
     refreshTrail();
-  }, [refreshTrail]);
+    refreshPlans();
+  }, [refreshTrail, refreshPlans]);
 
   const change = async (user: ApiAdminUser, to: string) => {
     if (to === user.role) return;
@@ -120,6 +159,25 @@ export default function Accounts() {
     } catch (e: unknown) {
       // The server's own reason, not a guess at one: it knows whether this is
       // the last admin and this screen does not.
+      setProblem(
+        e instanceof ApiError ? e.message : 'Could not change that. Check your connection.',
+      );
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const changePlan = async (user: ApiAdminUser, to: string) => {
+    if (to === user.plan) return;
+    setSaving(user.id);
+    try {
+      const updated = await api.setUserPlan(user.id, to);
+      setUsers((current) => (current ?? []).map((u) => (u.id === updated.id ? updated : u)));
+      setProblem(null);
+      refreshPlans();
+    } catch (e: unknown) {
+      // The server's own reason: it knows this is the actor's own account and
+      // this screen would only be guessing.
       setProblem(
         e instanceof ApiError ? e.message : 'Could not change that. Check your connection.',
       );
@@ -219,7 +277,31 @@ export default function Accounts() {
                     {isMe ? ' (you)' : ''}
                   </td>
                   <td className={styles.td}>{user.email}</td>
-                  <td className={styles.td}>{user.plan}</td>
+                  <td className={styles.td}>
+                    {isMe ? (
+                      // Nobody grants themselves an unlimited allowance, for
+                      // the reason nobody grants themselves the safety queue.
+                      <span className={styles.statLabel}>
+                        {PLAN_LABEL[user.plan] ?? user.plan} · ask another admin
+                      </span>
+                    ) : (
+                      <select
+                        className={styles.input}
+                        value={user.plan}
+                        disabled={saving === user.id}
+                        aria-label={`Plan for ${user.name}`}
+                        onChange={(e) => {
+                          void changePlan(user, e.target.value);
+                        }}
+                      >
+                        {PLANS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
                   <td className={styles.td}>
                     {isMe ? (
                       // Nobody changes their own role, so there is nothing to
@@ -303,6 +385,51 @@ export default function Accounts() {
                   {ROLE_LABEL[c.fromRole] ?? c.fromRole} → {ROLE_LABEL[c.toRole] ?? c.toRole}
                 </td>
                 <td className={styles.td}>{c.changedByEmail ?? 'a deleted account'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <span className={styles.label} style={{ marginTop: 24 }}>
+        PLAN CHANGES
+      </span>
+      <p className={styles.sub}>
+        A plan set here is granted, not bought — there is no billing in this product yet, so this is
+        the only way anybody is on a paid plan. Recorded the same way, with who did it.
+      </p>
+      {plansProblem === null ? null : (
+        <p className={styles.sub} role="alert">
+          {plansProblem}
+        </p>
+      )}
+      {plans.length === 0 ? (
+        plansProblem === null ? (
+          <p className={styles.sub}>No plan has been changed yet.</p>
+        ) : null
+      ) : (
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>When</th>
+              <th className={styles.th}>Account</th>
+              <th className={styles.th}>Change</th>
+              <th className={styles.th}>By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map((c) => (
+              <tr key={c.id}>
+                <td className={styles.td}>
+                  {c.at === null ? '—' : new Date(c.at).toLocaleString(LOCALE)}
+                </td>
+                <td className={styles.td}>{c.userEmail}</td>
+                <td className={styles.td}>
+                  {PLAN_LABEL[c.fromPlan] ?? c.fromPlan} → {PLAN_LABEL[c.toPlan] ?? c.toPlan}
+                </td>
+                {/* Null would mean a change nobody made by hand. Nothing
+                    writes one today; billing would. */}
+                <td className={styles.td}>{c.changedByEmail ?? 'billing'}</td>
               </tr>
             ))}
           </tbody>

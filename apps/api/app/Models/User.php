@@ -17,8 +17,12 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
-    // `role` is deliberately absent: it is not something a request may set.
-    'name', 'email', 'password', 'plan', 'country',
+    // `role` and `plan` are deliberately absent: neither is something a
+    // request may set. `role` never was. `plan` was fillable while nothing
+    // could set it at all — no route accepted one, so it was unreachable
+    // rather than guarded — and now that the console grants plans, the one
+    // place that writes it assigns it directly, like the role route does.
+    'name', 'email', 'password', 'country',
     'guide_voice', 'talk_mode', 'coach_sharing',
     'accepted_consent', 'consented_at',
 ])]

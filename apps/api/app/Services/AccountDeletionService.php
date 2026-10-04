@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\CoachInvite;
+use App\Models\PlanChange;
 use App\Models\RoleChange;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,17 @@ final readonly class AccountDeletionService
                 ->where('user_id', $user->id)
                 ->update(['user_email' => self::ERASED]);
             RoleChange::query()
+                ->where('changed_by', $user->id)
+                ->update(['changed_by_email' => self::ERASED]);
+
+            // The plan trail is the same kind of record and gets the same
+            // treatment. It has no foreign key either, so nothing would reach
+            // it: this is the sweep the pattern asks for whenever a table is
+            // added, and the table was added after this list was written.
+            PlanChange::query()
+                ->where('user_id', $user->id)
+                ->update(['user_email' => self::ERASED]);
+            PlanChange::query()
                 ->where('changed_by', $user->id)
                 ->update(['changed_by_email' => self::ERASED]);
 

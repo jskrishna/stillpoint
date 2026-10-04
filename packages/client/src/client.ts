@@ -9,6 +9,7 @@ import type {
   ApiInvitation,
   ApiJournalEntry,
   ApiMyCoach,
+  ApiPlanChange,
   ApiProtocolVersion,
   ApiRoleChange,
   ApiSafetyFlag,
@@ -205,6 +206,17 @@ export function createClient(config: ClientConfig) {
 
     roleChanges: (limit?: number, cursor?: string | null) =>
       t.request<Page<ApiRoleChange>>(`/admin/role-changes${pageQuery(limit, cursor)}`),
+
+    /**
+     * Grants a plan. Not a purchase — there is no billing in this product, and
+     * this route is the only reason Plus and Coach are reachable at all.
+     * Refused for your own account.
+     */
+    setUserPlan: (id: string, plan: string) =>
+      t.request<ApiAdminUser>(`/admin/users/${id}/plan`, { method: 'PATCH', body: { plan } }),
+
+    planChanges: (limit?: number, cursor?: string | null) =>
+      t.request<Page<ApiPlanChange>>(`/admin/plan-changes${pageQuery(limit, cursor)}`),
 
     /** Open flags by default; 'all' to include the reviewed ones. */
     safetyFlags: (

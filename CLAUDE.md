@@ -442,13 +442,28 @@ comparison that produced them written beside them. `priceLabel()` still returns
 `[PRICE]/mo` for a `null`, because that is still the right answer for a plan
 nobody has priced.
 
-**A price is not a way to pay.** There is no billing at all — no provider, no
-checkout, and no route that sets `users.plan`: registration does not accept it,
-the profile update whitelists three unrelated fields, and the console changes
-`role` rather than `plan`. Every account is `free` for ever, so Plus and Coach
-are states nobody can reach, and the figures above are for plans nobody can
-buy. `Plan` enforces what each one _allows_ and always has; what is missing is
-everything that would move somebody between them. `DECISIONS.md` has it.
+**A price is still not a way to pay, and a plan is now a grant.** There is no
+billing at all — no provider, no checkout, no subscription — so nobody can
+_buy_ anything, and that is in `DECISIONS.md`. But Plus and Coach are no longer
+states nobody can reach: `PATCH /admin/users/{id}/plan` grants one from the
+console, which is how a pilot account or a coach gets set up by hand. It is
+deliberately not folded into the role route — that method carries the rules
+guarding the safety queue, and a plan has nothing to do with them — and it is
+guarded by the same argument one step down: **nobody sets their own plan**,
+because an unlimited allowance one person can give themselves is a benefit
+nobody else agreed to. Recorded in `plan_changes`, a separate trail from
+`role_changes` because granting the ability to read somebody's crisis words and
+granting an allowance are different decisions described by different columns.
+`changed_by` is nullable for the change nobody makes by hand; nothing writes
+one, and that is the field billing would use.
+
+`plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
+Note what that is and is not worth: both routes that take a body from the
+person it is about build their own array from validated fields, so naming a
+plan was already ignored — checked by putting it back and watching the test
+stay green. It is a second line for the next route that reaches for `fill()`,
+and `GrantingAPlanTest` asserts the list itself because no request can tell the
+difference today. The one place that writes the column assigns it directly.
 
 And the locale is **one constant**, `LOCALE` in `packages/protocol/src/display.ts`,
 exported and imported by the surfaces. It was `en-IN` written out in eleven
