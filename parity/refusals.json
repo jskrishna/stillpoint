@@ -89,11 +89,32 @@
       "expect": "Stillpoint would not do that. Reload to see where things stand."
     },
     {
-      "why": "A 500 the deployment did not explain. Not the connection sentence: the server answered.",
+      "why": "What a 500 actually looks like. Measured with `app.debug` off, which is what a deployment runs: Laravel answers `Server Error` for anything that is not an HttpException. Two words that are not a sentence for a person, shown to somebody part-way through being asked why they are upset. This case used to carry an empty message — a shape a deployment never sends — and so agreed with the wrong answer.",
+      "status": 500,
+      "message": "Server Error",
+      "errors": {},
+      "expect": "Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment."
+    },
+    {
+      "why": "And a 500 with no words at all gets the same sentence, not the `abort(404)` one. Nothing declined: Stillpoint tried and broke, so \"would not do that\" names a decision nobody made and \"reload to see where things stand\" is wrong advice — the request failed, so nothing moved.",
       "status": 500,
       "message": "",
       "errors": {},
-      "expect": "Stillpoint would not do that. Reload to see where things stand."
+      "expect": "Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment."
+    },
+    {
+      "why": "A 502 from whatever sits in front of the API. Same class, and the body is not even the application's — nginx answers HTML, so the client has no message to prefer.",
+      "status": 502,
+      "message": "",
+      "errors": {},
+      "expect": "Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment."
+    },
+    {
+      "why": "A 503 while the deployment is restarting. A field error still wins over the status, which is why this one has none.",
+      "status": 503,
+      "message": "Service Unavailable",
+      "errors": {},
+      "expect": "Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment."
     },
     {
       "why": "No answer at all — the request died on the way out. This is the one case the connection sentence is for, and the only one.",

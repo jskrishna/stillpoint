@@ -108,6 +108,25 @@ final class NotFoundSaysNothingTest extends TestCase
     }
 
     /**
+     * And a method the route does not take.
+     *
+     * "The GET method is not supported for route api/journal/01m43t….
+     * Supported methods: PATCH, DELETE." Nothing in a shipped client sends
+     * one, so this is consistency with the two above rather than a measured
+     * user-facing bug — and the one place it becomes reachable is a client
+     * built against a different version of this API, which is exactly who
+     * would be shown it.
+     */
+    public function test_a_wrong_method_is_not_described(): void
+    {
+        $response = $this->actingAs(User::factory()->create())
+            ->getJson('/api/admin/protocol-versions/draft/publish');
+
+        $this->assertSame(405, $response->status());
+        $response->assertExactJson(['message' => '']);
+    }
+
+    /**
      * A path that matches no route says nothing either.
      *
      * This one was found by writing the test above: `/api/admin/users/{id}/role`

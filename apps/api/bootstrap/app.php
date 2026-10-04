@@ -5,6 +5,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -75,5 +76,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 || $request->route() === null;
 
             return $framework ? response()->json(['message' => ''], 404) : null;
+        });
+
+        /*
+         * And the same for a method the route does not take: "The GET method
+         * is not supported for route api/admin/users/01m43t…. Supported
+         * methods: PATCH." Nothing in a shipped client sends one, so this is
+         * consistency rather than a measured user-facing bug — but the
+         * argument is identical to the 404 above, and the one place it becomes
+         * reachable is a client built against a different version of this API,
+         * which is exactly who would be shown it.
+         */
+        $exceptions->render(function (MethodNotAllowedHttpException $e, Request $request) {
+            return $request->is('api/*') || $request->expectsJson()
+                ? response()->json(['message' => ''], 405)
+                : null;
         });
     })->create();

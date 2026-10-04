@@ -27,6 +27,31 @@ export function describe(e: unknown): string {
     if (first !== undefined) return first;
     if (e.status === 429) return rateLimited(e.message);
 
+    /*
+     * A 5xx is the framework answering, which is the one case the rule above
+     * is not for.
+     *
+     * Measured with `app.debug` off, which is what a deployment runs: Laravel
+     * sends `{"message": "Server Error"}` for anything that is not an
+     * `HttpException`. Those two words are not a sentence for a person, and
+     * returning the server's message handed them straight to somebody
+     * part-way through being asked why they are upset. (The thrown
+     * exception's own message is not leaked — that part was checked.)
+     *
+     * It also does not get the sentence below. "Stillpoint would not do that"
+     * describes a refusal the server declined to explain, which is the
+     * `abort(404)` convention; a 500 is Stillpoint trying and breaking, so
+     * nothing declined. "Reload to see where things stand" is wrong advice
+     * for the same reason: the request failed, so nothing moved, and there is
+     * nothing new to see.
+     *
+     * `parity/refusals.json` had a 500 case before this and it pinned the
+     * wrong shape — an empty message, which a deployment never sends — and so
+     * agreed with the wrong sentence. A case for a shape the hazard does not
+     * take does not cover the hazard.
+     */
+    if (e.status >= 500) return serverBroke;
+
     const own = e.message.trim();
     if (own !== '') return own;
 
@@ -68,6 +93,16 @@ export function describe(e: unknown): string {
  * So the server's own words win when it has any, and the generic is the
  * fallback it was always meant to be.
  */
+/**
+ * What a 5xx says.
+ *
+ * Named and used once, so the two surfaces cannot drift on it the way they
+ * drifted on the whole function. It blames nobody, because nobody did
+ * anything, and it says the one thing worth doing.
+ */
+const serverBroke =
+  'Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment.';
+
 function rateLimited(message: string): string {
   const own = message.trim();
   const framework = own === '' || /^too many requests\.?$/i.test(own);

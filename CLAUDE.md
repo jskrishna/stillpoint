@@ -1177,6 +1177,36 @@ tested function with a drifted twin is exactly the situation this replaced, and
 a promise in a comment is not a promise. The test lives on the web side because
 `apps/mobile`'s tsconfig is Expo's and has no `node` types to read a file with.
 
+**And a 500 showed somebody the words "Server Error".** The rule that the
+API's own message wins has one documented exception — the framework answering
+instead of the application — and the 429 branch was the only place it was
+applied. Measured with `app.debug` off, which is what a deployment runs:
+Laravel answers `{"message": "Server Error"}` for anything that is not an
+`HttpException`, so `describe()` handed those two words to somebody part-way
+through being asked why they are upset. The thrown exception's own message is
+**not** leaked, which was checked separately.
+
+A 5xx also must not get the empty-answer sentence. "Stillpoint would not do
+that. Reload to see where things stand." describes a refusal the server
+declined to explain, which is the `abort(404)` convention; a 500 is Stillpoint
+trying and breaking, so nothing declined, and reloading is wrong advice because
+the request failed and nothing moved. So a 5xx has its own sentence, named once
+in the file so the two copies cannot drift on it.
+
+**`parity/refusals.json` had a 500 case and it covered the wrong shape.** An
+empty message — which a deployment never sends — and therefore agreement with
+the wrong answer. That is "a comment is not a case" with the case present: a
+fixture entry for a shape the hazard does not take reads as coverage and is
+not. There are four now (`Server Error`, empty, a 502 from whatever sits in
+front, a 503), and all four go red with the branch removed.
+
+The 405 is the same class as the two framework 404s and is stripped beside
+them: "The GET method is not supported for route api/journal/01m43t….
+Supported methods: PATCH, DELETE." Nothing in a shipped client sends one, so
+that one is consistency rather than a measured user-facing bug — the place it
+becomes reachable is a client built against a different version of this API,
+which is exactly who would be shown it.
+
 Four wordings are deliberately **not** routed through it, and the distinction is
 the one from "A screen must not report an absence it only failed to read": these
 are statements about an absence, not refusals. The role and plan trails'
