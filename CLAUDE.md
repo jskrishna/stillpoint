@@ -1057,6 +1057,30 @@ first, by the same method. A route list is exactly the kind of sentence this
 file keeps catching: it reads as complete and nothing checks it against the
 `page.tsx` files.
 
+**Four routes under `/app` had one title between them**, and that is the same
+point as the two paragraphs below: axe's `document-title` asks whether a page
+has a title, and WCAG 2.4.2 asks whether the title says which page it is.
+`/app`, `/app/journal`, `/app/insights` and `/app/journal/[entryId]` all
+answered to the layout's bare "Stillpoint", so somebody with the journal and
+two entries open had three identical tabs, and a screen reader announced the
+same word arriving at each. The audit was clean on all four and correctly so.
+
+The cause is worth knowing because it will recur: `metadata` **cannot be
+exported from a `'use client'` module**, and these screens are client
+components. `/app/settings` and `/session` already had the answer — a server
+`page.tsx` holding the metadata and rendering the screen beside it — so the
+journal and insights now have the same shape, and the two dynamic routes
+(`[entryId]`, `coach/[clientId]`) are server components already and just
+needed the export.
+
+Both dynamic titles are **static strings**, which is the part not to tidy. The
+entry's own title is the first words of what somebody said at step 1, and a
+document title reaches the tab, the window chrome and the browser's history —
+which is the one place this product's content must not turn up, the whole page
+being behind a token for that reason. The same for whose client a coach is
+looking at. `/app`, `/coach` and `/admin` keep their area's name, because each
+is that area's home and "Stillpoint" is what the home screen is.
+
 **And the audit being clean on it says less than it sounds**, which is the same
 point as `axe` not catching a screen with no live region. The note's visible
 label was not its programmatic one: the `<label>` is the textarea's sibling

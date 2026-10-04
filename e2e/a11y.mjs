@@ -97,6 +97,23 @@ let failingCombinations = 0;
  * a rule that is not run is indistinguishable from a page with nothing wrong.
  */
 let targetSizeRan = false;
+/**
+ * Every route's `<title>`, so no two can be the same.
+ *
+ * axe's `document-title` asks whether a page has a title; WCAG 2.4.2 asks
+ * whether the title says which page it is. Four routes under `/app` answered
+ * to the layout's bare "Stillpoint" and the audit was clean on all four, so
+ * somebody with the journal and two entries open had three identical tabs and
+ * a screen reader announced one word arriving at each.
+ *
+ * It is a map rather than a count because the cause recurs: `metadata` cannot
+ * be exported from a `'use client'` module, so the next client screen added
+ * without a server `page.tsx` beside it inherits its layout's title in
+ * silence.
+ *
+ * @type {Map<string, string[]>}
+ */
+const titles = new Map();
 
 /** Signs a fresh page in with an existing account, or reports that it cannot. */
 async function signIn(email, password) {
@@ -349,6 +366,9 @@ for (const { route, as } of ROUTES) {
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
 
+      const title = await page.title();
+      titles.set(title, [...(titles.get(title) ?? []), route]);
+
       combinations += 1;
       const nodes = result.violations.reduce((n, v) => n + v.nodes.length, 0);
       const label = `${route} · ${theme} · ${size.name}`;
@@ -408,6 +428,21 @@ console.log(
  * the fix to see the assertion go red, which is the only reason it was caught
  * at all.
  */
+/*
+ * One route per title. Collected four times per route (two palettes, two
+ * widths), so the routes are de-duplicated before they are compared.
+ */
+for (const [title, routes] of titles) {
+  const distinct = [...new Set(routes)];
+  if (distinct.length > 1) {
+    bad(
+      `one route per title — ${distinct.length} share ${JSON.stringify(title)}`,
+      `${distinct.join(', ')} — a title says which page this is, and axe's own rule only asks whether there is one`,
+    );
+    failingCombinations += 1;
+  }
+}
+
 if (!targetSizeRan) {
   bad(
     'axe never ran target-size',

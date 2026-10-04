@@ -267,6 +267,13 @@ criterion: 2.5.8 Target Size (Minimum). axe has exactly one rule there,
 also asserts that axe _considered_ the rule on at least one combination, since a
 rule that never ran reports no violations and reads exactly like a clean page.
 
+It also asserts **one route per `<title>`**, which is the same distinction a
+third time: axe's `document-title` asks whether a page has a title, WCAG 2.4.2
+asks whether it says which page. Four routes under `/app` answered to the
+layout's bare "Stillpoint" with the audit clean on all four, because
+`metadata` cannot be exported from a `'use client'` module and nothing said
+so.
+
 **It does not cover the pause screen, and that is not a route list it forgot.**
 `/session` renders the six steps; the pause with the crisis numbers on it only
 exists after the server has ended a session for safety, so "every route in both
