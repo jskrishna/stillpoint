@@ -28,9 +28,17 @@ Expo's `:8081` and a static export's `:4000` for development.
 and in the development container, and the export is a real build: it bundles
 every module and statically renders every route, so a broken import or a
 component that throws on first render fails it. Eleven screens, which the
-export emits as 16 pages — the four tab screens are written twice, under
-`(tabs)/` and at the top level, and `_sitemap` and `+not-found` are Expo's
-own.
+export emits as 16 pages, and the arithmetic is worth closing because it did
+not add up: **three** of the four tab screens are written twice, under
+`(tabs)/` and at the top level, plus `_sitemap` and `+not-found`, which are
+Expo's own. 11 + 3 + 2 = 16.
+
+The fourth is not a duplicate. `src/app/index.tsx` is the **Gate** — a
+redirect with no interface of its own, which asks the server where somebody
+should land and drops a stale token rather than carrying it into a screen that
+would 401 on its first request. `(tabs)/index.tsx` is the home screen. They
+share a path in the export and are two different files, which is how "the four
+tab screens are written twice" made the total come to 17.
 
 `e2e/mobile.mjs` goes further: it serves that web export and drives it in a
 real browser at a phone's width against a running API — register, the consent
@@ -54,6 +62,16 @@ every page load of a product about being upset reached a third party. This app
 has always bundled its fonts; now that is checked rather than said. The screens, the reducer, the API binding and the
 navigation are the same files a phone runs, and until that script existed none
 of them had ever been executed. It runs in CI.
+
+**One branch added late is deliberately not asserted, and the reason is the
+Gate.** The consent screen now clears a dead token and routes to sign in, which
+the web's copy of that screen has always done — but `src/app/index.tsx` asks
+the server where to land and drops a stale token before consent is reached, so
+the only way in with one is for the token to expire **while somebody is on
+that screen**. That is the thirty-day boundary, it is real, and contriving a
+check for it would mean driving the app into a state ordinary navigation
+cannot produce. The fix is defensive; the evidence is the web's equivalent,
+which `e2e/coach.mjs` does assert on the invitation screen.
 
 **Nothing here has run on a phone**, though, and that is still the sentence
 that matters. What a browser cannot stand in for: the keychain
