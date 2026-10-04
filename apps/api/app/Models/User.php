@@ -147,6 +147,14 @@ class User extends Authenticatable
      * The optional "use my anonymous sessions to improve the app" is never part
      * of this: letting an unticked data item block someone would turn a choice
      * into a toll.
+     *
+     * **And nothing reads it.** It is validated by the consent route and stored
+     * in `accepted_consent`, and no code in either language asks whether it was
+     * accepted — nothing uses anybody's sessions to improve the app. The
+     * control fails safe, since declining and accepting are treated the same
+     * way, but what the people who ticked it agreed to is decided by whatever
+     * first reads this column. See `packages/protocol/src/onboarding.ts` and
+     * `DECISIONS.md`.
      */
     public function hasRequiredConsent(): bool
     {

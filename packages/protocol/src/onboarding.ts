@@ -38,6 +38,23 @@ export const REQUIRED_CONSENT: readonly ConsentId[] = CONSENT_ITEMS.filter((i) =
  *
  * The optional item is never part of this: letting an unticked "use my sessions
  * to improve the app" block someone would turn a choice into a toll.
+ *
+ * **And nothing reads that item.** Grepped across both languages and all three
+ * surfaces: `improve` is defined here, validated by the consent route and
+ * stored in `accepted_consent`, and no code anywhere asks whether it was
+ * accepted. Nothing uses anybody's sessions to improve the app — there is no
+ * analytics, no export for training, no aggregate over session text beyond the
+ * user's own insights.
+ *
+ * So the control is decoration today, and unlike `coach_sharing` — which was
+ * also decoration and whose "Never share" blocked nothing — this one fails
+ * safe: somebody who declines is treated exactly like somebody who accepts,
+ * because the answer is never consulted either way. What it is not is settled.
+ * "Improve the app" is a scope, not a purpose, and whatever first reads this
+ * column is what the people who ticked it will have agreed to. Québec's Law 25
+ * is the stricter of the two laws in frame for the first market and it wants a
+ * specified purpose. That is in `DECISIONS.md` beside the question of which law
+ * the consent screen is written for, because it is the same lawyer's answer.
  */
 export function hasRequiredConsent(accepted: readonly ConsentId[]): boolean {
   return REQUIRED_CONSENT.every((id) => accepted.includes(id));
