@@ -8,6 +8,7 @@ import { ApiError, api, type ApiInsights } from '../../api';
 import { FAMILY } from '../../theme';
 import { Card } from '../../ui';
 import { useTheme } from '../../use-theme';
+import { describeLoad } from '../../describe';
 
 // The server sends feeling ids as plain strings; the colour for one is
 // presentation, and lives in the tokens.
@@ -26,7 +27,8 @@ export default function Insights() {
   const router = useRouter();
 
   const [result, setResult] = useState<ApiInsights | null>(null);
-  const [failed, setFailed] = useState(false);
+  /** The sentence, not a boolean: the reason is the server's. */
+  const [failed, setFailed] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -34,7 +36,7 @@ export default function Insights() {
         .insights()
         .then((r) => {
           setResult(r);
-          setFailed(false);
+          setFailed(null);
         })
         .catch((e: unknown) => {
           if (e instanceof ApiError && e.isUnauthenticated) {
@@ -42,7 +44,7 @@ export default function Insights() {
             router.replace('/welcome');
             return;
           }
-          setFailed(true);
+          setFailed(describeLoad('this', e));
         });
     }, [router]),
   );
@@ -58,7 +60,7 @@ export default function Insights() {
     return (
       <ScrollView style={s.screen} contentContainerStyle={pad}>
         <Text style={s.title}>Noticing</Text>
-        <Text style={s.error}>Could not load this. Check your connection.</Text>
+        <Text style={s.error}>{failed}</Text>
       </ScrollView>
     );
   }

@@ -8,6 +8,7 @@ import { ApiError, api } from '../../api';
 import { NO_EAR_REASON, guideVoiceFor, voicePreview } from '../../voice';
 import { Button, Card } from '../../ui';
 import { useTheme } from '../../use-theme';
+import { describe } from '../../describe';
 
 /**
  * Voice setup, the last step before the app.
@@ -48,7 +49,9 @@ export default function VoiceSetup() {
         router.replace('/welcome');
         return;
       }
-      setError('Could not save that. Check your connection and try again.');
+      // The server's own sentence: `updateMe` validates `guideVoice`, so a
+      // refusal here says which value it would not take.
+      setError(describe(e));
       setBusy(false);
     }
   };

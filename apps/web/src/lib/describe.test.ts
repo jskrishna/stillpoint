@@ -21,7 +21,7 @@
 import { readFileSync } from 'node:fs';
 import { describe as group, expect, it } from 'vitest';
 import { ApiError } from '@stillpoint/client';
-import { describe } from './describe';
+import { describe, describeLoad } from './describe';
 
 type Case = {
   readonly why: string;
@@ -33,9 +33,14 @@ type Case = {
 
 const at = (path: string) => new URL(`../../../../${path}`, import.meta.url);
 
-const cases = (
-  JSON.parse(readFileSync(at('parity/refusals.json'), 'utf8')) as { cases: readonly Case[] }
-).cases;
+type LoadCase = Case & { readonly what: string };
+
+const fixture = JSON.parse(readFileSync(at('parity/refusals.json'), 'utf8')) as {
+  cases: readonly Case[];
+  load: readonly LoadCase[];
+};
+
+const cases = fixture.cases;
 
 group('describing a refusal', () => {
   it('has the cases', () => {
@@ -52,6 +57,28 @@ group('describing a refusal', () => {
       expect(describe(thrown)).toBe(c.expect);
     });
   }
+
+  /**
+   * And the sentence a screen shows when it could not load what it is about.
+   *
+   * Same fixture, same reason: the statement of what failed is the screen's,
+   * and the reason after it is the server's. These five screens used to invent
+   * "Check your connection." and throw the error away.
+   */
+  for (const c of fixture.load) {
+    const thrown =
+      c.status === null
+        ? new TypeError('Failed to fetch')
+        : new ApiError(c.message ?? '', c.status, c.errors ?? {});
+
+    it(`load ${String(c.status ?? 'no answer')}: ${c.why}`, () => {
+      expect(describeLoad(c.what, thrown)).toBe(c.expect);
+    });
+  }
+
+  it('has the load cases', () => {
+    expect(fixture.load.length).toBeGreaterThan(0);
+  });
 
   /**
    * The half that makes the rest mean something on the phone.

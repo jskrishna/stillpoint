@@ -7,6 +7,7 @@ import { STEP_COUNT, greeting, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry, type ApiSession, type Profile } from '../../api';
 import { Button, Card, Waiting } from '../../ui';
 import { useTheme } from '../../use-theme';
+import { describeLoad } from '../../describe';
 
 /** The app home: start a session, and the most recent entries. */
 export default function Today() {
@@ -22,7 +23,8 @@ export default function Today() {
    */
   const [openUnknown, setOpenUnknown] = useState(false);
   const [entries, setEntries] = useState<readonly ApiJournalEntry[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  /** The sentence, not a boolean: the reason is the server's. */
+  const [failed, setFailed] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
 
   // On focus rather than on mount: finishing a session comes back to this
@@ -73,7 +75,7 @@ export default function Today() {
         .journal(3)
         .then((page) => {
           setEntries(page.items);
-          setFailed(false);
+          setFailed(null);
         })
         .catch((e: unknown) => {
           if (e instanceof ApiError && e.isUnauthenticated) {
@@ -81,7 +83,7 @@ export default function Today() {
             router.replace('/welcome');
             return;
           }
-          setFailed(true);
+          setFailed(describeLoad('your journal', e));
         });
     }, [router]),
   );
@@ -179,7 +181,7 @@ export default function Today() {
       <Text style={[s.label, { marginTop: SPACE.md }]}>Recent</Text>
 
       {failed ? (
-        <Text style={s.caption}>Could not load your journal. Check your connection.</Text>
+        <Text style={s.caption}>{failed}</Text>
       ) : entries === null ? (
         <Text style={s.caption}>Loading…</Text>
       ) : entries.length === 0 ? (

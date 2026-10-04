@@ -11,9 +11,10 @@ import {
   missingConsent,
   type ConsentId,
 } from '@stillpoint/protocol';
-import { api } from '../../api';
+import { ApiError, api } from '../../api';
 import { Button } from '../../ui';
 import { useTheme } from '../../use-theme';
+import { describe } from '../../describe';
 
 /**
  * What someone agrees to before their first session.
@@ -85,8 +86,19 @@ export default function Consent() {
     try {
       await api.consent(accepted);
       router.replace('/welcome/voice');
-    } catch {
-      setError('Could not save that. Check your connection and try again.');
+    } catch (e: unknown) {
+      // Both halves of this were missing and the web's copy of this screen has
+      // had both: an expired token sent somebody to "check your connection"
+      // rather than to sign in, and a 422 naming the consent item they had
+      // not accepted said the same thing. On the screen that gates the whole
+      // product and names the crisis numbers.
+      if (e instanceof ApiError && e.isUnauthenticated) {
+        api.storeToken(null);
+        router.replace('/welcome');
+
+        return;
+      }
+      setError(describe(e));
       setBusy(false);
     }
   };

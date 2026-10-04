@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DEFAULT_WINDOW_DAYS } from '@stillpoint/protocol';
 import { FEELING_SWATCHES } from '@stillpoint/design-tokens';
 import { ApiError, api, type ApiInsights } from '../../../lib/api';
+import { describeLoad } from '../../../lib/describe';
 import styles from '../app.module.css';
 
 // The server sends feeling ids as plain strings; the colour for one is
@@ -20,7 +21,8 @@ const COLOR = new Map<string, string>(FEELING_SWATCHES.map((s) => [s.id, s.color
  */
 export default function InsightsPage() {
   const [result, setResult] = useState<ApiInsights | null>(null);
-  const [failed, setFailed] = useState(false);
+  /** The sentence, not a boolean: the reason is the server's. */
+  const [failed, setFailed] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -32,15 +34,15 @@ export default function InsightsPage() {
           router.push('/welcome');
           return;
         }
-        setFailed(true);
+        setFailed(describeLoad('your insights', e));
       });
   }, [router]);
 
-  if (failed) {
+  if (failed !== null) {
     return (
       <>
         <h1 className={styles.title}>Insights</h1>
-        <p className={styles.failure}>Could not load your insights. Check your connection.</p>
+        <p className={styles.failure}>{failed}</p>
       </>
     );
   }

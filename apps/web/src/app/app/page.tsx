@@ -13,12 +13,14 @@ import {
   type Profile,
 } from '../../lib/api';
 import styles from './app.module.css';
+import { describeLoad } from '../../lib/describe';
 
 /** The app home: start a session, and the most recent entries. */
 export default function Home() {
   const [entries, setEntries] = useState<readonly ApiJournalEntry[] | null>(null);
   const [now, setNow] = useState<Date | null>(null);
-  const [failed, setFailed] = useState(false);
+  /** The sentence, not a boolean: the reason is the server's. */
+  const [failed, setFailed] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [open, setOpen] = useState<ApiSession | null>(null);
   /**
@@ -78,7 +80,7 @@ export default function Home() {
           router.push('/welcome');
           return;
         }
-        setFailed(true);
+        setFailed(describeLoad('your journal', e));
       });
   }, [router]);
 
@@ -154,8 +156,8 @@ export default function Home() {
       )}
 
       <span className={styles.label}>RECENT</span>
-      {failed ? (
-        <p className={styles.failure}>Could not load your journal. Check your connection.</p>
+      {failed !== null ? (
+        <p className={styles.failure}>{failed}</p>
       ) : entries === null ? (
         <p className={styles.loading}>Loading…</p>
       ) : recent.length === 0 ? (

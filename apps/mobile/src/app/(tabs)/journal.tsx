@@ -7,6 +7,7 @@ import { duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../api';
 import { Button, Card, Tag } from '../../ui';
 import { useTheme } from '../../use-theme';
+import { describeLoad } from '../../describe';
 
 /** How many entries a page holds. */
 const PAGE = 20;
@@ -50,7 +51,7 @@ export default function Journal() {
             router.replace('/welcome');
             return;
           }
-          setProblem('Could not load your journal. Check your connection.');
+          setProblem(describeLoad('your journal', e));
         });
     }, [router]),
   );
@@ -63,8 +64,10 @@ export default function Journal() {
       setEntries((current) => [...(current ?? []), ...page.items]);
       setCursor(page.nextCursor);
       setTotal(page.total);
-    } catch {
-      setProblem('Could not load more. Check your connection.');
+    } catch (e: unknown) {
+      // Bound rather than discarded: a 429 from the budget every
+      // authenticated route shares was being reported as a bad connection.
+      setProblem(describeLoad('more', e));
     } finally {
       setMore(false);
     }

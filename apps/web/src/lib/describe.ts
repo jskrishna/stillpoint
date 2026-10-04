@@ -74,8 +74,41 @@ export function describe(e: unknown): string {
     return 'Stillpoint would not do that. Reload to see where things stand.';
   }
 
-  return 'Could not reach Stillpoint. Check your connection and try again.';
+  return CANNOT_REACH;
 }
+
+/**
+ * The sentence for a screen that could not load what it is about.
+ *
+ * `Could not load your journal.` is a statement about an absence rather than a
+ * refusal, and saying it is right — a screen must not report an absence it only
+ * failed to read. What was wrong is the reason these screens invented for it:
+ * five of them bound the error and threw it away, then said "Check your
+ * connection." about a request that had arrived perfectly well.
+ *
+ * `CLAUDE.md` excused them as having "no error object to describe", which was
+ * false for those five and circular for the rest — they have none because they
+ * did not bind one, and the throw carries it. The sharpest case is a 429: the
+ * authenticated routes share one budget keyed on the account, so somebody
+ * paging a long journal can spend it and then be told their network is bad.
+ *
+ * The connection case drops `describe()`'s own opening clause, because this
+ * has already said what failed and "Could not load your journal. Could not
+ * reach Stillpoint." says it twice.
+ */
+export function describeLoad(what: string, e: unknown): string {
+  const why = describe(e);
+
+  return `Could not load ${what}. ${why === CANNOT_REACH ? 'Check your connection and try again.' : why}`;
+}
+
+/**
+ * Nothing answered at all.
+ *
+ * Named because it is used twice and compared against once, and a sentence
+ * compared by value needs to be one value.
+ */
+const CANNOT_REACH = 'Could not reach Stillpoint. Check your connection and try again.';
 
 /**
  * A 429 is two different things, and they do not get the same sentence.

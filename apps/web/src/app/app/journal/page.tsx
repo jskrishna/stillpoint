@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, type ApiJournalEntry } from '../../../lib/api';
+import { describeLoad } from '../../../lib/describe';
 import styles from '../app.module.css';
 import { duration, relativeDay } from '@stillpoint/protocol';
 
@@ -23,7 +24,8 @@ export default function Journal() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [failed, setFailed] = useState(false);
+  /** The sentence, not a boolean: the reason is the server's. */
+  const [failed, setFailed] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   /**
    * What arrived, for a screen reader, and empty until something has.
@@ -53,7 +55,7 @@ export default function Journal() {
           router.push('/welcome');
           return;
         }
-        setFailed(true);
+        setFailed(describeLoad('your journal', e));
       });
   }, [router]);
 
@@ -79,8 +81,12 @@ export default function Journal() {
       if (page.nextCursor === null) {
         requestAnimationFrame(() => arrivedRef.current?.focus());
       }
-    } catch {
-      setFailed(true);
+    } catch (e: unknown) {
+      // The error is bound rather than discarded. "No error object to
+      // describe" was true of this line only because it did not bind one, and
+      // a 429 here — the budget every authenticated route shares — was being
+      // reported as a bad connection.
+      setFailed(describeLoad('more', e));
     } finally {
       setLoadingMore(false);
     }
@@ -121,8 +127,8 @@ export default function Journal() {
         {arrived}
       </p>
 
-      {failed ? (
-        <p className={styles.failure}>Could not load your journal. Check your connection.</p>
+      {failed !== null ? (
+        <p className={styles.failure}>{failed}</p>
       ) : entries === null ? (
         <p className={styles.loading}>Loading…</p>
       ) : entries.length === 0 ? (

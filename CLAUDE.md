@@ -1319,12 +1319,41 @@ that one is consistency rather than a measured user-facing bug — the place it
 becomes reachable is a client built against a different version of this API,
 which is exactly who would be shown it.
 
-Four wordings are deliberately **not** routed through it, and the distinction is
-the one from "A screen must not report an absence it only failed to read": these
-are statements about an absence, not refusals. The role and plan trails'
-"Could not read…", the home screen's "Could not check whether you left a
-session open", the invite screen's 404-and-410-only branching, and the static
-"Could not load your journal" lines, which have no error object to describe.
+Three wordings are deliberately **not** routed through it, and the distinction
+is the one from "A screen must not report an absence it only failed to read":
+these are statements about an absence, not refusals. The role and plan trails'
+"Could not read…", the home screens' "Could not check whether you left a
+session open", and the invite screen's 404-and-410-only branching.
+
+**The fourth was on that list wrongly, and the excuse is the interesting
+part.** It read "the static 'Could not load your journal' lines, which have no
+error object to describe" — and **six** screens bound the error and threw it
+away before saying "Check your connection." about a request that had arrived:
+both journals, both insights screens and both home screens' journal preview.
+For the two that genuinely had none, the reason was circular — they had no
+error object because they did not bind one, and the throw carries it.
+
+"Could not load your journal." is right and stays: it is the statement about
+an absence, and the screen should make it. What was invented is the reason
+after it. So `describeLoad(what, e)` is the second function in that file —
+`Could not load ${what}.` and then the server's sentence, dropping
+`describe()`'s own "Could not reach Stillpoint" clause in the connection case
+because this has already said what failed. Five cases in
+`parity/refusals.json` under `load`, asserted by the same test and so byte-for-
+byte identical on both surfaces.
+
+The case that makes it matter is the **429**: the authenticated routes share one
+budget keyed on the account, not the token, so somebody paging a long journal on
+two devices can spend it — and then be told their network is bad. That is the
+same measurement that moved the turns route out of that group.
+
+**And the phone's consent screen was missing both halves the web's has had.**
+A bare `} catch {`, so an expired token sent somebody to "check your
+connection" rather than to sign in, and a 422 naming the consent item they had
+not accepted said the same thing — on the screen that gates the whole product
+and prints the crisis numbers. It matches the web's now. Note the direction:
+the `describe()` rule arrived on the phone first and the web caught up, and
+this is the one screen where it went the other way.
 
 ### The backend is Laravel, and it owns the rules
 

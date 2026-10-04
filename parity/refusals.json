@@ -15,21 +15,34 @@
     "no second implementation to generate it from — only two copies of one.",
     "",
     "`errors` is the API's validation bag; `message` is its top-level sentence.",
-    "A case with neither stands for a request that never got an answer."
+    "A case with neither stands for a request that never got an answer.",
+    "",
+    "`load` is the second function in that file: the sentence a screen shows",
+    "when it could not load what it is about. `Could not load your journal.` is",
+    "a statement about an absence and saying it is right; the reason after it",
+    "has to be the server's. Five screens bound the error and threw it away,",
+    "then blamed the connection for a request that had arrived — and CLAUDE.md",
+    "excused them as having no error to describe, which was false for those",
+    "five. The connection case drops `describe()`'s opening clause, since this",
+    "has already said what failed."
   ],
   "cases": [
     {
       "why": "A field error is the most specific thing there is, so it wins.",
       "status": 422,
       "message": "The given data was invalid.",
-      "errors": { "email": ["That address is already in use."] },
+      "errors": {
+        "email": ["That address is already in use."]
+      },
       "expect": "That address is already in use."
     },
     {
       "why": "The editor's own limit. The screen used to say \"Check your connection\" for this, to an admin writing the step copy LAUNCH.md asks them to write — false, and unfixable by anything they would then try.",
       "status": 422,
       "message": "The main field must not be greater than 500 characters.",
-      "errors": { "main": ["The main field must not be greater than 500 characters."] },
+      "errors": {
+        "main": ["The main field must not be greater than 500 characters."]
+      },
       "expect": "The main field must not be greater than 500 characters."
     },
     {
@@ -122,6 +135,48 @@
       "message": null,
       "errors": null,
       "expect": "Could not reach Stillpoint. Check your connection and try again."
+    }
+  ],
+  "load": [
+    {
+      "why": "Nothing answered. The clause `describe()` opens with is dropped, because this sentence has already said what did not load.",
+      "what": "your journal",
+      "status": null,
+      "message": null,
+      "errors": null,
+      "expect": "Could not load your journal. Check your connection and try again."
+    },
+    {
+      "why": "The budget shared by every authenticated route, spent by paging a long journal. This is the case that was being called a network problem.",
+      "what": "your journal",
+      "status": 429,
+      "message": "Too Many Requests",
+      "errors": {},
+      "expect": "Could not load your journal. Too many attempts. Wait a minute and try again."
+    },
+    {
+      "why": "A refusal the server worded itself is passed through after the statement, exactly as a refusal is anywhere else.",
+      "what": "your insights",
+      "status": 409,
+      "message": "This session has ended.",
+      "errors": {},
+      "expect": "Could not load your insights. This session has ended."
+    },
+    {
+      "why": "An answer with no words. Not the connection sentence: the server answered and declined to say why.",
+      "what": "your insights",
+      "status": 404,
+      "message": "",
+      "errors": {},
+      "expect": "Could not load your insights. Stillpoint would not do that. Reload to see where things stand."
+    },
+    {
+      "why": "And a 5xx, which is the framework answering rather than the application.",
+      "what": "your journal",
+      "status": 503,
+      "message": "Service Unavailable",
+      "errors": {},
+      "expect": "Could not load your journal. Stillpoint ran into a problem on its side. Nothing you did caused it — try again in a moment."
     }
   ]
 }
