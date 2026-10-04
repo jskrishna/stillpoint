@@ -73,6 +73,25 @@ export interface Transport {
   ) => Promise<readonly T[]>;
 }
 
+/**
+ * A JSON object from a body, or an empty one.
+ *
+ * Only used on the refusal path — see `request()` for why a success is parsed
+ * strictly instead.
+ */
+function objectOrEmpty(text: string): Record<string, unknown> {
+  if (text === '') return {};
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    // Not JSON at all: a proxy's HTML error page. The status is what matters.
+    return {};
+  }
+}
+
 export function transportFor(config: ClientConfig): Transport {
   const { baseUrl, tokens } = config;
   const doFetch: Fetch =
@@ -96,20 +115,42 @@ export function transportFor(config: ClientConfig): Transport {
     if (response.status === 204) return undefined as T;
 
     const text = await response.text();
-    const parsed: unknown = text === '' ? {} : JSON.parse(text);
-    const payload = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<
-      string,
-      unknown
-    >;
 
     if (!response.ok) {
+      /*
+       * A refusal's body is parsed **defensively**, because not every refusal
+       * comes from this application.
+       *
+       * The deployment is nginx in front of PHP-FPM, and nginx answers 502,
+       * 504 and 413 with an HTML page. `JSON.parse` on that threw a
+       * `SyntaxError` — before the status was ever looked at — so no
+       * `ApiError` was constructed at all. Measured: 502, 504 and 413 each
+       * came out as a `SyntaxError`, which made `describe()` say "Could not
+       * reach Stillpoint. Check your connection and try again." about a
+       * server that had answered, and made every status-based branch
+       * unreachable: the 5xx sentence, `isUnauthenticated`, `isConflict`.
+       *
+       * PHP-FPM restarting is a deploy, so 502 is the ordinary case rather
+       * than an exotic one.
+       */
+      const payload = objectOrEmpty(text);
       const message =
         typeof payload['message'] === 'string' ? payload['message'] : response.statusText;
       const errors = (payload['errors'] ?? {}) as Record<string, string[]>;
       throw new ApiError(message, response.status, errors, payload);
     }
 
-    return payload as T;
+    /*
+     * A success is parsed strictly, which is the other half of the decision.
+     *
+     * A 200 whose body is not JSON is this application misconfigured, and
+     * swallowing it would hand a screen an empty object — so the journal
+     * would say "Nothing yet" rather than that it could not read. That is the
+     * absence class, and a throw is the honest answer.
+     */
+    const parsed: unknown = text === '' ? {} : JSON.parse(text);
+
+    return (typeof parsed === 'object' && parsed !== null ? parsed : {}) as T;
   }
 
   return {

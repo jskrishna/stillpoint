@@ -633,6 +633,17 @@ words, far past any answer to one question, so in practice nobody is trimmed.
 The bound exists because the journal decrypts rows one at a time and "export my
 data" reads all of them, not because anybody should say less.
 
+**And there is one limit on a turn the application cannot see**, which is the
+proxy's. nginx answers 413 for a body over `client_max_body_size`, before
+Laravel and so before the screen — the same refusal as `max:5000`, one layer
+further out, where no test reaches. It is **12m** in `deploy/nginx.conf`, about
+2,400 times the length that was actually the problem, so it is not one today;
+what makes it one again is somebody tightening it to a number that sounds
+tidy. The comment beside it used to say "a request body never needs to be large
+at all", which is an argument for exactly that, and now says not to.
+`deploy/php.ini`'s `post_max_size` is the same number and the two move
+together.
+
 It counts **characters, not bytes**, and whole ones. Bytes would keep a third as
 much Hindi as English, and a naive slice would leave half a surrogate pair as
 the last thing somebody wrote. `parity/cases.json` carries the number and two
@@ -1240,6 +1251,23 @@ of the interface widened. Do not widen it.
 `apps/web/src/lib/api.ts` is what a surface binding should look like: the base
 URL, a `localStorage` store, and a re-export of everything so no screen has to
 know which package a type came from.
+
+**And a refusal that did not come from this application was not an
+`ApiError` at all.** `request()` parsed every body with `JSON.parse` before
+looking at the status, so nginx's HTML error page threw a `SyntaxError` and no
+`ApiError` was constructed. Measured: 502, 504 and 413 each arrived at a screen
+as a `SyntaxError`, which made `describe()` say "Could not reach Stillpoint.
+Check your connection and try again." about a server that had answered, and
+made every status-based branch unreachable — the 5xx sentence added the same
+day, `isUnauthenticated`, `isConflict`. The deployment is nginx in front of
+PHP-FPM, so a 502 is what a restart looks like, which is what a deploy is.
+
+A refusal's body is parsed defensively now and a **success** is still parsed
+strictly, which is the other half of the decision: a 200 whose body is not JSON
+is this application misconfigured, and returning `{}` would make the journal
+say "Nothing yet" rather than that it could not read. That is the absence class,
+so a throw is the honest answer. `packages/client/src/proxy.test.ts` pins both
+directions; three of its six go red with the strict parse put back.
 
 **A refusal's wording is the server's.** `describe()` turns an `ApiError` into
 a sentence, and the rule is that the API's own message wins — a generic line is
