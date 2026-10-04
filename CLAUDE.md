@@ -16,7 +16,15 @@ of this file and newer than the design artifacts, which were drawn India-first
 (₹ pricing, Tele-MANAS and 112); where something below still reads as
 India-only, Canada is what it should say. The parts that have been moved
 already: the helplines (`CA` and `IN`, with `CA` the default for a new
-account), French in the risk screen, and the prices.
+account), French in the risk screen, the prices, the locale (`LOCALE`, `en-CA`),
+and the consent screens' crisis numbers.
+
+**That list is the dangerous kind of sentence** and has already been wrong
+once: it said the helplines had been moved, and they had — in the domain, while
+three call sites kept `helplinesFor('IN')` written in, so the consent screen
+told a Canadian to call 112. A rule being right in one place is not the same as
+nothing else having its own copy of the answer. Grep for the old market's
+values before believing this paragraph.
 
 Two consequences are worth having at the top, because they are both safety
 ones. **A market is a set of crisis numbers**: pricing in a currency implies
@@ -530,8 +538,8 @@ as they are.
 `apps/web` serves Newsreader and Hanken Grotesk from `public/fonts`, not from
 Google's CDN. Linking the CDN meant every visitor's IP and user-agent reached a
 third party on every page of a product about being upset — the session screen
-included — which is not a thing to leave in place in a product that invokes
-DPDP about its own microphone. The phone app has always bundled its fonts; this
+included — which is not a thing to leave in place in a product that has to
+answer for its own microphone under PIPEDA and Québec's Law 25. The phone app has always bundled its fonts; this
 is the web matching it.
 
 `apps/web/scripts/fetch-fonts.mjs` regenerates them and is run by hand, not by
@@ -679,9 +687,11 @@ whichever ran last decides what `next start` finds, which a root
 and `partOfDay` — the pure formatting both clients need. It is not the
 presentation the package forbids: no colours, no copy of the guide's, no
 framework. It is there so the web and the phone cannot end up disagreeing about
-what "Yesterday" means, and the locale stays `en-IN` in one place, because the
-product is India-first and a weekday in the device's locale would be the one
-thing on the screen in another language.
+what "Yesterday" means, and the locale stays in one place — `LOCALE`, which is
+`en-CA` now that Canada is the first market — because a weekday in the device's
+locale would be the one thing on the screen in another language. This paragraph
+said `en-IN` for a while after the constant did not, which is the drift the
+constant exists to prevent happening in the file that describes it.
 
 ### One API client, not one per surface
 
@@ -814,7 +824,11 @@ faster than waiting for a push.
 Two of its sections are the ones that matter, and both show something only a
 real browser against a real server can. The safety stop: it types crisis
 language into the page and asserts the **server** ended the session, refuses
-another turn on it (409), shows Tele-MANAS and 112, and wrote no journal row.
+another turn on it (409), shows 9-8-8, Québec's line and 911 — Canada's, since
+a new account is assumed to be in the first market — and wrote no journal row.
+It also aborts the turn on the way out first, and asserts that an answer which
+never reached the server still gets a crisis number without the session being
+treated as stopped.
 And section 3c: it lets a turn reach the server and then drops the response —
 what a train tunnel does — and asserts the retry advanced exactly one step for
 one answer, rather than being recorded as the next step's.
@@ -934,8 +948,8 @@ and should not be something a stray tap on an unlocked phone can do.
 account, because that is what erasure means and it is what the schema already
 did. But it also means that if a person said they were in danger and then
 deleted their account, a reviewer cannot follow it up. Whether an anonymised
-flag should outlive an erasure, and for how long, is a safeguarding and DPDP
-decision — not a refactor. Deleting is the answer that needs no sign-off; keeping
+flag should outlive an erasure, and for how long, is a safeguarding and
+privacy-law decision — PIPEDA and Law 25 first, DPDP behind them — not a refactor. Deleting is the answer that needs no sign-off; keeping
 someone's words against their wish is the one that does.
 
 The journal table is also the rule, not just a store: **a session that ended for
@@ -1146,8 +1160,8 @@ again. Erasure covers the case where the invitee does have an account
 (`AccountDeletionService` sweeps by address); it cannot cover the case where
 they never signed up and never agreed to anything.
 
-Any fix is a retention period, and picking one is a DPDP and product decision
-rather than a refactor — the coach's screen is also the only record that they
+Any fix is a retention period, and picking one is a privacy-law and product
+decision rather than a refactor — the coach's screen is also the only record that they
 invited somebody, which is a reason to keep it for a while and not a reason to
 keep it forever. Expired reset tokens are the contrast worth noting: those have
 a non-arbitrary answer, because a token past `config('auth.passwords')`'s
@@ -1337,9 +1351,10 @@ bearer tokens.
 
 The limit on the guessable routes — sign-in, registration, password recovery,
 opening an invitation — is keyed by **the account being guessed**, not by the
-address asking. `AppServiceProvider`'s `guessable` limiter does it, and
-India-first is the reason: a mobile carrier puts tens of thousands of
-subscribers behind one public IP, so a per-IP budget is one a whole network
+address asking. `AppServiceProvider`'s `guessable` limiter does it. India
+is where the reason was first obvious and it is not specific to India: a mobile
+carrier puts tens of thousands of subscribers behind one public IP, in Canada
+as well, so a per-IP budget is one a whole network
 shares, and the people it locks out are strangers to each other — one of whom
 cannot reach their journal. A per-IP ceiling stays as a second line against one
 machine spraying many accounts, set where only a script reaches it. Do not
@@ -1436,8 +1451,9 @@ of it.
   listener available today sends the user's audio to somebody, and the setup
   screen's "Your voice is never saved" is true only while none is bound. That
   sentence is the constraint, not a slogan: binding a hosted listener means
-  rewriting it and adding a DPDP consent flow, which is a product and legal
-  change rather than a refactor. `UserEar` stays the seam.
+  rewriting it and adding a consent flow under PIPEDA and Law 25 — and DPDP
+  for the second market — which is a product and legal change rather than a
+  refactor. `UserEar` stays the seam.
 - **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders. What a
   plan _allows_ is settled, though: see below.
 
@@ -1463,7 +1479,8 @@ apart on purpose:
   option today sends the user's audio somewhere: Chrome's `SpeechRecognition`
   uploads it to Google, every hosted service uploads it by definition, and an
   on-device model is real work. The setup screen says **"Your voice is never
-  saved"**, and India-first puts DPDP consent in the frame. So `noEar` reports
+  saved"**, and Canada-first puts PIPEDA and Québec's Law 25 in the frame,
+  with DPDP behind them for the second market. So `noEar` reports
   itself unavailable with a reason the screen shows, and every session is typed.
   **Binding a listener is a product and legal decision, not a refactor.**
 
