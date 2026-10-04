@@ -1575,6 +1575,38 @@ cost: aggregates over beliefs (the "belief that comes back") are computed in PHP
 over a user's own window, not with `GROUP BY`. Do not drop the encryption to
 make a query easier.
 
+**That read names its columns now, and "the window keeps the set small enough"
+was the sentence that needed checking.** The window bounds days, not sessions,
+and a quick session is always allowed by design — so the number of journal rows
+inside 30 days has no ceiling. Measured, with a full session's text in each
+row:
+
+| rows   | fetched | read   | before                           | after          |
+| ------ | ------- | ------ | -------------------------------- | -------------- |
+| 2,000  | 55.5 MB | 494 KB | 199 ms, 76 MB                    | 128 ms, 12 MB  |
+| 4,000  | —       | —      | **exhausts `memory_limit=256M`** | 232 ms, 16 MB  |
+| 20,000 | —       | —      | —                                | 1.15 s, 104 MB |
+
+At 4,000 it died inside Laravel's `Connection`, **fetching** — before anything
+was reduced — against `deploy/php.ini`'s own limit, and the person it happens
+to is whoever used the product most. Six encrypted columns were pulled and two
+read: `what_happened`, `forgiveness`, `memory`, `note` and `title` are the
+user's own words about what hurt them, and this screen counts feelings. The
+cast is lazy so they were never decrypted, which is exactly the difference
+`CoachAttention` already names between a rule and a habit —
+`CoachAttention` selects two timestamp columns rather than the row, and this
+read was the habit.
+
+**It is still not bounded, and naming the columns did not make it so** — it
+moved the ceiling about five times. A real bound is a decision rather than a
+refactor: cap the rows and say on the screen that the number is partial, or
+keep plaintext aggregate counters, which is trading the encryption for a
+query. `InsightsReadsOnlyWhatItNeedsTest` asserts the columns on the SQL —
+there is nothing in the response to see it by, since the version that fetched
+everything printed identical numbers — and asserts the numbers beside them,
+because a `select` that dropped a column the reduction reads would make this
+screen quietly wrong rather than fail.
+
 A user can erase their own account, and it has to actually take everything:
 `AccountDeletionService`. Most of the removal is the schema's — sessions,
 journal, flags and pairings cascade from `users` — and what is in the service is
