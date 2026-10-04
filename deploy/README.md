@@ -159,6 +159,15 @@ helplines, told the client nothing about which rule fired, refuses another turn
 with a 409, and wrote no journal row. Then it erases the account through the
 same guarded route a user would, so a pass leaves the deployment as it found it.
 
+It also checks the **headers on the API's own origin** — a content policy of
+`default-src 'none'`, `nosniff`, `X-Frame-Options: DENY`, `no-referrer`, and no
+`X-Powered-By`. Those are set by `App\Http\Middleware\SecurityHeaders` and
+pinned by `ApiOriginIsLockedDownTest`, so why check them again over HTTP: a
+feature test cannot see a proxy, a terminator or a CDN stripping a response
+header, and a header stripped in production is missing exactly where it
+matters. Three of them used to live in `nginx.conf` and only there, which meant
+every other way of running the app answered with none of them.
+
 **Give it the web origin as well.** Plain `fetch` with no `Origin` header is
 not a browser, and so is never subject to CORS or to a content policy — which
 means everything above can pass against a stack nobody can actually use.

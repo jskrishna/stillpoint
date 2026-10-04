@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -24,6 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // a guest request without an `Accept: application/json` header came
         // back as a 500 ("Route [login] not defined") rather than a 401.
         $middleware->redirectGuestsTo(fn (Request $request) => null);
+
+        // On every response, including the ones the exception handler makes:
+        // see the class for what each header is for and why they are set here
+        // rather than only at the edge.
+        $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -83,7 +83,7 @@ async function call(method, path, body, { anonymous = false } = {}) {
     // is a misconfigured one, and the first 200 characters say which.
     parsed = { raw: text.slice(0, 200) };
   }
-  return { status: response.status, body: parsed };
+  return { status: response.status, body: parsed, headers: response.headers };
 }
 
 console.log(`\nStillpoint — does ${base} serve a session?\n`);
@@ -100,6 +100,47 @@ if (guest.status === 0) {
   console.log('\nNothing else can be checked without an API. Stopping.\n');
   process.exit(1);
 }
+
+/*
+ * The headers on this origin, through whatever is in front of it.
+ *
+ * `ApiOriginIsLockedDownTest` pins them in the application, which is where
+ * they are set — three of the four used to be in `deploy/nginx.conf` and only
+ * there, so every other way of running the app answered with none. What a unit
+ * test cannot see is this path: a proxy, a terminator or a CDN that strips or
+ * rewrites a response header, and a header stripped in production is invisible
+ * exactly where it matters. So it is asserted here as well, where the request
+ * crosses the real edge.
+ *
+ * `default-src 'none'` is the one worth reading twice. This origin serves JSON
+ * and has no page, no script and nothing to frame, so a policy forbidding
+ * everything is the accurate one rather than a strict one — and it is what
+ * `nosniff` falls back on if a browser is ever talked into rendering a
+ * response as a document.
+ */
+for (const [header, expected] of [
+  ['content-security-policy', "default-src 'none'"],
+  ['x-content-type-options', 'nosniff'],
+  ['x-frame-options', 'DENY'],
+  ['referrer-policy', 'no-referrer'],
+]) {
+  const got = guest.headers?.get(header) ?? '';
+  if (got.includes(expected)) ok(`${header}: ${got}`);
+  else
+    bad(
+      `${header} names ${expected}`,
+      got === ''
+        ? 'the header did not arrive — something between here and the app is dropping it'
+        : `it says ${JSON.stringify(got)}`,
+    );
+}
+
+// Version disclosure, which `deploy/php.ini` turns off and the application now
+// removes as well — belt and braces, because only one of those two travels
+// with the code.
+const powered = guest.headers?.get('x-powered-by') ?? '';
+if (powered === '') ok('nothing announces its version');
+else bad('nothing announces its version', `x-powered-by: ${powered}`);
 
 // ------------------------------------- 2. a browser would be allowed to use it
 console.log('\n2. A browser would be allowed to use it');

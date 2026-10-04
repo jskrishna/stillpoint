@@ -2896,6 +2896,48 @@ another origin and tries to `fetch` the token out — and asserts the browser
 refuses both. `Permissions-Policy` denies the microphone, which is true only
 while `UserEar` is unbound; binding a listener means changing that line.
 
+### And the API's own origin had none of that
+
+Twelve directives on the web app, built from the same `NEXT_PUBLIC_API_URL` the
+client reads — and the origin it talks to answered with **no security header at
+all**. Measured with `curl -I` against `artisan serve`: no policy, no
+`nosniff`, no `Referrer-Policy`, and `X-Powered-By: PHP/8.3.6`.
+
+Three of the four did exist, in `deploy/nginx.conf`, and only there. That is
+the one-place argument this file makes about `describe()` and about having one
+API client, with a different cost: a header set at the edge holds for that edge
+and nowhere else — the development container, the end-to-end stack, and any
+deployment whose terminator is not that file.
+`App\Http\Middleware\SecurityHeaders` sets them now and nginx's copies are
+gone, with a note there saying why putting them back would send each one twice
+(`add_header` appends).
+
+**`Content-Security-Policy: default-src 'none'` was in neither place**, and it
+is the one worth having. This origin serves JSON: no page, no script, no
+stylesheet, nothing to frame. A policy that forbids everything is the accurate
+description of it rather than a strict choice, and it is what gives `nosniff`
+something behind it if a browser is ever talked into rendering a response as a
+document. `routes/web.php` being empty — `NoWebSessionsTest` — is why there is
+no page here for it to break.
+
+**`X-Powered-By` does not come off the response, which is the trap.**
+`$response->headers->remove()` reads like the fix and is a no-op: PHP adds that
+header itself at the SAPI's own header list when `expose_php` is on. Measured —
+the header was still there after the middleware ran, on the first version of
+it. `header_remove()` is what takes it off. `deploy/php.ini` sets
+`expose_php=Off`, which is the real answer and reaches only the deployment.
+
+Asserted twice, on purpose. `ApiOriginIsLockedDownTest` pins all four on a
+signed-in response **and on a 401** — the exception handler builds its own
+response, so appending to the group is the only placement that reaches both.
+And `deploy/smoke.mjs` asserts them over HTTP, because what a feature test
+cannot see is a proxy or a CDN stripping a response header, and a header
+stripped in production is missing exactly where it matters. Checked by taking
+the middleware out: eight of the nine PHP cases go red, and the smoke check
+names each header that did not arrive. The ninth is the `X-Powered-By` one,
+which stays green in PHPUnit because there is no SAPI there to add it — worth
+knowing, since that is the case the HTTP check is carrying.
+
 ## Conventions
 
 - In `packages/*`, use `.js` extensions in relative import specifiers, even for
