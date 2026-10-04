@@ -50,7 +50,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 
 /** In the order they should run: cheapest signal first, slowest last. */
-const SCRIPTS = ['flow', 'admin', 'coach', 'privacy', 'mobile', 'a11y'];
+const SCRIPTS = ['flow', 'admin', 'coach', 'privacy', 'mobile', 'desktop', 'a11y'];
 
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith('--')));
@@ -158,6 +158,18 @@ async function build() {
   if (needsMobile && (!mobileBuilt || !flags.has('--no-build'))) {
     log('building the mobile app’s web export');
     if ((await run('pnpm', ['--filter', '@stillpoint/mobile', 'run', 'build'])) !== 0) return false;
+  }
+
+  // The desktop shell, which is its own build: `tsc` for the main process plus
+  // the web app's **standalone** build bundled into `apps/desktop/web`. That
+  // is a different build from the `.next` the web checks use — `next start` is
+  // not supported alongside `output: 'standalone'` — so nothing above produces
+  // it and `desktop.mjs` is the only thing that runs it.
+  const desktopBuilt = existsSync(join(root, 'apps/desktop/web/server.js'));
+  if (scripts.includes('desktop') && (!desktopBuilt || !flags.has('--no-build'))) {
+    log('building the desktop shell');
+    if ((await run('pnpm', ['--filter', '@stillpoint/desktop', 'run', 'build'])) !== 0)
+      return false;
   }
 
   return true;
@@ -318,7 +330,13 @@ async function main() {
   const results = [];
   for (const name of scripts) {
     console.log(`\n\x1b[1m—— ${name}.mjs ——\x1b[0m`);
-    const code = await run('node', [join(here, `${name}.mjs`)]);
+    // The desktop shell is an Electron app and needs a display. It brings its
+    // own server on 8735 rather than using the three above, because that port
+    // is the app's identity — see `apps/desktop/src/server.ts`.
+    const code =
+      name === 'desktop' && process.env.DISPLAY === undefined
+        ? await run('xvfb-run', ['-a', 'node', join(here, `${name}.mjs`)])
+        : await run('node', [join(here, `${name}.mjs`)]);
     results.push({ name, code });
   }
 

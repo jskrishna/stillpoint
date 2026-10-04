@@ -6,7 +6,7 @@ the journal, insights, settings, the safety stop, and sign-out.
 
 It is not part of `pnpm run check`, because it needs three servers. It **does**
 run in CI now, in the `e2e` job, which boots the API against a MySQL service,
-seeds the demo accounts, builds and starts the web app, and runs all six
+seeds the demo accounts, builds and starts the web app, and runs all seven
 scripts. Run it by hand too after changing the session flow, the API client or
 anything in `apps/api/app/Domain` — it is faster than waiting for a push.
 
@@ -36,6 +36,19 @@ Locally the single-worker server below is right, and sqlite is fine for the
 data: nothing is competing for the file. The cache is the exception, which is
 why the command below moves it out of the database — see the note on it.
 
+`desktop.mjs` is the newest and had the longest-standing gap behind it:
+`apps/desktop` has one unit test, over the two decisions worth asserting in
+isolation, and nothing that **started the app**. The root `CLAUDE.md` said it
+had been launched under Xvfb, which was true once, by hand. So this launches
+it: the bundled standalone server (a different build from the `.next` the other
+checks use — `next start` is not supported alongside `output: 'standalone'`),
+the window on the app's own origin, no Node in the page, the navigation pin in
+the real main process rather than only in `navigation.test.ts`, `window.open`
+refusing a `file:` URL, and `localStorage` surviving a relaunch, which is the
+whole reason the port is fixed at 8735. It needs a display; `pnpm run e2e`
+wraps it in `xvfb-run`. It proves nothing about packaging, signing, or macOS
+and Windows — `LAUNCH.md` item 8 is still item 8.
+
 `mobile.mjs` is the odd one out and the most useful recently: it is the only
 thing that runs `apps/mobile`. CI typechecked that app and `expo export`
 bundled it, which proves a broken import and nothing about behaviour — a screen
@@ -48,14 +61,15 @@ is still a test pass that has not happened.
 ## One command
 
 ```bash
-pnpm run e2e                 # build what is missing, seed, all six, tear down
+pnpm run e2e                 # build what is missing, seed, all seven, tear down
 pnpm run e2e flow admin      # just those two
 pnpm run e2e --no-build      # servers and scripts only, nothing rebuilt
 pnpm run e2e --keep          # leave the servers up afterwards
 ```
 
 `e2e/run.mjs` does what the six steps below do: builds the packages, the web
-app and — only when `mobile` is in the run — the Expo export, reseeds with
+app and — only when that script is in the run — the Expo export or the desktop
+shell, reseeds with
 `DemoSeeder`, starts the three servers, waits for each to answer, runs every
 script whatever any one of them does, tears the servers down and exits non-zero
 if anything failed. A server that dies before it comes up is reported with its

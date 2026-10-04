@@ -873,12 +873,45 @@ console, the coach portal and the marketing site do have desktop layouts and
 render as intended. A desktop layout for `/app` is a design decision, and it
 belongs in `apps/web`; the shell will pick it up with no change.
 
-It has been launched under Xvfb here, which proves the server starts, the app
-renders and a session survives a relaunch. **It has never been packaged or run
-on macOS or Windows**, and there is no installer, signing, notarisation or
-auto-update — each of those costs a certificate or a server rather than a line
-of config. Its README says so; do not let `pnpm run build` passing stand in for
-it.
+**It is launched by `e2e/desktop.mjs` now**, which is where that sentence used
+to end. It said "it has been launched under Xvfb here, which proves the server
+starts, the app renders and a session survives a relaunch" — every word true
+once, by hand, on a machine that no longer exists. That is the ritual people
+skip, which is the argument that produced `e2e/run.mjs` and
+`scripts/verify-clean.mjs`. `apps/desktop` had one unit test, over the two
+decisions worth asserting in isolation, and nothing that started the app.
+
+Five things only a running app shows, and the third is the one that matters:
+
+- **The bundled server starts.** Nothing else here runs it: the web checks use
+  `next start` against `.next`, which is a different build with a different
+  entry point, and `next start` is not supported alongside
+  `output: 'standalone'`.
+- **The renderer has no Node**, asserted from inside the page. Be precise about
+  what that catches: measured, flipping `sandbox` to false **and**
+  `nodeIntegration` to true changes nothing visible, because
+  `contextIsolation` keeps Node out of the page's own world. Turning that off
+  as well puts `require` and `process` in the page and the assertion goes red.
+  So it guards the combination that actually exposes Node, not each option.
+- **The navigation pin, in the real main process.** `navigation.test.ts` covers
+  `sameOrigin`; this covers the `will-navigate` handler that calls it. The URL
+  it uses smuggles the **API's** host after the `@` rather than a name that
+  does not resolve, because a host that cannot be reached would make the
+  assertion pass whether or not the pin works. Checked by putting the prefix
+  check back: the window navigates, and `{"message":"Unauthenticated."}` —
+  another origin's response — renders inside this app's frame.
+- **`window.open` cannot hand the OS a `file:` URL**, and no window opens.
+- **`localStorage` survives a relaunch**, which is the whole reason the port is
+  fixed rather than whatever the operating system offers.
+
+It needs a display, so `run.mjs` wraps it in `xvfb-run` and CI does the same.
+
+**It has never been packaged or run on macOS or Windows**, and there is no
+installer, signing, notarisation or auto-update — each of those costs a
+certificate or a server rather than a line of config. A green `desktop.mjs`
+means "this starts and holds its rules", not "this ships"; `LAUNCH.md` item 8
+is still item 8. Its README says so; do not let `pnpm run build` passing stand
+in for it.
 
 `apps/web` therefore has a second build: `pnpm --filter @stillpoint/web run
 build:standalone`, which sets `NEXT_OUTPUT=standalone` and so turns on
@@ -1130,7 +1163,7 @@ pnpm run verify:clean  # all of that from nothing built — before a push
 ./vendor/bin/pint --test # formatting, as CI runs it
 ```
 
-`e2e/` holds six checks against a running API — `pnpm run e2e` runs all of
+`e2e/` holds seven checks against a running API — `pnpm run e2e` runs all of
 them, building what is missing, reseeding, starting the three servers and
 tearing them down; `pnpm run e2e flow admin` runs a subset and `--no-build`
 skips the builds and the reseed. See `e2e/README.md`. One of
@@ -1174,7 +1207,7 @@ there. Both scripts navigate through the app's own controls for those reasons.
 `flow.mjs` is the web app's: register, consent, a full session, a reply lost on
 the way back, journal, insights, settings, the safety stop and sign-out. It
 needs three servers, so it is not part of `check` — but it **is** in CI, as the
-`e2e` job, along with the other five. Run it by hand too after changing the
+`e2e` job, along with the other six. Run it by hand too after changing the
 session flow, `packages/client` or anything in `apps/api/app/Domain`; it is
 faster than waiting for a push.
 

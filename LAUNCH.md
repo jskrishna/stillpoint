@@ -265,7 +265,7 @@ honest about both halves:
 - No third-party origin is contacted from any screen, asserted by a real
   browser.
 - 654 TypeScript tests, 577 PHP tests, a cross-language parity fixture both
-  suites assert against, and six end-to-end scripts — `pnpm run e2e`. Every one
+  suites assert against, and seven end-to-end scripts — `pnpm run e2e`. Every one
   of the phone's eleven screens is rendered by one of them, and every one of
   the web app's twenty routes is audited by `a11y.mjs`; both of those sentences
   were false until recently, and a count in a list like this is exactly the

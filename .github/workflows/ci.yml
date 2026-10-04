@@ -258,6 +258,14 @@ jobs:
       - name: Build the mobile app's web export
         run: pnpm --filter @stillpoint/mobile run build
 
+      # Its own build: `tsc` for the main process plus the web app's
+      # **standalone** build bundled into `apps/desktop/web`. That is a
+      # different build from the `.next` the steps above use — `next start` is
+      # not supported alongside `output: 'standalone'` — so nothing else here
+      # produces it.
+      - name: Build the desktop shell
+        run: pnpm --filter @stillpoint/desktop run build
+
       # Playwright is a root dev dependency, and these scripts resolve it from
       # there. The development container has a browser at a fixed path instead
       # and blocks this download; `e2e/browser.mjs` tries both.
@@ -356,6 +364,16 @@ jobs:
       - name: The mobile app, actually running
         if: '!cancelled()'
         run: node e2e/mobile.mjs
+
+      # The desktop shell, which had one unit test and nothing that started
+      # it. `CLAUDE.md` said it had been launched under Xvfb once, by hand —
+      # which is the kind of ritual `e2e/run.mjs` exists because people skip.
+      # It brings its own server on 8735 rather than using the three above,
+      # because that port is the app's identity. Needs a display, hence
+      # `xvfb-run`.
+      - name: The desktop shell, actually running
+        if: '!cancelled()'
+        run: xvfb-run -a node e2e/desktop.mjs
 
       # A restart is not a failure on its own, so it does not fail the job —
       # but it is never invisible either, because the run it breaks is the one
