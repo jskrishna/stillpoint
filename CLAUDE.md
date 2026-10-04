@@ -1616,6 +1616,12 @@ whenever a table is added:
 - **Sanctum tokens**, which have no foreign key, so nothing would remove them.
 - **The role-change trail**, which must outlive the account but must not keep
   its address.
+- **The plan-change trail**, the same kind of record and the same treatment,
+  and the worked example of why this is written down as a _pattern_: the table
+  arrived after this list was written, the sweep for it was added, and the list
+  itself still had five bullets for six things. Both columns are swept, the
+  subject's and the actor's — an admin who changed somebody's plan and later
+  erased their own account is in `changed_by_email`, not `user_email`.
 - **Invitations sent _to_ the address.** `coach_invites.email` is a string and
   not a key, deliberately — a coach can invite an address with no account — so
   only the ones a coach _sent_ cascade. This used to be written down as
@@ -1632,7 +1638,33 @@ whenever a table is added:
   one today, because auth is bearer tokens; the sweep is there for the day
   cookie mode lands, which is the documented right answer for the web client.
 
-Two tests cover the three, and both were checked by taking the fix out. It is guarded by the
+**And the pattern is enforced rather than remembered now.** Every item above
+has a test, each test names the table it is about, and each lives beside its
+own feature — the role trail's in `AdminUserApiTest`, the plan trail's in
+`GrantingAPlanTest` — so a table added later has no test and nothing says so.
+`ErasureLeavesNoAddressAnywhereTest` asks the **schema** instead: it finds
+every text column in every table whose name mentions an email, and asserts the
+erased address is in none of them. A table added tomorrow with an address in it
+is covered on the day it is created, which a hand-written list cannot be. It is
+`RotateEncryptionKey::COLUMNS` with the direction reversed — that refuses when
+a model declares a column its list does not cover; this discovers the columns
+rather than declaring them.
+
+Two halves make it worth anything, and the first is what caught a gap in its
+own fixture. **A sweep over empty tables passes**, so it writes a row into
+every one of those tables and asserts they hold the address _before_ erasing —
+and that assertion failed first time, because the address was only ever the
+subject and never the actor, so `changed_by_email` was being swept over an
+empty column. And **a sweep that deleted everything would pass too**, so
+somebody else's address is asserted untouched in the same place. Checked by
+removing the role, plan and invite sweeps one at a time: each goes red naming
+its own table and column.
+
+By type as well as by name, incidentally: `users.email_verified_at` is a
+timestamp and excluding it by name would be a rule that breaks the next time
+somebody adds `email_changed_at`.
+
+It is guarded by the
 account's own password and a typed confirmation, because it is not reversible
 and should not be something a stray tap on an unlocked phone can do.
 
