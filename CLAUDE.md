@@ -1648,8 +1648,37 @@ them, `mobile.mjs`, is the only thing that executes `apps/mobile` at all: it
 drives the Expo web export in a browser at a phone's width. It does not touch
 anything native, and `apps/mobile/README.md` lists what that leaves.
 
-**Two of the phone's eleven screens were not among them**, which is the same
-gap `a11y.mjs` had and found the same way — by listing the files rather than
+**And it was ten of eleven again**, on the one screen that is a branch off the
+welcome screen rather than a step in the flow: nothing reached
+`welcome/forgot.tsx`. `LAUNCH.md` claimed all eleven were rendered, in the
+bullet that says that sentence "was false until recently". Section 1b walks it
+now, and what it asserts is the rule rather than that the screen draws — the
+answer is the same whether or not the address has an account, compared across
+one that has one and one that does not, which is the surface half of what
+`forgotPassword()` throwing the broker's result away buys.
+
+Two things in writing it are worth more than the section. **expo-router leaves
+every screen it has shown mounted**, so `getByLabel('Email')` was a
+strict-mode violation on two elements after one push and three after two —
+and `.first()` would have picked the stacked one, which is 0x0 rather than
+absent (measured; the pushed field is 350x48). The locator asks for the
+visible one, and the section ends by reloading the app rather than unwinding
+the stack, the way section 5b already does. Without that reload the next
+`press('Create an account instead')` clicked a stale button and the hint read
+`current-password` — a check that had quietly stopped being on the screen it
+named.
+
+**And the equality assertion passed vacuously the first time.** It compared
+`said.slice(said.indexOf('If that address'))`, so with that sentence gone
+`indexOf` returned -1 and `slice(-1)` handed back the body's last character —
+one character, the same for both addresses, equal. Measured by editing the
+screen to print the address itself: "told a link is on its way" went red and
+"told exactly the same" stayed green, on exactly the leak it exists to catch.
+It returns a sentinel naming the address now, so two of them cannot match, and
+both cases go red together.
+
+**Two of the phone's eleven screens were not among them** either, earlier,
+which is the same gap `a11y.mjs` had and found the same way — by listing the files rather than
 believing the sentence. The script pressed the Journal tab and stopped, so
 `journal/[id].tsx` and `(tabs)/insights.tsx` had only ever been rendered by
 `expo export`: that proves the module bundles and survives a first render with

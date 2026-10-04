@@ -209,6 +209,112 @@ else
     `the password field's autocomplete is ${JSON.stringify(signInHint)} — "password" is Android-only, so iOS offers nothing`,
   );
 
+/*
+ * ---------------------------------------------------------------------------
+ * The forgotten-password screen, which nothing here reached.
+ *
+ * `LAUNCH.md` claims "every one of the phone's eleven screens is rendered by
+ * one of them" — in the bullet that says that sentence "was false until
+ * recently". It was false again: this script pressed through registration and
+ * never touched `welcome/forgot.tsx`, so ten of eleven. Counted by listing the
+ * files against what the script visits, which is how the same claim was caught
+ * the first time.
+ *
+ * What it asserts is the rule rather than that the screen draws: the answer is
+ * **the same** whether or not the address has an account. The server decides
+ * that — `forgotPassword()` throws the broker's result away — and this is the
+ * surface half, compared across an address that has an account and one that
+ * does not, because a sentence that differs is a way to ask whether somebody
+ * uses this product.
+ *
+ * The link itself is the web's to spend, and `flow.mjs` section 9 walks it out
+ * of the log. There is no deep link into the app for a reset token on purpose.
+ */
+console.log('\n1b. Asking for a reset link says the same thing either way');
+
+await press('I’ve forgotten my password');
+await page.waitForTimeout(1200);
+
+if ((await body()).includes('Set a new password')) ok('the forgotten-password screen opens');
+else bad('the forgotten-password screen opens', (await body()).slice(0, 300));
+
+await audit('the forgotten-password screen');
+
+/**
+ * Asks for a link and returns what the screen says back.
+ *
+ * `:visible` because expo-router keeps the screen underneath mounted — the
+ * welcome screen's own Email field is still in the DOM, which made a plain
+ * `getByLabel('Email')` a strict-mode violation on two elements. Measured
+ * rather than guessed at: the stacked one is 0x0 and the pushed one is 350x48,
+ * so visibility is what tells them apart, where `.first()` would have picked
+ * the hidden one.
+ */
+const askFor = async (address) => {
+  await page.locator('input[aria-label="Email"]:visible').fill(address);
+  await press('Send me a link');
+  await page.waitForTimeout(1500);
+  const said = await body();
+  const anchor = said.indexOf('If that address');
+
+  // Not a silent fallback, and the first version was one. It did
+  // `said.slice(said.indexOf(...))`, so with the sentence gone `indexOf`
+  // returned -1 and `slice(-1)` handed back the body's **last character** —
+  // the same one character for both addresses, which compared equal. Measured:
+  // a screen edited to print the address itself turned the "told a link is on
+  // its way" case red and left "told exactly the same" green, passing
+  // vacuously on exactly the leak it exists to catch. The sentinel names the
+  // address, so two of them can never match.
+  if (anchor === -1) return `no sentence found for ${address}: ${said.slice(0, 200)}`;
+
+  return said.slice(anchor);
+};
+
+// An address with no account. `example.invalid` is reserved, so this can never
+// be somebody's real one.
+const strangerSaid = await askFor(`nobody+${String(Date.now())}@example.invalid`);
+
+if (/If that address has an account/.test(strangerSaid))
+  ok('an address with no account is told a link is on its way');
+else bad('an address with no account is told a link is on its way', strangerSaid.slice(0, 300));
+
+// And the demo account, which does have one. Back to the form first: the
+// screen replaces itself with the confirmation, so there is no field to refill.
+await press('Back to sign in');
+await page.waitForTimeout(1200);
+await press('I’ve forgotten my password');
+await page.waitForTimeout(1200);
+
+const ownerSaid = await askFor('you@stillpoint.test');
+
+if (ownerSaid === strangerSaid) ok('and an address that has one is told exactly the same');
+else
+  bad(
+    'and an address that has one is told exactly the same',
+    `stranger: ${strangerSaid.slice(0, 120)} / owner: ${ownerSaid.slice(0, 120)}`,
+  );
+
+// The journal sentence, which is the reason a reset is safe to offer at all:
+// the `encrypted` casts use `APP_KEY`, not anything derived from the password.
+if (/journal is not affected/.test(ownerSaid)) ok('and that their journal survives it');
+else bad('and that their journal survives it', ownerSaid.slice(0, 300));
+
+/*
+ * Back in through the app's own entry point, the way section 5b does and for
+ * the same reason: expo-router leaves every screen it has shown mounted, so
+ * after two pushes there were **three** Email fields in the DOM and the next
+ * `press('Create an account instead')` clicked a stale one — the hint read
+ * `current-password`, meaning the screen was still in sign-in mode, and then
+ * the registration fill resolved to three elements. A reload is one screen
+ * again, which is cheaper than teaching every locator about the stack.
+ */
+await page.goto(APP, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+
+if ((await body()).includes('Welcome to Stillpoint')) ok('and back at sign in afterwards');
+else bad('and back at sign in afterwards', (await body()).slice(0, 300));
+
+// ---------------------------------------------------------------------------
 await press('Create an account instead');
 
 const registerHint = await hintOn('Password');

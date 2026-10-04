@@ -288,8 +288,12 @@ changing the copy changes what Plus is for. Both options are in
 
 ## 8. The desktop app has never been packaged
 
-It runs — `e2e/desktop.mjs` launches it under Xvfb on every CI run and asserts
-that a session survives a relaunch — and `pnpm run build` passes. There is no installer, no signing, no notarisation and
+It runs — `node e2e/desktop.mjs` launches it under Xvfb and asserts that a
+session survives a relaunch, and `pnpm run build` passes. That is a command
+rather than a claim about CI on purpose: the sentence used to say "on every CI
+run", which is a thing a reader cannot check from here and which was false for
+twenty-seven consecutive pushes while the account's Actions billing was on
+hold — the runs reported failure in two seconds having never started. There is no installer, no signing, no notarisation and
 no auto-update, and it has never run on macOS or Windows. Each of those costs a
 certificate or a server rather than a line of configuration.
 
@@ -329,6 +333,17 @@ honest about both halves:
   end-to-end scripts — `pnpm run e2e`. Every one of the phone's eleven screens
   is rendered by one of them, and every one of the web app's twenty routes is
   audited by `a11y.mjs`; both of those sentences were false until recently.
+
+  **And the first one went false again**, which is this document's running
+  joke arriving on schedule. It was ten of eleven: nothing reached
+  `welcome/forgot.tsx`, because the phone check pressed straight through
+  registration and the forgotten-password screen is the one branch off the
+  welcome screen it never took. Caught by listing the eleven files against
+  what the script visits — the same way it was caught the first time, which is
+  the only method that has ever worked on this sentence. `mobile.mjs` section
+  1b walks it now and holds it to the rule that matters there: the answer is
+  the same whether or not the address has an account, compared across one that
+  has one and one that does not.
 
   The test counts used to be written out here, and they went stale in the one
   bullet that warns "a count in a list like this is exactly the kind nothing
