@@ -6,6 +6,7 @@ import { RADIUS, SPACE } from '@stillpoint/design-tokens';
 import {
   CONSENT_ITEMS,
   hasRequiredConsent,
+  DEFAULT_COUNTRY,
   helplinesFor,
   missingConsent,
   type ConsentId,
@@ -31,6 +32,13 @@ export default function Consent() {
   const router = useRouter();
 
   const [accepted, setAccepted] = useState<readonly ConsentId[]>([]);
+  /**
+   * Whose crisis numbers to print. It was `helplinesFor('IN')`, written when
+   * India was the only market — so after Canada became the first one this
+   * screen told a Canadian to call 112 and Tele-MANAS. The web's consent
+   * screen had the same line; a wrong crisis number is worse than none.
+   */
+  const [country, setCountry] = useState<string>(DEFAULT_COUNTRY);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -47,6 +55,9 @@ export default function Consent() {
         setAccepted(
           CONSENT_ITEMS.filter((i) => profile.acceptedConsent.includes(i.id)).map((i) => i.id),
         );
+        // The country this screen's crisis numbers come from. It was already
+        // being fetched here and thrown away.
+        setCountry(profile.country);
       })
       .catch(() => {
         // Nothing accepted is the safe assumption, and the screen already
@@ -54,7 +65,7 @@ export default function Consent() {
       });
   }, []);
 
-  const helplines = helplinesFor('IN');
+  const helplines = helplinesFor(country);
   const emergency = helplines.find((h) => h.kind === 'emergency');
   const helpline = helplines.find((h) => h.kind === 'helpline');
 

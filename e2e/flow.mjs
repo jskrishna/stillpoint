@@ -53,6 +53,20 @@ await page.getByRole('button', { name: 'Create my account' }).click();
 await page.waitForURL('**/welcome/consent', { timeout: 15000 });
 ok('registration lands on the consent gate');
 
+// The crisis numbers on this screen, which was the one screen in the app flow
+// still hardcoded to `helplinesFor('IN')` — written when India was the only
+// market, so after Canada became the first one it told a Canadian "If you are
+// in danger, call 112 or Tele-MANAS 14416", two numbers that do not answer
+// where they are. A wrong crisis number is worse than none, and this is said
+// before anybody starts. It reads the account's own country now.
+const gateText = await page.locator('body').innerText();
+if (/911/.test(gateText) && /988/.test(gateText))
+  ok('the consent gate gives this account\u2019s own crisis numbers');
+else bad('the consent gate gives this account\u2019s own crisis numbers', gateText.slice(0, 400));
+if (!/14416|Tele-MANAS/.test(gateText) && !/call 112|112 or/.test(gateText))
+  ok('and not another market\u2019s');
+else bad('and not another market\u2019s', gateText.slice(0, 400));
+
 const continueBtn = page.getByRole('button', { name: /Continue|Saving/ });
 if (await continueBtn.isDisabled()) ok('Continue is blocked before consent');
 else bad('Continue is blocked before consent');

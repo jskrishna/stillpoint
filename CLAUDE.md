@@ -54,6 +54,20 @@ answers through its own line rather than 988, and somebody in Montréal
 dialling the wrong one of those is the failure this screen exists to prevent.
 India is Tele-MANAS 14416 and 112.
 
+**And a screen that prints a crisis number has to ask whose.** The consent
+screen on both surfaces called `helplinesFor('IN')` with the country written
+in, so after Canada became the first market it told a Canadian "If you are in
+danger, call 112 or Tele-MANAS 14416" — before anybody started, on the screen
+that exists to say it. Both screens were already fetching `api.me()` and
+throwing `profile.country` away. They read it now, falling back to
+`DEFAULT_COUNTRY` rather than a literal, so the two cannot disagree with the
+column. The marketing site's landing page has no account to ask and uses
+`DEFAULT_COUNTRY` for the same reason. `e2e/flow.mjs` and `e2e/mobile.mjs`
+assert the gate names 9-8-8 and 911 and does **not** name another market's
+numbers; both were checked by reverting the screens and rebuilding. Note what
+this was: the list above says the helplines "have been moved already", and they
+had been — in the domain. Three call sites had their own copy of the answer.
+
 `users.country` defaults to `CA`. It covered India only until Canada became the
 first market — so a Canadian who said they were not safe had their session
 stopped, saw the pause screen, and had nothing to call on it. The test that

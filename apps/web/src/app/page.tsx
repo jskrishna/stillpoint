@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { STEP_COUNT, STEP_LIST, helplinesFor, step } from '@stillpoint/protocol';
+import { DEFAULT_COUNTRY, STEP_COUNT, STEP_LIST, helplinesFor, step } from '@stillpoint/protocol';
 import styles from './page.module.css';
 
 /**
@@ -10,7 +10,10 @@ import styles from './page.module.css';
  * disagree about the steps or about which helpline to call.
  */
 export default function Landing() {
-  const helplines = helplinesFor('IN');
+  // Canada is the first market. There is no account here to ask, so this is
+  // the one place the default is the whole answer — and it is the shared
+  // constant rather than a literal, so a market change moves it once.
+  const helplines = helplinesFor(DEFAULT_COUNTRY);
   const first = step('notice');
 
   return (
