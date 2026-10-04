@@ -41,6 +41,82 @@ const WHAT_HAPPENS = {
   low: 'The session continues normally. A flag is raised for a reviewer, at the lowest severity. The person is not interrupted and is not told anything happened.',
 };
 
+/**
+ * What we are asking, as data rather than as seven `w(...)` calls.
+ *
+ * The opening paragraph says how many there are, and it said "four" for a
+ * while after there were seven — in the first thing the reader reads, in a
+ * document whose whole point is being accurate about what this screen does.
+ * Counted from this array now, so it cannot say a number that is not true.
+ */
+const QUESTIONS = [
+  [
+    '**Is this list acceptable as an interim backstop** while a trained model',
+    'is built — and if not, what should be removed or added? We would rather be',
+    'told it is inadequate than ship it believing otherwise.',
+  ],
+  [
+    '**Is the grading boundary right?** Specifically: should hopelessness and',
+    'burdensomeness ever end a session, when ending it means the person cannot',
+    'continue and is shown helplines?',
+  ],
+  [
+    '**Is the pause screen clinically appropriate** — what it says, and showing',
+    'the numbers listed above, and showing a national line and a provincial',
+    'one (988 and Québec’s 1-866-APPELLE) on the same screen?',
+  ],
+  [
+    '**Should a safety flag outlive the person deleting their account?**',
+    'Today it is deleted with everything else, because that is what erasure',
+    'means. Which also means that if somebody said they were in danger and then',
+    'deleted their account, no reviewer can follow it up. If a flag should',
+    'survive, in what form and for how long?',
+  ],
+  [
+    '**Should a stop stop anything more than the session?** A person can start',
+    'a new one immediately. We think refusing would be worse, and we are not',
+    'confident. If something should change — a cooldown, an acknowledgement',
+    'before starting again, the same numbers shown on the way in — it is a',
+    'product change we would make.',
+  ],
+  [
+    '**How quickly must a flag be read, and by whom?** There is nobody on call',
+    'and no alerting today. Your answer decides whether this queue is a',
+    'safeguarding process that needs rotas and escalation, or a review log —',
+    'and it is the difference between what we have built and what we would',
+    'have to build.',
+  ],
+  [
+    '**Should the person be able to read back what they said in a stopped',
+    'session?** It is the one thing they typed that they cannot see again.',
+    'Handing somebody their own crisis disclosure months later, unprompted, is',
+    'not obviously a kindness; nor is keeping it from them. We have written the',
+    'argument down both ways and not chosen.',
+  ],
+];
+
+/**
+ * Spelled out, because this is prose a person reads and "7 answers" is not how
+ * the sentence was written. Falls back to the digits past ten.
+ */
+function spelled(n) {
+  const words = [
+    'no',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+  ];
+
+  return words[n] ?? String(n);
+}
+
 function commit() {
   try {
     return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -59,12 +135,16 @@ w('Regenerate with `pnpm run clinical:review` after any change to the screen.');
 w();
 w('## What we are asking for');
 w();
-w('Four answers, in [Questions](#questions-we-need-answered) at the end. You do');
+w(
+  `${spelled(QUESTIONS.length)} answers, in [Questions](#questions-we-need-answered) at the end. You do`,
+);
 w('not need to read any code: everything the screen does is in this document,');
 w('including every phrase it looks for and the grade each one carries.');
 w();
-w('It is about twenty minutes of reading. You do not need to use the product');
-w('to answer the four questions — we can walk you through it if that helps,');
+w('It is about half an hour of reading. You do not need to use the product');
+w(
+  `to answer the ${spelled(QUESTIONS.length).toLowerCase()} questions — we can walk you through it if that helps,`,
+);
 w('but this document is written so that you do not have to.');
 w();
 w('**We would rather be told this is inadequate than ship it believing');
@@ -135,12 +215,36 @@ w();
 w('The person is **never** told which rule they tripped, the grade, or the');
 w('phrase that matched. A medium or low flag is invisible to them.');
 w();
-w('### Where a flag goes');
+w('### What happens after the session stops');
+w();
+w('The session is over. It cannot be resumed — there is no path around a');
+w('safety stop — and it is **never written to the journal**, so the person');
+w('cannot read back what they said in it. Those words exist only in the flag,');
+w('which only an administrator can open, and the product’s “export');
+w('everything” does not include them.');
+w();
+w('**And the person can start a new session straight away.** Measured against');
+w('the running product: a stop, then a new session accepted at step 1, with no');
+w('cooldown and nothing asked of them in between. The stop is a stop on that');
+w('session, not a lock on the product. That is deliberate — refusing would');
+w('mean telling somebody who has just said they are not safe to go away — but');
+w('it means the screen can be walked past by anybody who does not repeat the');
+w('phrase, and we would rather you told us whether that is the right call.');
+w();
+w('### Where a flag goes, and who is watching');
 w();
 w('To a queue only an administrator can open — not a coach. A flag holds the');
 w('grade, the category, when it was raised, and **the sentence the person');
 w('typed**. That sentence is the most sensitive thing the product stores. It is');
 w('encrypted at rest.');
+w();
+w('**Nobody is on call.** There is no alert, no email, no notification and no');
+w('response time: the only thing that brings a reviewer to that queue is');
+w('somebody opening the console. The queue shows each flag’s age, and the');
+w('overview reports how long the longest-waiting open flag has been waiting,');
+w('precisely because that is the number nobody is otherwise watching. Whether');
+w('a flagged disclosure may sit unread for a day is not a question the code');
+w('can answer.');
 w();
 w('## The grading rule');
 w();
@@ -256,20 +360,10 @@ w('returned as though there were nothing there.');
 w();
 w('## Questions we need answered');
 w();
-w('1. **Is this list acceptable as an interim backstop** while a trained model');
-w('   is built — and if not, what should be removed or added? We would rather be');
-w('   told it is inadequate than ship it believing otherwise.');
-w('2. **Is the grading boundary right?** Specifically: should hopelessness and');
-w('   burdensomeness ever end a session, when ending it means the person cannot');
-w('   continue and is shown helplines?');
-w('3. **Is the pause screen clinically appropriate** — what it says, and showing');
-w('   the numbers listed above, and showing a national line and a provincial');
-w('   one (988 and Québec’s 1-866-APPELLE) on the same screen?');
-w('4. **Should a safety flag outlive the person deleting their account?**');
-w('   Today it is deleted with everything else, because that is what erasure');
-w('   means. Which also means that if somebody said they were in danger and then');
-w('   deleted their account, no reviewer can follow it up. If a flag should');
-w('   survive, in what form and for how long?');
+QUESTIONS.forEach(([first, ...rest], i) => {
+  w(`${String(i + 1)}. ${first}`);
+  for (const line of rest) w(`   ${line}`);
+});
 w();
 w('## What we will do with the answers');
 w();

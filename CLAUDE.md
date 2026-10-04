@@ -192,6 +192,19 @@ alternatives are both wrong. Nothing stores which script it was: that needs a
 decision about whether a user's language is ours to keep, and knowing _whether_
 this happens is enough to decide whether to ask.
 
+**And the review pack now says what happens after a stop**, which it did not.
+A reviewer judging a crisis screen needs three facts that are not about the
+screen at all, and all three are measured rather than described: the person can
+start a new session **immediately**, at step 1, with no cooldown and nothing
+asked of them; **nobody is on call** for the flag queue — no alert, no email,
+no response time, which is the reason the overview reports the age of the
+longest-waiting open flag; and a stopped session is never journalled, so its
+words are the one thing the person typed that they cannot read back. Each is
+defensible, none is ours to settle, and a reviewer who is not told them is
+answering about a different product. They are questions 5, 6 and 7, and the
+count in the pack's opening paragraph is derived from the list — it said "four"
+for a while after there were seven, in the first thing the reader reads.
+
 Grading up has a ceiling, though: `high` ends the session, so hopelessness and
 burdensomeness ("I can't go on", "I feel like a burden", "nothing matters any
 more") are `medium` and `low`. They are flagged for a reviewer, not stopped on —

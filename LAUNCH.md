@@ -48,15 +48,24 @@ deliberately not.
 
 Then `docs/clinical-review/RISK-SCREEN-REVIEW.md`, which is generated from
 the code (`pnpm run clinical:review`), so it cannot drift from what actually
-runs. It lists every phrase, every grade, the worked examples, and the four
+runs. It lists every phrase, every grade, the worked examples, and the seven
 questions a reviewer needs to answer. Give it to someone qualified — a
 registered psychologist, a crisis-line clinical lead, a safeguarding
 consultant. In Canada, a provincial college's referral list or a crisis-line
 organisation's clinical team is the realistic route.
 
 **What you are asking them for**, specifically: is the grading right, is the
-recall acceptable, what is missing, and is the pause screen's wording safe.
-Not "is this good enough" — they cannot answer that about software. These four.
+recall acceptable, what is missing, is the pause screen's wording safe — and
+three the pack did not used to ask, because it did not used to say what the
+product does after a stop. Measured against the running product: the person
+can start a new session **immediately**, at step 1, with no cooldown and
+nothing asked of them. Nobody is on call for the flag queue — no alert, no
+email, no response time, which is why the overview reports the age of the
+longest-waiting open flag. And a stopped session is never journalled, so its
+words are the one thing the person typed that they cannot read back. Each of
+those is defensible and none of them is ours to settle; a reviewer who is not
+told them is answering about a different product. Not "is this good enough" —
+they cannot answer that about software.
 
 **Cost.** A consultation. Expect it to produce changes, not a signature.
 

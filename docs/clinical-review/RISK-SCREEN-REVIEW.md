@@ -1,16 +1,16 @@
 # Stillpoint — risk screen, for clinical review
 
-Generated from `packages/protocol/src/risk.ts` at commit `b27a85e`.
+Generated from `packages/protocol/src/risk.ts` at commit `f444213`.
 Regenerate with `pnpm run clinical:review` after any change to the screen.
 
 ## What we are asking for
 
-Four answers, in [Questions](#questions-we-need-answered) at the end. You do
+Seven answers, in [Questions](#questions-we-need-answered) at the end. You do
 not need to read any code: everything the screen does is in this document,
 including every phrase it looks for and the grade each one carries.
 
-It is about twenty minutes of reading. You do not need to use the product
-to answer the four questions — we can walk you through it if that helps,
+It is about half an hour of reading. You do not need to use the product
+to answer the seven questions — we can walk you through it if that helps,
 but this document is written so that you do not have to.
 
 **We would rather be told this is inadequate than ship it believing
@@ -72,12 +72,36 @@ than none, and that is the whole reason this list is short.
 The person is **never** told which rule they tripped, the grade, or the
 phrase that matched. A medium or low flag is invisible to them.
 
-### Where a flag goes
+### What happens after the session stops
+
+The session is over. It cannot be resumed — there is no path around a
+safety stop — and it is **never written to the journal**, so the person
+cannot read back what they said in it. Those words exist only in the flag,
+which only an administrator can open, and the product’s “export
+everything” does not include them.
+
+**And the person can start a new session straight away.** Measured against
+the running product: a stop, then a new session accepted at step 1, with no
+cooldown and nothing asked of them in between. The stop is a stop on that
+session, not a lock on the product. That is deliberate — refusing would
+mean telling somebody who has just said they are not safe to go away — but
+it means the screen can be walked past by anybody who does not repeat the
+phrase, and we would rather you told us whether that is the right call.
+
+### Where a flag goes, and who is watching
 
 To a queue only an administrator can open — not a coach. A flag holds the
 grade, the category, when it was raised, and **the sentence the person
 typed**. That sentence is the most sensitive thing the product stores. It is
 encrypted at rest.
+
+**Nobody is on call.** There is no alert, no email, no notification and no
+response time: the only thing that brings a reviewer to that queue is
+somebody opening the console. The queue shows each flag’s age, and the
+overview reports how long the longest-waiting open flag has been waiting,
+precisely because that is the number nobody is otherwise watching. Whether
+a flagged disclosure may sit unread for a day is not a question the code
+can answer.
 
 ## The grading rule
 
@@ -365,6 +389,21 @@ returned as though there were nothing there.
    means. Which also means that if somebody said they were in danger and then
    deleted their account, no reviewer can follow it up. If a flag should
    survive, in what form and for how long?
+5. **Should a stop stop anything more than the session?** A person can start
+   a new one immediately. We think refusing would be worse, and we are not
+   confident. If something should change — a cooldown, an acknowledgement
+   before starting again, the same numbers shown on the way in — it is a
+   product change we would make.
+6. **How quickly must a flag be read, and by whom?** There is nobody on call
+   and no alerting today. Your answer decides whether this queue is a
+   safeguarding process that needs rotas and escalation, or a review log —
+   and it is the difference between what we have built and what we would
+   have to build.
+7. **Should the person be able to read back what they said in a stopped
+   session?** It is the one thing they typed that they cannot see again.
+   Handing somebody their own crisis disclosure months later, unprompted, is
+   not obviously a kindness; nor is keeping it from them. We have written the
+   argument down both ways and not chosen.
 
 ## What we will do with the answers
 
