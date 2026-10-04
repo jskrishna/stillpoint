@@ -86,9 +86,13 @@ an account, runs a session, says something that must stop one, and asserts the
 server stopped it and sent helplines. So the stack is known to build, start and
 serve a session.
 
-**Run that against your own deployment the moment it is up**: `node
-deploy/smoke.mjs https://your-api/api`. It is plain HTTP, it needs nothing
-installed, and it erases the account it makes.
+**Run that against your own deployment the moment it is up**, with both URLs:
+`node deploy/smoke.mjs https://your-api/api https://your-site`. It is plain
+HTTP, it needs nothing installed, and it erases the account it makes. The
+second URL is the one that matters on a first deployment: without it the script
+is not a browser, so a stack whose `CORS_ALLOWED_ORIGINS` or baked
+`NEXT_PUBLIC_API_URL` is wrong passes every check and then shows a person a
+screen where nothing works.
 
 **What does not.** Nothing has run against real traffic, nobody has restored a
 backup, and TLS terminates somewhere that does not exist. `deploy/README.md`

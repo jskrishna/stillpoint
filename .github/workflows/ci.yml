@@ -537,8 +537,15 @@ jobs:
       # which is correct here: production publishes no protocol version by
       # itself, so a fresh stack has only the questions the designs specify.
       # That is item 4 in `LAUNCH.md`, not a broken deployment.
+      # The web origin is the second argument, and it is what makes this job
+      # see the one failure it could not. Everything above is plain `fetch`
+      # with no `Origin` header — not a browser, so never subject to CORS or to
+      # a content policy. Measured: with `CORS_ALLOWED_ORIGINS` naming a
+      # different deployment entirely, the API still answered 401, the web app
+      # still answered 200, and a whole session still ran. A stack in that
+      # state shows a person a screen where every request is blocked.
       - name: Does it serve a session
-        run: node deploy/smoke.mjs http://localhost:8000/api
+        run: node deploy/smoke.mjs http://localhost:8000/api http://localhost:3000
 
       - name: What the containers said, if anything failed
         if: failure()

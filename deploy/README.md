@@ -131,8 +131,9 @@ Two things in there are easy to break:
 ## Does it serve a session?
 
 ```bash
-node deploy/smoke.mjs                              # http://localhost:8000/api
-node deploy/smoke.mjs https://api.example.com/api  # a real one
+node deploy/smoke.mjs                              # the local stack
+node deploy/smoke.mjs https://api.example.com/api  # a real API
+node deploy/smoke.mjs https://api.example.com/api https://example.com
 ```
 
 Plain HTTP, no browser, no workspace install — so it runs against a real
@@ -142,6 +143,30 @@ something that must stop the session and asserts the **server** ended it, sent
 helplines, told the client nothing about which rule fired, refuses another turn
 with a 409, and wrote no journal row. Then it erases the account through the
 same guarded route a user would, so a pass leaves the deployment as it found it.
+
+**Give it the web origin as well.** Plain `fetch` with no `Origin` header is
+not a browser, and so is never subject to CORS or to a content policy — which
+means everything above can pass against a stack nobody can actually use.
+Measured: with `CORS_ALLOWED_ORIGINS` naming a different deployment entirely,
+the API still answered 401, the web app still answered 200, and a whole session
+still ran end to end. A person opening that deployment gets a screen where
+every request is blocked.
+
+With the origin, it checks the two things fixed at build or boot rather than at
+request time, and each failure names its own fix:
+
+- **which API the web app was built to call.** `apps/web/next.config.ts` builds
+  the policy's `connect-src` from the same `NEXT_PUBLIC_API_URL` the client
+  reads, so the served `Content-Security-Policy` says it outright and there is
+  no bundle to parse. A mismatch is the one thing configuration cannot fix:
+  rebuild the image.
+- **whether the API lets that origin call it.** A preflight is exactly what a
+  browser asks first, and the answer is a header. A mismatch is one line of
+  `CORS_ALLOWED_ORIGINS`.
+
+Left out, the local default is tried and **skipped with a note** if nothing is
+there, because the point of this script is that it runs when all you have is an
+API URL.
 
 Run it after standing a deployment up, and after changing anything in here. The
 CI `docker` job runs it against the composed stack on every push, which is what

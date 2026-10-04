@@ -1071,6 +1071,18 @@ been chosen, so the reset link is written to the log instead of sent. It is the
 one thing in the deployment that is deliberately unfinished, and it needs a
 decision rather than a configuration change.
 
+**And it is given the web origin, which is what makes it see CORS.** Plain
+`fetch` with no `Origin` header is not a browser and is never subject to CORS
+or to a content policy, so everything that script checks can pass against a
+stack nobody can use. Measured: with `CORS_ALLOWED_ORIGINS` naming a different
+deployment entirely, the API still answered 401, the web app still answered
+200, and a whole session still ran. With the origin it checks the two things
+fixed at build or boot — which API the web app was built to call (from the
+`connect-src` in the served policy, which `next.config.ts` builds from the same
+`NEXT_PUBLIC_API_URL` the client reads, so there is no bundle to parse) and
+whether a preflight from that origin is allowed — and each failure names its
+own fix. Both were checked by breaking them one at a time.
+
 The CI `docker` job builds all three images, brings the stack up, and then runs
 `deploy/smoke.mjs` against it — register, consent, a session, a turn, and a
 crisis utterance that must stop the session and return helplines, through nginx

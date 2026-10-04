@@ -1,8 +1,15 @@
 /**
  * Does a deployment actually serve a session?
  *
- *     node deploy/smoke.mjs                              # http://localhost:8000/api
- *     node deploy/smoke.mjs https://api.example.com/api  # a real one
+ *     node deploy/smoke.mjs                              # the local stack
+ *     node deploy/smoke.mjs https://api.example.com/api  # a real API
+ *     node deploy/smoke.mjs https://api.example.com/api https://example.com
+ *
+ * The second argument is where the web app is served. Give it and the checks
+ * below also answer the question this script could not: **would a browser be
+ * allowed to use this deployment at all.** Left out, the local default is
+ * tried and skipped with a note if nothing is there, because the whole point
+ * of this script is that it runs when you have only a URL.
  *
  * The `docker` job proves the three images build, that the stack comes up,
  * that the migrations run against the MySQL the compose file starts, and that
@@ -29,6 +36,9 @@
  */
 
 const base = (process.argv[2] ?? 'http://localhost:8000/api').replace(/\/$/, '');
+/** Where the web app is served. See the note at the top about the default. */
+const webGiven = process.argv[3] !== undefined || process.env.WEB_URL !== undefined;
+const web = (process.argv[3] ?? process.env.WEB_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const stamp = Date.now();
 const email = `smoke-test-delete-me+${String(stamp)}@example.invalid`;
 const password = 'smoke-test-not-a-real-password';
@@ -91,8 +101,98 @@ if (guest.status === 0) {
   process.exit(1);
 }
 
-// ------------------------------------------------------------ 2. a real account
-console.log('\n2. Somebody can make an account and consent');
+// ------------------------------------- 2. a browser would be allowed to use it
+console.log('\n2. A browser would be allowed to use it');
+
+/**
+ * The failure this script could not see, and the one most likely on a first
+ * deployment.
+ *
+ * Everything else here is plain `fetch` with no `Origin` header, which is not
+ * a browser and is therefore never subject to CORS or to a content policy. So
+ * a stack can build, start, answer 401 from the API and 200 from the web app,
+ * serve a whole session to `node` — and show a signed-out person a screen where
+ * every request is blocked. Measured: with `CORS_ALLOWED_ORIGINS` naming a
+ * different deployment entirely, all four of those still passed.
+ *
+ * Two ways that happens, and they are the two things fixed at build or boot
+ * rather than at request time:
+ *
+ *  - **`NEXT_PUBLIC_API_URL` is baked into the web image**, because the browser
+ *    is what calls the API. An image pointed at a different API cannot be
+ *    repointed; it has to be rebuilt. `apps/web/next.config.ts` builds the
+ *    policy's `connect-src` from that same variable, so the served
+ *    `Content-Security-Policy` header is an authoritative statement of which
+ *    API this app was built to call — no bundle to parse.
+ *  - **`CORS_ALLOWED_ORIGINS` is a list and never `*`**, so the API has to name
+ *    the web app's origin. A preflight is exactly what a browser asks, and the
+ *    answer is a header.
+ */
+const apiOrigin = new URL(base).origin;
+const webOrigin = new URL(web).origin;
+
+const page = await fetch(`${web}/welcome`, { signal: AbortSignal.timeout(20000) }).catch(
+  () => null,
+);
+
+if (page === null || !page.ok) {
+  const why = page === null ? 'nothing answered' : `got ${String(page.status)}`;
+  if (webGiven) bad(`the web app answers at ${web}`, why);
+  else note(`no web app at ${web} (${why}) — pass its URL to check this.`);
+} else {
+  ok('the web app is served', web);
+
+  // Which API the app was built to call, from the policy that is built from
+  // the same variable. `'self'` is the right answer when the API is behind the
+  // same origin, which a reverse proxy in front of both would do.
+  const csp = page.headers.get('content-security-policy') ?? '';
+  const connect = csp
+    .split(';')
+    .map((d) => d.trim())
+    .find((d) => d.startsWith('connect-src'));
+
+  if (connect === undefined) {
+    bad('the web app sends a content policy naming its API', csp === '' ? 'no policy at all' : csp);
+  } else {
+    const allows = connect.split(/\s+/).slice(1);
+    const sameOrigin = apiOrigin === webOrigin && allows.includes("'self'");
+
+    if (allows.includes(apiOrigin) || sameOrigin) {
+      ok('and it was built to call this API', apiOrigin);
+    } else {
+      // The page will load and every request from it will be blocked. This is
+      // the one that cannot be fixed by configuration: rebuild the image.
+      bad(
+        'and it was built to call this API',
+        `built for ${allows.join(' ')} — not ${apiOrigin}. Rebuild the web image with NEXT_PUBLIC_API_URL=${base}`,
+      );
+    }
+  }
+
+  // And the other direction: a preflight, which is what a browser sends first.
+  const preflight = await fetch(`${base}/me`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: webOrigin,
+      'Access-Control-Request-Method': 'GET',
+      'Access-Control-Request-Headers': 'authorization',
+    },
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => null);
+
+  const allowed = preflight?.headers.get('access-control-allow-origin') ?? null;
+  if (allowed === webOrigin) {
+    ok('and the API lets that origin call it', allowed);
+  } else {
+    bad(
+      'and the API lets that origin call it',
+      `allows ${JSON.stringify(allowed)} — add ${webOrigin} to CORS_ALLOWED_ORIGINS`,
+    );
+  }
+}
+
+// ------------------------------------------------------------ 3. a real account
+console.log('\n3. Somebody can make an account and consent');
 
 const registered = await call(
   'POST',
@@ -129,8 +229,8 @@ else
     `got ${String(consented.status)} ${JSON.stringify(consented.body).slice(0, 160)}`,
   );
 
-// ------------------------------------------------------------- 3. a session runs
-console.log('\n3. A session starts, and the guide has something to say');
+// ------------------------------------------------------------- 4. a session runs
+console.log('\n4. A session starts, and the guide has something to say');
 
 const started = await call('POST', '/sessions', { kind: 'full' });
 if (started.status === 201) ok('a session starts');
@@ -176,8 +276,8 @@ if (typeof sessionId === 'string') {
   }
 }
 
-// ---------------------------------------------------------- 4. the safety stop
-console.log('\n4. The safety stop — the one that has to work');
+// ---------------------------------------------------------- 5. the safety stop
+console.log('\n5. The safety stop — the one that has to work');
 
 const risky = await call('POST', '/sessions', { kind: 'quick' });
 const riskyId = risky.body.id;
@@ -229,8 +329,8 @@ if (typeof riskyId !== 'string') {
   else bad('and it wrote no journal row', `${String(rowsBefore)} → ${String(rowsAfter)}`);
 }
 
-// ------------------------------------------------------------ 5. clean up after
-console.log('\n5. And it takes the account away again');
+// ------------------------------------------------------------ 6. clean up after
+console.log('\n6. And it takes the account away again');
 
 const erased = await call('DELETE', '/me', { password, confirm: 'DELETE' });
 if (erased.status >= 200 && erased.status < 300) {
