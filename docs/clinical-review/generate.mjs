@@ -118,9 +118,32 @@ function spelled(n) {
   return words[n] ?? String(n);
 }
 
-function commit() {
+/**
+ * The commit that last changed the screen — **not** `HEAD`.
+ *
+ * It was `rev-parse --short HEAD`, which has two faults. The sentence below
+ * says "generated from `packages/protocol/src/risk.ts` at commit X", and a
+ * clinician reads that as identifying the version of the screen they are
+ * judging; `HEAD` identifies the repository's state instead, which is true and
+ * useless — the checked-in pack said `1033f74` while the screen itself last
+ * changed at `9cb1169`, two commits that have nothing to do with each other.
+ * And it made this file **stale on every unrelated commit**: regenerating
+ * after a change to, say, the console rewrote this one line and nothing else,
+ * so the artifact could never be checked for currency because it was never
+ * current.
+ *
+ * Stamping the screen's own last commit makes the line mean what it says and
+ * holds the file still until the screen moves — which is what lets
+ * `risk-review-is-current.test.ts` enforce the instruction on the next line.
+ */
+function screenCommit() {
   try {
-    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+    const out = execFileSync(
+      'git',
+      ['log', '-1', '--format=%h', '--', 'packages/protocol/src/risk.ts'],
+      { encoding: 'utf8' },
+    ).trim();
+    return out === '' ? 'unknown' : out;
   } catch {
     return 'unknown';
   }
@@ -131,7 +154,7 @@ const w = (s = '') => lines.push(s);
 
 w('# Stillpoint — risk screen, for clinical review');
 w();
-w(`Generated from \`packages/protocol/src/risk.ts\` at commit \`${commit()}\`.`);
+w(`Generated from \`packages/protocol/src/risk.ts\` at commit \`${screenCommit()}\`.`);
 w('Regenerate with `pnpm run clinical:review` after any change to the screen.');
 w();
 w('## What we are asking for');

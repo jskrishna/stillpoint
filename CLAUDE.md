@@ -242,6 +242,44 @@ this file already warns about, now caught rather than described. Both were
 checked. The review pack prints the same table from the same function, so the
 document a clinician reads cannot drift from the screen.
 
+**And the pack said which commit it came from, wrongly.** Its first line is
+"Generated from `packages/protocol/src/risk.ts` at commit X", which a clinician
+reads as identifying the version of the screen they are judging — and X was
+`rev-parse --short HEAD`, the repository's state rather than the screen's. The
+checked-in pack said `1033f74` while `risk.ts` itself last changed at
+`9cb1169`: two commits with nothing to do with each other, and the line was
+true in the only sense that does not help.
+
+Worse for keeping it honest, it made the file **stale on every unrelated
+commit**. Regenerating after a change to the console rewrote that one line and
+nothing else, so the artifact could never be checked for currency because it
+was never current. The repository cared that this file was _formatted_ —
+`format:check` runs over it — and not that it was _current_.
+
+It stamps the screen's own last commit now, which holds the file still until
+the screen moves, and that is what makes the instruction on its second line
+enforceable: "Regenerate with `pnpm run clinical:review` after any change to
+the screen" was an instruction nothing checked.
+`packages/protocol/src/risk-review-is-current.test.ts` checks it, and the
+reason it matters more here than for most generated files is `LAUNCH.md` item
+1: somebody qualified is being asked to judge this screen, and they can only
+judge the version they were handed. Red when the screen moves without a
+regeneration, naming both commits and the command — checked by committing a
+change to `risk.ts` and leaving the pack alone.
+
+It asserts the **stamp** rather than regenerating and diffing, deliberately: a
+test that regenerated would write to the working tree, and a check that repairs
+what it is checking cannot fail twice. It skips on a shallow clone — which is
+what `actions/checkout` makes by default — and says so out loud rather than
+passing quietly, because a check that silently skips in CI and nowhere else is
+one nobody knows is not running.
+
+The parity fixture was checked the same way and is current: `pnpm run
+parity:generate` leaves `parity/cases.json` byte-identical. Note that this is
+the one generated file where a _clean_ regeneration is the only safe kind —
+regenerating to turn a red parity test green records the divergence instead of
+fixing it, which is the whole failure that file exists to prevent.
+
 And the pack is written **through Prettier with this repository's own config**
 now, which is the lesson `parity/generate.mjs` already carried and this
 generator never had. `RISK-SCREEN-REVIEW.md` is checked in and `format:check`
