@@ -11,6 +11,23 @@
   gap: var(--sp-space-lg);
   padding: var(--sp-space-xl) var(--gutter);
   border-bottom: 1px solid var(--sp-color-line);
+  /*
+   * Wraps, because at 320 CSS pixels it did not and the whole document
+   * scrolled sideways.
+   *
+   * Measured: the wordmark plus the four nav items need 377px, so at 320 the
+   * nav's right edge sat 57px past the viewport and `/` was the one route of
+   * sixteen that dragged the page. 320 is the width WCAG 2.1 SC 1.4.10 Reflow
+   * names, and the audit measured 390 and 1440 — so this was outside what was
+   * being looked at rather than a regression.
+   *
+   * Two lines rather than a layout: this page is slated for a design rebuild
+   * (LAUNCH.md item 7), and a rebuild is not a reason to let it scroll
+   * sideways on a 320px phone in the meantime. Whatever replaces it starts
+   * from a header that fits.
+   */
+  flex-wrap: wrap;
+  row-gap: var(--sp-space-md);
 }
 
 .wordmark {

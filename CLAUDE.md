@@ -1480,10 +1480,82 @@ assertion came from.
 
 Re-run the audit after UI work: `node e2e/a11y.mjs`, with the app built and both
 servers up (see `e2e/README.md`). It covers every route in both palettes at 390
-and 1440 — 80 combinations across 20 routes — and the last run was clean across
-all of them. It
-signs in as each role and resolves the client, invitation and journal-entry
-routes from real rows rather than hard-coding an id.
+and 1440, plus **320 for reflow alone**, and the last run was clean across all
+of them. It signs in as each role and resolves the client, invitation and
+journal-entry routes from real rows rather than hard-coding an id.
+
+**320 is the width WCAG names and the one that was missing.** SC 1.4.10 Reflow
+asks for no two-dimensional scrolling at 320 CSS pixels — 1280 at 400% zoom,
+and also a real phone — and this script measured 390 and 1440, so the
+criterion's own width had never been looked at. The sideways check above is
+what covers 1.4.10, because axe cannot: reflow is a layout question rather than
+a rule about markup, which is the same reason the audit was clean on four
+console screens that dragged the document at 390.
+
+**Two routes dragged the document at 320, and the second one is the lesson.**
+
+The first is the **marketing landing page**, by 57px: its header's wordmark and
+four nav items need 377px and did not wrap. It wraps now — two lines of CSS,
+not a layout, because that page is slated for a design rebuild (`LAUNCH.md`
+item 7) and a rebuild is not a reason to let it scroll sideways on a 320px
+phone in the meantime.
+
+The second is **`/app/settings`**, by 30px, and a hand-written probe said that
+screen was clean. The probe signed in as the demo account and the audit
+registers its own: `you@stillpoint.test` is 19 characters and fits, while
+`a11y+1759…@example.com` is 28 and does not. Measured with a 31-character
+address: the `settingValue` span holding it was 278px wide with its right edge
+357px into a 320px viewport — on the screen that also carries "Delete my
+account". An address is one long token with nowhere to break, in a flex row
+that will not shrink below its content, so the fix is `overflow-wrap: anywhere`
+**and** `min-width: 0` — that second half is the one people leave out, because
+a flex item's default `min-width: auto` refuses to shrink however it is allowed
+to wrap.
+
+So **a probe is not the check**, and the reason it missed this is the reason
+`DemoSeeder` makes nothing: a fixture that happens to fit is a measurement that
+passes whether or not the layout works. The audit found it because it registers
+a real account rather than borrowing a tidy one.
+
+And the summary line had to be reworded, which is the same class one turn
+later. It read `every route reflows at 320 (20)` and printed **directly beside**
+the `/app/settings` FAIL: the number counts coverage, not passes, so the
+sentence claimed something it had not checked — in the summary of the script
+whose whole subject is screens that state things they do not know. It says
+"was measured" now.
+
+**And one of the two runs it took was a build, not the product**, which is
+worth more than either finding. `next build` was run while a `next start` was
+serving that same `.next`, and the build it produced was **missing
+`HelplineLink.module.css` entirely** — the audit then reported `target-size`
+(serious) on `a[href$="tel:988"]` at 1440, in both palettes, on the settings
+screen's crisis numbers.
+
+Measured, because the symptom points at the code and the cause was not there:
+the links carried their classes (`HelplineLink-module__…__helpline`) and
+computed `display: inline`, `padding: 0px`, `background: transparent` — so
+21px tall with three inline line boxes each, which is a genuine 2.5.8 failure
+of a page that was never built properly. Four stylesheets had loaded and
+**nothing had 404'd**, so there was no MIME warning and no console error to
+notice. `rm -rf apps/web/.next` and a rebuild put the rules back, verbatim, in
+the first chunk grepped.
+
+So: **do not rebuild `apps/web` while something is serving `.next`**, and if a
+browser check reports a violation that reads like missing CSS, check the build
+before the component. It is the `verify:clean` failure — a stale build
+directory making a tree look different from what it is — arriving inside the
+web app's own output rather than in `packages/*/dist`, and it is quieter,
+because there nothing resolves and here everything resolves and just has no
+styles.
+
+The 320 pass is **reflow only, in light only**, and both are deliberate rather
+than thrift: an axe run there would repeat 390's findings almost exactly, which
+triples the slowest part of the script to re-report what it already said, and
+reflow does not depend on the palette. And it is **counted**, with the count
+asserted against the number of routes visited — for the reason `targetSizeRan`
+is, because a pass that quietly stopped running reports nothing and reads
+exactly like sixteen clean routes. That is this script's own history: it once
+printed six FAIL lines, then "CLEAN", and exited 0.
 
 **"Every route" was a claim about this file, checked against this file.** The
 four route lists at the top of `a11y.mjs` are hand-written and the summary

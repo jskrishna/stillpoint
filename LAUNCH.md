@@ -334,7 +334,9 @@ honest about both halves:
   the client can see who can read their sessions and end it.
 - The plan allowance, enforced, with a quick session always allowed.
 - WCAG AA contrast, asserted for every text role against every surface in both
-  palettes, and axe-core clean across 20 routes at two widths in both — at
+  palettes, and axe-core clean across 20 routes at two widths in both, plus a
+  third width — 320, the one WCAG 1.4.10 Reflow actually names — where the
+  check is that the document does not scroll sideways. At
   **2.2** AA, which matters for one criterion: 2.5.8 Target Size, the one a
   phone-first product should be measured against. The focus ring is held to
   1.4.11 against every surface too. And every one of the phone's **eleven**

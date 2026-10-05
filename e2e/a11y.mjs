@@ -77,7 +77,28 @@ const ADMIN_ROUTES = ['/admin', '/admin/protocol', '/admin/safety', '/admin/user
  */
 const COACH_ROUTES = ['/coach'];
 
+/**
+ * The widths every route is looked at.
+ *
+ * **320 is the one WCAG names and the one that was missing.** SC 1.4.10
+ * Reflow asks for no two-dimensional scrolling at 320 CSS pixels — which is
+ * 1280 at 400% zoom, and also a real phone — and this list measured 390 and
+ * 1440, so the criterion's own width had never been looked at. The sideways
+ * check below is what covers 1.4.10; axe cannot, because reflow is a layout
+ * question rather than a rule about markup.
+ *
+ * Measured when it was added: fifteen of the sixteen routes were already
+ * clean at 320, and the marketing landing page dragged the document by 57px
+ * — its header's wordmark and four nav items need 377px and did not wrap.
+ *
+ * `reflowOnly` means the sideways measurement and no axe run, in light only.
+ * Both of those are deliberate rather than thrift: an axe pass at 320 would
+ * repeat 390's findings almost exactly, which triples the slowest part of this
+ * script to re-report what it already said, and reflow does not depend on the
+ * palette. What is width-sensitive is the layout, and that is what runs.
+ */
 const WIDTHS = [
+  { name: '320', width: 320, height: 568, reflowOnly: true },
   { name: '390', width: 390, height: 844 },
   { name: '1440', width: 1440, height: 900 },
 ];
@@ -98,6 +119,16 @@ let failingCombinations = 0;
  * a rule that is not run is indistinguishable from a page with nothing wrong.
  */
 let targetSizeRan = false;
+/**
+ * How many routes were measured at a reflow-only width.
+ *
+ * Counted and asserted at the end for the reason `targetSizeRan` is: a pass
+ * that silently stopped running — a `reflowOnly` flag renamed, the `continue`
+ * above moving — would report nothing and read exactly like sixteen clean
+ * routes. That is the same failure as the sideways check that printed six
+ * FAIL lines and then "CLEAN", one paragraph of this file's history ago.
+ */
+let reflowChecked = 0;
 /**
  * Every route's `<title>`, so no two can be the same.
  *
@@ -359,6 +390,10 @@ for (const { route, as } of ROUTES) {
 
   for (const size of WIDTHS) {
     for (const theme of THEMES) {
+      // A reflow-only width runs in light alone: the layout is what is being
+      // measured and it does not depend on the palette.
+      if (size.reflowOnly === true && theme !== 'light') continue;
+
       await page.setViewportSize({ width: size.width, height: size.height });
       await page.goto(`${WEB}${route}`, { waitUntil: 'networkidle' });
       await page.evaluate((t) => {
@@ -366,6 +401,23 @@ for (const { route, as } of ROUTES) {
       }, theme);
       // Let any fetch settle, so axe sees content and not "Loading…".
       await page.waitForTimeout(900);
+
+      if (size.reflowOnly === true) {
+        const dragged = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        reflowChecked += 1;
+        if (dragged > 1) {
+          bad(
+            `${route} · ${size.name} — the page scrolls sideways by ${String(dragged)}px`,
+            'WCAG 2.1 SC 1.4.10 Reflow asks for no two-dimensional scrolling at this width',
+          );
+          failingCombinations += 1;
+        } else {
+          ok(`${route} · ${size.name} reflows`);
+        }
+        continue;
+      }
 
       await page.addScriptTag({ content: AXE });
       /*
@@ -511,6 +563,24 @@ for (const [title, routes] of titles) {
     );
     failingCombinations += 1;
   }
+}
+
+// Every route the audit visited had to be measured at the reflow width too,
+// so a pass that stopped running cannot read as sixteen clean routes.
+const expectedReflow = ROUTES.length - skipped;
+if (reflowChecked !== expectedReflow) {
+  bad(
+    `the reflow width measured ${String(reflowChecked)} routes, not ${String(expectedReflow)}`,
+    'WCAG 1.4.10 went unchecked somewhere — a width flagged reflowOnly stopped being reached',
+  );
+  failingCombinations += 1;
+} else {
+  // "was measured", not "reflows": this counts coverage, and the per-route
+  // `bad()` above is what says whether any of them dragged. The first version
+  // said "every route reflows at 320 (20)" and printed it directly beside a
+  // FAIL for `/app/settings` — a false sentence in the summary of a script
+  // whose whole subject is screens that state things they have not checked.
+  ok(`every route was measured at 320 (${String(reflowChecked)})`);
 }
 
 if (!targetSizeRan) {

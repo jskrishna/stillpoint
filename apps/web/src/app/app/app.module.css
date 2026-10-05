@@ -266,6 +266,24 @@
   align-items: center;
   gap: var(--sp-space-sm);
   color: var(--sp-color-muted);
+  /*
+   * An address is one long token with nowhere to break, and this row is a
+   * flex row that will not shrink below its content.
+   *
+   * Measured at 320 CSS pixels with a 31-character address: this span was
+   * 278px wide, its right edge 357px into a 320px viewport, and the whole
+   * document scrolled sideways by 37px — on the screen that also carries
+   * "Delete my account". `you@stillpoint.test` is 19 characters and fits,
+   * which is why the demo account hid it and the audit's own registered
+   * account found it.
+   *
+   * `anywhere` rather than `break-word`, because an address has no space to
+   * break at and `break-word` only helps where there is one. `min-width: 0`
+   * is the half people leave out: a flex item's default `min-width: auto`
+   * refuses to shrink below its content however it is allowed to wrap.
+   */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .select {
