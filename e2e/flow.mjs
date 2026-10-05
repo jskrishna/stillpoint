@@ -218,7 +218,65 @@ for (let step = 1; step <= 6; step += 1) {
     hasText: /^(Angry|Sad|Anxious|Ashamed|Hurt|Lonely)$/,
   });
   if ((await feelingBtns.count()) > 0) {
-    await feelingBtns.first().click();
+    /*
+     * The grid is operable from the keyboard, which is the one control in this
+     * flow where that is not obvious.
+     *
+     * The answer boxes and Continue are a textarea and a `<button>`; the chips
+     * are the only thing here that could plausibly have been a `div` with an
+     * `onClick`, which is reachable by nothing and which axe does not flag —
+     * a page with no keyboard path is a valid page, the same way a page with
+     * no live region is.
+     *
+     * The whole six-step flow was driven keyboard-only by hand and came back
+     * clean: every answer box reachable by Tab, Continue reachable and
+     * operable at every step, focus landing on the new question after each
+     * advance and on the summary's heading at the end, and the rating operable
+     * too. Asserting all of that here would be a second walk of the session
+     * for one property, so what is pinned is the part that is not a native
+     * text input or a plain button.
+     */
+    const reached = await (async () => {
+      for (let i = 0; i < 30; i++) {
+        await page.keyboard.press('Tab');
+        const name = await page.evaluate(() => {
+          const a = document.activeElement;
+          return a?.tagName === 'BUTTON' ? (a.textContent ?? '').trim() : '';
+        });
+        if (/^(Angry|Sad|Anxious|Ashamed|Hurt|Lonely)$/.test(name)) return name;
+      }
+      return null;
+    })();
+
+    if (reached === null) {
+      bad('a feeling can be chosen from the keyboard', 'no chip took focus within 30 tabs');
+    } else {
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(250);
+      const pressed = await page.evaluate(
+        () => document.activeElement?.getAttribute('aria-pressed') ?? 'absent',
+      );
+      if (pressed === 'true') ok('a feeling can be chosen from the keyboard', reached);
+      else bad('a feeling can be chosen from the keyboard', `aria-pressed=${pressed} after Enter`);
+    }
+
+    /*
+     * And a chip chosen with the mouse, which must be a **different** chip.
+     *
+     * This was `feelingBtns.first().click()` and the keyboard block above
+     * turned it red: Tab had already chosen that same chip, so the click
+     * toggled it back off, nothing was selected, and Continue was correctly
+     * `aria-disabled` — the click then timed out against a button the product
+     * was right to refuse. Worth keeping as the shape of the mistake: adding a
+     * second way of doing the same thing to a walk that carries state forward.
+     *
+     * Picked by `aria-pressed="false"` rather than by index, because which
+     * chip Tab lands on is not something this check should assume.
+     */
+    const notChosen = page
+      .locator('button[aria-pressed="false"]')
+      .filter({ hasText: /^(Angry|Sad|Anxious|Ashamed|Hurt|Lonely)$/ });
+    await notChosen.first().click();
     ok(`step ${step}: picked a feeling`);
   } else {
     const box = page.locator('textarea, input[type=text]').first();
