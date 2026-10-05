@@ -45,6 +45,30 @@ export const FULL_SESSIONS_PER_WEEK: Readonly<Record<PlanId, number | null>> = {
   coach: null,
 };
 
+/**
+ * A plan's name, for a screen that has to say which one somebody is on.
+ *
+ * Here with the ids rather than in a surface, for the reason feeling labels
+ * are here and feeling colours are not: a name is domain, and two surfaces
+ * holding their own copy is how they end up disagreeing. They did. Both
+ * settings screens got this wrong and differently — the web read
+ * `plan === 'plus' ? 'Plus plan' : 'Free plan'`, so a **Coach** account was
+ * told it was on **Free**, and the phone read
+ * `plan === 'free' ? 'Free plan' : plan`, so a Plus account was shown the
+ * database's own `plus`. Three plans, two branches, on the one screen that
+ * reports which one you have — and plans became grantable from the console
+ * before either screen was looked at again.
+ *
+ * No copy is invented: these are the names `apps/web/src/app/plans.ts` has
+ * always used on the pricing page, and `plans.test.ts` asserts the two agree
+ * so that file cannot drift from this one.
+ */
+export const PLAN_LABEL: Readonly<Record<PlanId, string>> = {
+  free: 'Free',
+  plus: 'Plus',
+  coach: 'Coach',
+};
+
 export function isPlanId(value: string): value is PlanId {
   return (PLAN_IDS as readonly string[]).includes(value);
 }

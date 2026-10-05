@@ -176,6 +176,7 @@ export { feelingsIn, isSubstantiveAnswer, literalExtraction } from './extraction
 
 export {
   PLAN_IDS,
+  PLAN_LABEL,
   ALLOWANCE_WINDOW_DAYS,
   FULL_SESSIONS_PER_WEEK,
   isPlanId,

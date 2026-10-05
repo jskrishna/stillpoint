@@ -3,6 +3,7 @@ import {
   ALLOWANCE_WINDOW_DAYS,
   FULL_SESSIONS_PER_WEEK,
   PLAN_IDS,
+  PLAN_LABEL,
   fullSessionsLeft,
   isPlanId,
   mayStartSession,
@@ -73,5 +74,29 @@ describe('how many are left', () => {
 
   it('is null when the plan does not limit them', () => {
     expect(fullSessionsLeft('plus', 40)).toBeNull();
+  });
+});
+
+describe('a plan’s name', () => {
+  /*
+   * Every plan has one, and nothing reads a plan id to a person.
+   *
+   * Both settings screens got this wrong and differently before `PLAN_LABEL`
+   * existed: the web read `plan === 'plus' ? 'Plus plan' : 'Free plan'` — three
+   * plans, two branches — so a **Coach** account was told it was on **Free**;
+   * the phone read `plan === 'free' ? 'Free plan' : plan` and showed the
+   * database's own `plus`. Both on the one screen that reports which plan
+   * somebody has, and both written before `PATCH /admin/users/{id}/plan` made
+   * the other two plans reachable at all.
+   */
+  it('exists for every plan, and for nothing else', () => {
+    expect(Object.keys(PLAN_LABEL).sort()).toEqual([...PLAN_IDS].sort());
+  });
+
+  it('is never the id a person should not see', () => {
+    for (const id of PLAN_IDS) {
+      expect(PLAN_LABEL[id]).not.toBe(id);
+      expect(PLAN_LABEL[id]).not.toBe('');
+    }
   });
 });

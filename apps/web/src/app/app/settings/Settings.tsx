@@ -9,8 +9,10 @@ import {
   helplinesFor,
   COACH_SHARING_LABEL,
   GUIDE_VOICES,
+  PLAN_LABEL,
   TALK_MODES,
   TALK_MODE_LABEL,
+  isPlanId,
   type CoachSharing,
   type GuideVoice,
   type TalkMode,
@@ -208,8 +210,15 @@ export default function Settings() {
       <span className={styles.label}>ACCOUNT</span>
       <Link href="/pricing" className={styles.settingRow}>
         <span>Upgrade to Plus</span>
+        {/*
+          `PLAN_LABEL`, because this said `plan === 'plus' ? 'Plus plan' :
+          'Free plan'` — three plans and two branches, so an account granted
+          **Coach** from the console was told it was on **Free**, on the one
+          screen that reports which plan somebody has. The phone had the same
+          bug the other way round and showed the raw `plus`.
+        */}
         <span className={styles.settingValue}>
-          {profile.plan === 'plus' ? 'Plus plan' : 'Free plan'}
+          {isPlanId(profile.plan) ? `${PLAN_LABEL[profile.plan]} plan` : profile.plan}
           <span className={styles.chevron}>›</span>
         </span>
       </Link>

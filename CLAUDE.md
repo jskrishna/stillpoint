@@ -1041,6 +1041,28 @@ granting an allowance are different decisions described by different columns.
 `changed_by` is nullable for the change nobody makes by hand; nothing writes
 one, and that is the field billing would use.
 
+**And both settings screens got the plan's name wrong, differently.** The web
+read `plan === 'plus' ? 'Plus plan' : 'Free plan'` — three plans, two branches
+— so an account granted **Coach** from the console was told it was on **Free**.
+The phone read `plan === 'free' ? 'Free plan' : plan` and showed the database's
+own `plus` or `coach` to the person. Both on the one screen that reports which
+plan somebody has, and both written before `PATCH /admin/users/{id}/plan` made
+the other two reachable at all, which is why neither had ever been looked at
+with a non-free account in front of it.
+
+`PLAN_LABEL` is in `packages/protocol/src/plans.ts` with the ids, for the
+reason feeling labels are there and feeling colours are not: a name is domain,
+and two surfaces holding their own copy is how they end up disagreeing. No copy
+was invented — they are the names `apps/web/src/app/plans.ts` has always shown
+on `/pricing`, and `plans.test.ts` there asserts the two agree so that file
+cannot drift from this one.
+
+Left alone: the web's row is labelled "Upgrade to Plus" whatever plan you are
+on, so somebody on Plus is offered an upgrade to it. That is copy on a row that
+links to the marketing page, which is `LAUNCH.md` item 7's territory and a
+product decision rather than a wrong statement about the account. The wrong
+statement was the value, and that is what changed.
+
 `plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
 Note what that is and is not worth: both routes that take a body from the
 person it is about build their own array from validated fields, so naming a

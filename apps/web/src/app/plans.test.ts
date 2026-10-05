@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PLAN_IDS, PLAN_LABEL } from '@stillpoint/protocol';
 import { PLANS, priceLabel, yearlyLabel, type Plan } from './plans.js';
 
 describe('plans', () => {
@@ -94,5 +95,26 @@ describe('yearlyLabel', () => {
   it('has nothing to show when the monthly price is unset', () => {
     const unset: Plan = { ...PLANS[1]!, priceMinor: null };
     expect(yearlyLabel(unset)).toBeNull();
+  });
+});
+
+describe('the pricing page’s names', () => {
+  /*
+   * They are the protocol's, not a second set.
+   *
+   * `PLAN_LABEL` was added for the settings screens, which had each invented
+   * their own mapping from plan id to plan name and each got it wrong. The
+   * names it uses are the ones this file has always shown on `/pricing`, and
+   * this is what stops the two becoming two answers to "what is this plan
+   * called".
+   */
+  it('match the protocol’s labels', () => {
+    for (const plan of PLANS) {
+      expect(plan.name).toBe(PLAN_LABEL[plan.id]);
+    }
+  });
+
+  it('cover every plan the protocol has', () => {
+    expect(PLANS.map((p) => p.id).sort()).toEqual([...PLAN_IDS].sort());
   });
 });

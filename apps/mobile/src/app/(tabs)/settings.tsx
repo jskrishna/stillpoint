@@ -9,7 +9,9 @@ import {
   GUIDE_VOICES,
   TALK_MODES,
   TALK_MODE_LABEL,
+  PLAN_LABEL,
   helplinesFor,
+  isPlanId,
   relativeDay,
 } from '@stillpoint/protocol';
 import * as Sharing from 'expo-sharing';
@@ -225,7 +227,13 @@ export default function Settings() {
         <Text style={s.subheading}>{profile.name}</Text>
         <Text style={s.caption}>{profile.email}</Text>
         <View style={{ flexDirection: 'row', gap: SPACE.sm }}>
-          <Tag text={profile.plan === 'free' ? 'Free plan' : profile.plan} />
+          {/*
+            `PLAN_LABEL`: this read `plan === 'free' ? 'Free plan' : plan`, so
+            a Plus account was shown the database's own `plus` and a Coach
+            account `coach`. The web had the same bug the other way and told a
+            Coach account it was on Free.
+          */}
+          <Tag text={isPlanId(profile.plan) ? `${PLAN_LABEL[profile.plan]} plan` : profile.plan} />
           {profile.role === 'user' ? null : <Tag text={profile.role} />}
         </View>
       </Card>
