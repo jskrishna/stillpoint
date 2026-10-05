@@ -183,6 +183,16 @@ if (page === null || !page.ok) {
 } else {
   ok('the web app is served', web);
 
+  // And this origin does not name its framework either. The assertion above
+  // covers the API; this one is the web origin, which answered
+  // `X-Powered-By: Next.js` until `poweredByHeader: false` was set — the
+  // one-place argument with the second place left out. Checked here as well as
+  // in `e2e/privacy.mjs` for the reason the four API headers are: what a
+  // feature test cannot see is a proxy or a CDN putting one back.
+  const webPowered = page.headers.get('x-powered-by') ?? '';
+  if (webPowered === '') ok('the web app announces no framework');
+  else bad('the web app announces no framework', `x-powered-by: ${webPowered}`);
+
   // Which API the app was built to call, from the policy that is built from
   // the same variable. `'self'` is the right answer when the API is behind the
   // same origin, which a reverse proxy in front of both would do.

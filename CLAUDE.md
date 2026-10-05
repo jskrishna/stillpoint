@@ -1195,6 +1195,27 @@ yields an unpaired surrogate as a one-unit string.
 The preview also means 48 **characters** now, so an excerpt full of emoji shows
 as much text as one without, which is what the number always meant.
 
+### And the web origin still named its framework
+
+`X-Powered-By` is written down above as the API's trap — `header_remove()`
+rather than `$response->headers->remove()`, with `expose_php=Off` in
+`deploy/php.ini` and an HTTP assertion in `deploy/smoke.mjs` because only one
+of the two travels with the code. **That rule reached one of the two origins.**
+Measured with the app running: `GET /app/journal` answered
+`X-Powered-By: Next.js` while the API answered nothing — and the web origin is
+the one a visitor's browser talks to on every page.
+
+`poweredByHeader: false` in `apps/web/next.config.ts` is the whole fix, and it
+is the same argument made for the API rather than a new one: not a
+vulnerability on its own, free reconnaissance, one line to stop giving. What
+makes it worth writing down is the shape — a one-place rule applied in one
+place, which is this file's most repeated finding.
+
+Asserted twice for the reason the API's four are: `e2e/privacy.mjs` on the
+origin a browser loads, and `deploy/smoke.mjs` over HTTP, because what neither
+a unit test nor a browser check can see is a proxy or a CDN putting a header
+back. Checked by taking the line out: red, quoting `x-powered-by: Next.js`.
+
 `plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
 Note what that is and is not worth: both routes that take a body from the
 person it is about build their own array from validated fields, so naming a

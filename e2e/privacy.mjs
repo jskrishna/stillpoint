@@ -174,6 +174,15 @@ for (const [header, expected] of [
   else bad(`${header}: ${expected}`, String(headers[header]));
 }
 
+// And nothing naming the framework. The API's origin has had this since
+// `SecurityHeaders` was written and `deploy/smoke.mjs` asserts it there; the
+// web origin answered `X-Powered-By: Next.js` with nothing checking, which is
+// the one-place argument this repository keeps making with the second place
+// left out. `poweredByHeader: false` is the whole fix.
+const powered = headers['x-powered-by'] ?? '';
+if (powered === '') ok('nothing announces the framework');
+else bad('nothing announces the framework', `x-powered-by: ${powered}`);
+
 // The microphone is off because `UserEar` is unbound and every session is
 // typed. If a listener is ever bound this has to change, and it should be a
 // deliberate change rather than one nobody noticed.

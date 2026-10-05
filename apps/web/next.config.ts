@@ -106,6 +106,21 @@ function securityHeaders(dev: boolean): { key: string; value: string }[] {
 
 const config: NextConfig = {
   reactStrictMode: true,
+  /*
+   * This origin does not name its framework.
+   *
+   * The API's does not either — `SecurityHeaders` calls `header_remove()` and
+   * `deploy/php.ini` sets `expose_php=Off`, and `deploy/smoke.mjs` asserts
+   * over HTTP that nothing comes back. That rule was applied to one of the two
+   * origins: measured, `GET /app/journal` answered
+   * `X-Powered-By: Next.js` while the API answered nothing, and the web origin
+   * is the one a visitor's browser talks to on every page.
+   *
+   * It is not a vulnerability on its own and neither was the API's. It is the
+   * same argument made there — a version is free reconnaissance and this costs
+   * one line to stop giving — and the point is that the two origins now agree.
+   */
+  poweredByHeader: false,
   headers: () =>
     Promise.resolve([
       { source: '/:path*', headers: securityHeaders(process.env.NODE_ENV !== 'production') },
