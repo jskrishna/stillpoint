@@ -2172,6 +2172,26 @@ It is guarded by the
 account's own password and a typed confirmation, because it is not reversible
 and should not be something a stray tap on an unlocked phone can do.
 
+**And `GET /journal` carrying every field is load-bearing, which it does not
+look like.** The journal **list screen** reads five of them — `id`, `title`,
+`summary`, `occurredAt`, `durationMinutes` — and the response carries fourteen,
+including all five encrypted content columns. Measured on 25 entries of a full
+session's text: **302 KB and 31 ms** whole, against **55 KB and 21 ms** with the
+content dropped. So it reads as the obvious thing to trim, especially since the
+entry screen fetches `GET /journal/{entry}` for the rest anyway.
+
+What that misses is that `api.wholeJournal()` is
+`everyPage(journal(100, cursor))` — "Export my data" pages **this** route. Trim
+the list and the export becomes metadata: a file that looks right, sized about
+right, with every word the person wrote missing from it, and nothing failing,
+because `wholeJournal` would go on returning rows.
+`TheJournalListIsWholeForTheExportTest` is that reason written as a check
+rather than as a comment, because a comment above a resource is not what
+somebody reads while deleting a field from it — it asserts the five content
+fields by value, and names the export in the failure. Checked by dropping
+`note`: red, quoting it. If the shape ever should be trimmed, the export has to
+stop depending on it first.
+
 **Open question for someone qualified:** "Export everything" does not include
 a safety flag's excerpt, and that excerpt is sometimes the only copy of what
 somebody said. A safety-stopped session is never journalled, so the words from
