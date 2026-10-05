@@ -94,6 +94,18 @@ earlier run is how a check once passed here and failed in CI, so `--no-build`
 is the flag to reach for when iterating on one script and the one to suspect
 when a result surprises you.
 
+**Which also makes it a check on the checks.** Run `pnpm run e2e` and then
+`pnpm run e2e --no-build`: the second skips the reseed, so anything that was
+passing because of what the first run left behind goes red. Both pass 7 of 7
+today, and the reason to re-run it after touching a script is `flow.mjs`
+section 6b — it spent the guide budget and asserted that a crisis turn is
+still screened, and it was green because _earlier sections_ had already spent
+most of that minute's budget. It only surfaced when an unrelated section added
+twenty-five seconds above it.
+
+It proves independence from one prior run, not from many, and says nothing
+about a database an older schema wrote.
+
 **It is not what CI runs.** CI brings its own servers up against a MySQL
 service and runs each script as its own step, so a failure in the coach's
 sharing rule and a failure in the safety stop are different lines in the log

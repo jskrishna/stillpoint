@@ -715,6 +715,22 @@ matches what was loaded — so on a second run against the same database nothing
 saved and the status region was legitimately empty. Both scripts were run twice
 in a row against one database to prove they do not need a fresh one.
 
+**All seven have been now, and the method is worth keeping rather than the
+result.** `pnpm run e2e` and then `pnpm run e2e --no-build` — the second skips
+the builds _and_ the reseed, so it runs against whatever the first left behind.
+Both passed 7 of 7.
+
+The reason to do it is section 6b, one section down: it spent the guide budget
+and asserted a crisis turn is still screened, and it was passing on **leftovers
+from earlier sections in the same minute**. That is the class this catches — a
+check whose setup depends on state it does not establish itself — and it stayed
+green for as long as nothing changed the timing. A green suite says the product
+works; a green suite run twice against one database says the suite is measuring
+the product rather than the order its own sections happen to run in.
+
+Be plain about what it does not prove: independence from **one** prior run, not
+from many, and nothing about a database an older version of the schema wrote.
+
 And the failure sentence changed with it. `describe()` returned "Something went
 wrong. Please try again.", which tells somebody nothing they can act on, while
 the comment at the top of that very file quoted the right wording and
