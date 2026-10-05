@@ -70,10 +70,17 @@ services:
   # Laravel's scheduler, which until now nothing ran.
   #
   # `deploy/README.md` listed "no queue, no scheduler" as a thing to fix before
-  # this is in front of people, and the one scheduled task that exists is the
-  # one that matters least and is still worth doing: `sanctum:prune-expired`
-  # clears out token rows that are already refused. A token table that only
-  # grows is not an outage; it is a table nobody tends.
+  # this is in front of people. There are **two** scheduled tasks now, and this
+  # comment said "the one scheduled task that exists" until the second was
+  # counted: `sanctum:prune-expired` clears token rows that are already
+  # refused, and `auth:clear-resets` clears password reset rows, which are
+  # keyed by the **email address** and which nothing else touches. The first is
+  # a table nobody tends; the second is somebody's address outliving a token
+  # that stopped working.
+  #
+  # `ScheduledWorkHasSomethingToRunItTest` is what ties this service to
+  # `routes/console.php`: the schedule is decoration without a runner, and the
+  # runner is pointless without the schedule, and they are in different files.
   #
   # The same image as the API, so there is one thing to deploy rather than two
   # that can be deployed apart. It runs no web server and publishes no port.
