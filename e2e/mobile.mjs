@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { launch } from './browser.mjs';
 import { reporter } from './report.mjs';
 
@@ -71,7 +72,41 @@ watchForThrows();
  */
 const AXE = readFileSync(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8');
 
-const audit = async (screen) => {
+/**
+ * Which screen file each audit was of, so the count stops counting itself.
+ *
+ * `CLAUDE.md` has said "ten of eleven" twice, corrected both times by listing
+ * the files rather than believing the sentence — and the eleventh was missing
+ * both times. A number in prose cannot check itself, so the second argument is
+ * the screen's own path under `apps/mobile/src/app` and the summary compares
+ * what was collected against what is on disk.
+ *
+ * `null` is for a state rather than a screen: the crisis pause is not a route,
+ * it only exists after the server has ended a session for safety, so it has no
+ * file of its own and must not count as covering `session.tsx`.
+ *
+ * @type {Set<string>}
+ */
+const audited = new Set();
+
+const audit = async (screen, file = null) => {
+  if (file !== null) audited.add(file);
+
+  // Every screen, not only the gate: an `ActivityIndicator` renders
+  // `role="progressbar"`, and one with neither a name nor `aria-hidden` is an
+  // `aria-progressbar-name` violation wherever it appears. axe reports it as
+  // part of the run below; this names the element so the failure says which
+  // one, and it is the guard for the next spinner added anywhere.
+  const bare = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('[role="progressbar"]')].filter(
+        (el) =>
+          el.getAttribute('aria-label') === null &&
+          el.getAttribute('aria-labelledby') === null &&
+          el.getAttribute('aria-hidden') === null,
+      ).length,
+  );
+  if (bare > 0) bad(`${screen} has no unnamed progress indicator`, `${String(bare)} of them`);
   for (const scheme of ['light', 'dark']) {
     await page.emulateMedia({ colorScheme: scheme });
     // The palette comes from `useColorScheme`, so the screen re-renders.
@@ -178,7 +213,7 @@ await page.waitForTimeout(2500);
 
 if ((await body()).includes('Welcome to Stillpoint')) ok('the app boots');
 else bad('the app boots', (await body()).slice(0, 300));
-await audit('welcome');
+await audit('welcome', 'welcome/index.tsx');
 
 /*
  * The autofill hint on the password field, in both of this screen's modes.
@@ -238,7 +273,7 @@ await page.waitForTimeout(1200);
 if ((await body()).includes('Set a new password')) ok('the forgotten-password screen opens');
 else bad('the forgotten-password screen opens', (await body()).slice(0, 300));
 
-await audit('the forgotten-password screen');
+await audit('the forgotten-password screen', 'welcome/forgot.tsx');
 
 /**
  * Asks for a link and returns what the screen says back.
@@ -314,6 +349,67 @@ await page.waitForTimeout(2500);
 if ((await body()).includes('Welcome to Stillpoint')) ok('and back at sign in afterwards');
 else bad('and back at sign in afterwards', (await body()).slice(0, 300));
 
+/*
+ * And a button mid-flight, which nothing here had ever looked at.
+ *
+ * `Button` swaps its label for an `ActivityIndicator` while a request is out,
+ * and that renders `role="progressbar"` — unnamed, so an
+ * `aria-progressbar-name` violation on the app's primary control, invisible to
+ * every audit because an audit catches a screen at rest. The `Pressable` keeps
+ * its own `accessibilityLabel` and `busy` state, so the announcement is there
+ * and the indicator is decoration: it is `aria-hidden` now.
+ *
+ * Measured by holding the sign-in request open, which is the only way to see
+ * this state at all.
+ */
+await page.route('**/auth/login', (route) => new Promise(() => route));
+// The credentials do not matter: the route is blocked, so this never reaches
+// the server. What is being looked at is the button's rendered state.
+await page.locator('input[aria-label="Email"]:visible').fill('busy@example.com');
+await page.locator('input[type="password"]:visible').fill(PASSWORD);
+await press('Sign in');
+await page.waitForTimeout(1200);
+
+const busyButton = await page.evaluate(() => {
+  const spinners = [...document.querySelectorAll('[role="progressbar"]')];
+  const buttons = [...document.querySelectorAll('[role="button"]')].map((el) => ({
+    label: el.getAttribute('aria-label'),
+    busy: el.getAttribute('aria-busy'),
+    disabled: el.getAttribute('aria-disabled'),
+    text: (el.textContent ?? '').trim().slice(0, 30),
+  }));
+  return {
+    spinners: spinners.length,
+    bare: spinners.filter(
+      (el) => el.getAttribute('aria-label') === null && el.getAttribute('aria-hidden') === null,
+    ).length,
+    buttons,
+  };
+});
+
+await page.unroute('**/auth/login');
+
+if (busyButton.spinners > 0) ok('the button shows a spinner while the request is out');
+else bad('the button shows a spinner while the request is out', JSON.stringify(busyButton));
+if (busyButton.bare === 0) ok('and it is hidden from the accessibility tree');
+else bad('and it is hidden from the accessibility tree', `${String(busyButton.bare)} unnamed`);
+// The half that was already right, asserted so the fix above cannot be
+// "fixed" by naming the spinner and dropping the button's own label.
+const pressedButton = busyButton.buttons.find((b) => b.busy === 'true');
+if (pressedButton !== undefined) ok('and says it is busy, which it did not');
+else
+  bad('and says it is busy', `no aria-busy on any button: ${JSON.stringify(busyButton.buttons)}`);
+// The half that was already right, asserted so the fix cannot become "name the
+// spinner and drop the button's own label". Its visible text is empty while
+// busy — the label is swapped for the indicator — so `aria-label` is the only
+// thing identifying it.
+if (pressedButton?.label !== null && pressedButton?.label !== undefined)
+  ok(`and keeps its name while its text is gone (${String(pressedButton.label)})`);
+else bad('and keeps its name while its text is gone', JSON.stringify(busyButton.buttons));
+
+await page.goto(APP, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+
 // ---------------------------------------------------------------------------
 await press('Create an account instead');
 
@@ -354,7 +450,7 @@ if (!/14416|Tele-MANAS/.test(gateText) && !/call 112|112 or/.test(gateText))
   ok('and not another market\u2019s');
 else bad('and not another market\u2019s', gateText.slice(0, 400));
 
-await audit('the consent gate');
+await audit('the consent gate', 'welcome/consent.tsx');
 await page.getByText('I understand and I can stop any time.').click();
 await page.getByText('I am 18 or older.').click();
 await page.waitForTimeout(300);
@@ -374,7 +470,7 @@ else bad('it does not imply the listener works', voice.slice(0, 400));
 if (voice.includes('Your voice is never saved')) ok('it makes the promise the designs make');
 else bad('it makes the promise the designs make');
 
-await audit('voice setup');
+await audit('voice setup', 'welcome/voice.tsx');
 
 await press('Keep it silent');
 await page.waitForTimeout(2200);
@@ -394,7 +490,7 @@ await page.waitForTimeout(2500);
 if (await atStep(1)) ok('the session starts at step 1 of 6');
 else bad('the session starts at step 1 of 6', (await body()).slice(0, 400));
 
-await audit('the session');
+await audit('the session', 'session.tsx');
 
 const answer = async (text) => {
   const field = page.locator('textarea, input[type=text]').first();
@@ -459,7 +555,7 @@ if (journal.includes('manager') || /1 session|Today/.test(journal))
   ok('the finished session is in the journal');
 else bad('the finished session is in the journal', journal.slice(0, 500));
 
-await audit('the journal');
+await audit('the journal', '(tabs)/journal.tsx');
 
 // ---------------------------------------------------------------------------
 console.log('\n4b. The entry itself, which nothing here used to open');
@@ -480,7 +576,7 @@ if ((await card.count()) === 0) {
   if (/← Journal/.test(entry)) ok('the entry opens from the list');
   else bad('the entry opens from the list', entry.slice(0, 400));
 
-  await audit('the journal entry');
+  await audit('the journal entry', 'journal/[id].tsx');
 
   // The session's own answers, which is what this screen is for. The belief is
   // the one that cannot come from anywhere else.
@@ -615,7 +711,7 @@ const noticing = await body();
 if (arrived && !/Could not load this/.test(noticing)) ok('the insights screen loads');
 else bad('the insights screen loads', noticing.slice(0, 500));
 
-await audit('what the app noticed');
+await audit('what the app noticed', '(tabs)/insights.tsx');
 
 // The feelings picked at step 3, counted. One session is not a ranking —
 // twelve feelings each counted once is a ranking of nothing — but the two
@@ -640,10 +736,84 @@ if (!/Belief that comes back/.test(noticing))
 else bad('one session names no recurring belief', noticing.slice(-700));
 
 // ---------------------------------------------------------------------------
-console.log('\n5. The safety stop is the server’s here too');
+console.log('\n4d. The home screen, which was pressed and never looked at');
 
+/*
+ * The eleventh screen.
+ *
+ * This tab was pressed below — only to start a session from it — and never
+ * audited, so the one screen a person opens the app onto had never been
+ * through axe. It holds "Start talking", the offer to carry on an open
+ * session, what the weekly allowance has left, and a preview of the journal,
+ * which is more decision than any other screen in the app asks for.
+ *
+ * `CLAUDE.md` has said "ten of eleven" twice and been corrected both times by
+ * listing the files instead of believing the sentence. The summary at the
+ * bottom of this script now does that comparison, which is why this is the
+ * last time that number has to be written down by hand.
+ */
+await page.getByRole('tab', { name: 'Today' }).click();
+await page.waitForTimeout(2500);
+
+const today = await body();
+if (/Start talking|Or a quick session/.test(today)) ok('the home screen loads');
+else bad('the home screen loads', today.slice(0, 500));
+
+await audit('the home screen', '(tabs)/index.tsx');
+
+/*
+ * And the screen before all of them: `index.tsx`, the gate.
+ *
+ * It is the first thing the app draws and it has never been rendered by
+ * anything here, because it redirects — no token means welcome, a token
+ * without the required consent means consent, otherwise the app. With a token
+ * it asks the server first, so the state somebody on a slow connection
+ * actually sits on is `Waiting`, and that is what this audits: `GET /me` held
+ * open, the app reloaded, the gate stuck where a bad connection leaves it.
+ *
+ * Not contrived, then — it is the one state of this screen a person can be in
+ * long enough to read. Checked with the route released again afterwards, since
+ * everything below needs the API.
+ */
+await page.route('**/api/me', (route) => new Promise(() => route));
+await page.goto(APP, { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(2500);
+
+const waiting = await body();
+if (!/Start talking|Welcome to Stillpoint/.test(waiting)) ok('the gate waits for the server');
+else bad('the gate waits for the server', waiting.slice(0, 300));
+
+// The half axe cannot ask about: whether the words arriving are announced.
+// React Native for web renders `accessibilityLiveRegion` as `aria-live`, which
+// is the same attribute `mobile.mjs` already reads on the crisis block — and
+// `aria-hidden` on the indicator is what stops the same words being read twice.
+const waitingTree = await page.evaluate(() => ({
+  polite: document.querySelectorAll('[aria-live="polite"]').length,
+  unnamedBars: [...document.querySelectorAll('[role="progressbar"]')].filter(
+    (el) => el.getAttribute('aria-label') === null && el.getAttribute('aria-hidden') === null,
+  ).length,
+}));
+
+if (waitingTree.polite > 0) ok('and says so in a polite live region');
+else bad('and says so in a polite live region', 'no aria-live="polite" on the gate');
+if (waitingTree.unnamedBars === 0) ok('with no progress indicator left unnamed in the tree');
+else
+  bad(
+    'with no progress indicator left unnamed in the tree',
+    `${String(waitingTree.unnamedBars)} role="progressbar" with neither a name nor aria-hidden`,
+  );
+
+await audit('the gate', 'index.tsx');
+
+await page.unroute('**/api/me');
+await page.goto(APP, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
 await page.getByRole('tab', { name: 'Today' }).click();
 await page.waitForTimeout(2000);
+
+// ---------------------------------------------------------------------------
+console.log('\n5. The safety stop is the server’s here too');
+
 await press('Or a quick session');
 await page.waitForTimeout(2500);
 
@@ -758,7 +928,7 @@ else bad('the server refuses another turn on it (409)', String(serverSays.again)
 if (serverSays.entries === 1) ok('the safety-stopped session left no journal row (still 1)');
 else bad('the safety-stopped session left no journal row', String(serverSays.entries));
 
-await audit('the crisis pause');
+await audit('the crisis pause', null);
 
 // ---------------------------------------------------------------------------
 console.log('\n5b. Who can see your sessions, and when the app cannot tell');
@@ -777,7 +947,7 @@ if (/Nobody\. A coach can only read a session/.test(settings))
   ok('with the request answering, the screen says nobody can');
 else bad('with the request answering, the screen says nobody can', settings.slice(-500));
 
-await audit('settings');
+await audit('settings', '(tabs)/settings.tsx');
 
 // This is the screen that answers "who can read my sessions", and it set the
 // list to empty when the request failed — so it printed that reassuring
@@ -821,5 +991,47 @@ else for (const [origin, count] of elsewhere) bad(`a request left for ${origin}`
 
 if (thrown.length === 0) ok('no screen threw while any of that happened');
 else for (const t of thrown.slice(0, 5)) bad('a screen threw', t);
+
+/*
+ * Every screen, against the screens that exist.
+ *
+ * This script is the only thing that executes `apps/mobile` at all, so what it
+ * does not visit is not verified anywhere — and the count of what it visits
+ * has been written down in prose and been wrong twice, both times by one, both
+ * times corrected by listing the files instead of believing the sentence. The
+ * eleventh was the home screen: pressed, to start a session from it, and never
+ * audited.
+ *
+ * So the files are the authority. `_layout.tsx` is not a screen — it is the
+ * stack or tab shell around them — and the crisis pause is audited with no
+ * file on purpose, because it is a state of `session.tsx` rather than a route
+ * of its own and must not stand in for the six steps.
+ */
+const SCREENS = fileURLToPath(new URL('../apps/mobile/src/app', import.meta.url));
+
+const screenFiles = readdirSync(SCREENS, { recursive: true })
+  .map(String)
+  .filter((f) => f.endsWith('.tsx') && !f.endsWith('_layout.tsx'));
+
+const missed = screenFiles.filter((f) => !audited.has(f));
+
+if (screenFiles.length < 8) {
+  // A check whose input is empty stops checking in silence, which is the
+  // failure this whole block is about.
+  bad('found the screens to compare against', `${String(screenFiles.length)} files`);
+} else if (missed.length === 0) {
+  ok(`every screen was audited (${String(screenFiles.length)})`);
+} else {
+  bad(
+    `every screen was audited — ${String(missed.length)} were not`,
+    `${missed.join(', ')} — walk to it and call audit(label, file), or say here why it has no file`,
+  );
+}
+
+// And the other direction: a file named at an audit that no longer exists
+// would mean the set agrees with itself about a screen that is gone.
+const stale = [...audited].filter((f) => !screenFiles.includes(f));
+if (stale.length === 0) ok('and every screen it names still exists');
+else bad('and every screen it names still exists', stale.join(', '));
 
 await finish(() => browser.close());

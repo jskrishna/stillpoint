@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { ACCOUNTS, API, PASSWORD, WEB, launch } from './browser.mjs';
 import { reporter } from './report.mjs';
 
@@ -277,6 +278,75 @@ const { ok, bad, watchForThrows } = reporter('WCAG 2.2 AA');
 watchForThrows();
 
 const violations = [];
+
+/*
+ * "Every route" against the routes that exist, rather than against this file.
+ *
+ * The four lists above are hand-written, and the summary at the bottom prints
+ * "N routes" from their length — so for as long as this script existed its own
+ * claim to be complete was circular. `CLAUDE.md` named that: a route list
+ * "reads as complete and nothing checks it against the `page.tsx` files". It
+ * had already been wrong once, by one — `/app/journal/[entryId]` was the only
+ * route needing a row to exist, so it was left out and the summary said every
+ * route was clean while that screen had never been looked at.
+ *
+ * So the `page.tsx` files are the authority. A dynamic segment matches any one
+ * path segment, which is what the run-time-resolved routes supply.
+ *
+ * This compares against the **declared** set rather than against what was
+ * actually audited: a route whose role is unavailable is already reported as
+ * skipped, and failing it here would say the same thing twice in a different
+ * voice. What this catches is a screen the list does not mention at all.
+ */
+const APP_DIR = fileURLToPath(new URL('../apps/web/src/app', import.meta.url));
+
+const routePatterns = readdirSync(APP_DIR, { recursive: true })
+  .map(String)
+  .filter((f) => /(^|\/)page\.tsx$/.test(f))
+  .map((f) => {
+    const dir = f.replace(/(^|\/)page\.tsx$/, '');
+    return dir === '' ? '/' : `/${dir}`;
+  })
+  // Next's route groups and private folders are not path segments. None exist
+  // today; left in so adding one does not read as a missing route.
+  .filter((pattern) => !/\/[(_]/.test(pattern));
+
+const asRegExp = (pattern) =>
+  new RegExp(
+    `^${pattern
+      .split('/')
+      .map((segment) =>
+        segment.startsWith('[') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      )
+      .join('/')}$`,
+  );
+
+const declared = ROUTES.map(({ route }) => {
+  try {
+    return new URL(route, WEB).pathname;
+  } catch {
+    return route.split('?')[0] ?? route;
+  }
+});
+
+const uncovered = routePatterns.filter(
+  (pattern) => !declared.some((path) => asRegExp(pattern).test(path)),
+);
+
+if (routePatterns.length < 15) {
+  // A source-reading check whose input is empty stops checking in silence —
+  // the same failure as the summary that printed FAIL lines and then CLEAN.
+  bad('found the routes to compare against', `${String(routePatterns.length)} page.tsx files`);
+  failingCombinations += 1;
+} else if (uncovered.length === 0) {
+  ok(`the audit names every route apps/web has (${String(routePatterns.length)})`);
+} else {
+  bad(
+    `the audit names every route apps/web has — ${String(uncovered.length)} missing`,
+    `${uncovered.join(', ')} — add it to one of the lists at the top of this file, or resolve it at run time as the dynamic ones are`,
+  );
+  failingCombinations += 1;
+}
 
 for (const { route, as } of ROUTES) {
   if (!AVAILABLE[as]) {

@@ -599,12 +599,16 @@ alert: more of somebody's own journal arriving is not something to interrupt
 them with. Re-measured: focus stays on "Loading…", then lands on
 `p[role="status"]` reading "Showing 38 of 38.".
 
-**The phone was already right, and it is worth knowing why.** Its button uses
-`accessibilityState={{ disabled, busy }}`, which React Native for web renders
-as `aria-disabled` and `aria-busy` rather than the DOM attribute — the same API
-whose `accessibilityLiveRegion` sibling `mobile.mjs` already checks. Its label
-also carries the count itself ("Load more (20 of 38)"), so its accessible name
-is the announcement. The web hand-rolled `disabled` and got neither.
+**The phone was half right, and the half it got wrong went unnoticed for as
+long as this paragraph did.** Its button uses
+`accessibilityState={{ disabled, busy }}`, and this said that React Native for
+web "renders as `aria-disabled` and `aria-busy` rather than the DOM attribute".
+Measured in the running export with a request held open: `aria-disabled="true"`
+yes, **`aria-busy` absent entirely** — the same gap as
+`accessibilityState={{ selected }}` on the radios, one key over. It carries
+`aria-busy` explicitly now. What was right is that the label carries the count
+itself ("Load more (20 of 38)"), so its accessible name is the announcement,
+where the web hand-rolled `disabled` and got neither.
 
 **This one is measured by hand and is not asserted**, which is the honest part.
 A check needs a second page, so twenty-one journal entries, so twenty-one
@@ -1330,6 +1334,23 @@ all of them. It
 signs in as each role and resolves the client, invitation and journal-entry
 routes from real rows rather than hard-coding an id.
 
+**"Every route" was a claim about this file, checked against this file.** The
+four route lists at the top of `a11y.mjs` are hand-written and the summary
+prints "N routes" from their length, so for as long as that script existed its
+own claim to be complete was circular — and it had already been wrong by one,
+which is the paragraph below. So the `page.tsx` files are the authority now: a
+dynamic segment matches any one path segment, which is what the run-time
+resolved routes supply, and a screen the lists do not mention at all is a
+failure counted in the same tally as everything else. Checked both ways —
+removing `/app/insights` from the list goes red naming it and exits 1, and
+pointing the finder at a directory with no `page.tsx` goes red on "0 page.tsx
+files", which is the "a check whose input is empty stops checking in silence"
+half.
+
+It compares against the **declared** set rather than against what was audited,
+deliberately: a route whose role is unavailable is already reported as skipped,
+and failing it here would say the same thing twice in a different voice.
+
 **"Every route" was 19 of 20 for a while**, and the missing one is the one
 worth knowing about: `/app/journal/[entryId]`, where somebody reads back their
 own session and writes a note on it. It was the only route needing a row to
@@ -2037,8 +2058,10 @@ swap them. Checked by putting `'password'` back: red by name, not by timeout.
 worst findings in this file's accessibility sections were sitting.**
 `a11y.mjs` covers the web's twenty routes in both palettes; the phone's eleven
 screens were in nothing, because they cannot be reached by URL — the paragraph
-above is why. `mobile.mjs` runs axe at ten of them now, in both palettes,
-since it is the only thing that walks the app.
+above is why. `mobile.mjs` runs axe at every one of them now, in both palettes,
+since it is the only thing that walks the app — and "every one" is compared
+against the files rather than counted in this sentence, which is the section
+further down.
 
 Two findings, and the first is on the screen this product exists for.
 
@@ -2083,6 +2106,57 @@ feeling chips and the calmer rating — are deliberately left. `selected` is a
 real trait on both platforms for a button, so they do announce where they
 ship, and adding `aria-selected` to make the export agree would be invalid
 ARIA on that role and a violation of its own.
+
+**And the phone's count was written in prose, so it was wrong twice.** It said
+"ten of eleven" and then "ten of eleven again", corrected both times by listing
+the files instead of believing the sentence — which is a method that works and
+has to be repeated by hand every time. `audit()` takes the screen's own path
+now and the summary compares what was collected against what is on disk, in
+both directions: a screen nothing audited, and a path an audit names that no
+longer exists. `_layout.tsx` is not a screen, and the crisis pause is audited
+with **no** file on purpose, because it is a state of `session.tsx` rather than
+a route and must not stand in for the six steps.
+
+Eleven screens, and the two it found were the two worth having.
+
+**The home screen was pressed and never looked at.** Section 5 clicked the
+Today tab only to start a session from it, so the one screen a person opens the
+app onto had never been through axe — and it holds "Start talking", the offer
+to carry on an open session, what the weekly allowance has left and a preview
+of the journal, which is more decision than any other screen in the app asks
+for. It was clean in both palettes. What was missing was the evidence.
+
+**The gate had never been rendered by anything, and it was not clean.**
+`index.tsx` is the first thing the app draws — no token means welcome, a token
+without consent means consent, otherwise the app — so it redirects too fast to
+audit by arriving at it. With a token it asks the server first, which means the
+state somebody on a slow connection actually sits on is `Waiting`: so the check
+holds `GET /me` open and audits the app stuck where a bad connection leaves it.
+**`aria-progressbar-name`, serious, in both palettes.** React Native's
+`ActivityIndicator` renders `role="progressbar"`, and this one had no name at
+all.
+
+The fix is to hide it rather than name it, and that choice is the session
+screen's argument one screen over: naming it would have a screen reader read
+these words twice, once as the indicator's name and once as the caption under
+it. So the indicator is `aria-hidden` and the caption is a polite live region —
+`SaveStatus`'s choice on the web, for the same reason, with the crisis block's
+`role="alert"` still the one place assertive is right. Three other screens
+render `Waiting` (the journal entry, settings, the home screen) and all three
+were clean, because the audit reaches them after their data has arrived.
+
+**`Button` had the same spinner and a worse surprise.** It swaps its label for
+an `ActivityIndicator` while a request is out — unnamed, so the same violation
+on the app's primary control, and invisible to every audit because an audit
+catches a screen at rest. Measured with the sign-in request held open, which is
+the only way to see that state: `aria-disabled="true"`, `aria-label="Sign in"`,
+visible text **empty**, and **no `aria-busy` at all**. So the paragraph above
+about "Load more" was half wrong, and `accessibilityState={{ busy }}` joins
+`{{ selected }}` as a key React Native for web does not translate. The button
+carries `aria-busy` explicitly now and the indicator is `aria-hidden`; the
+`aria-label` that keeps it identifiable while its text is gone was already
+there, and is asserted beside the fix so it cannot be traded away for naming
+the spinner. All three go red when reverted.
 
 `document-title` is the one rule turned off in the phone's audit, and the
 reason is that it is not about the app: the export serves one `index.html`

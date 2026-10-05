@@ -60,6 +60,23 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: off, busy }}
+      /*
+       * `aria-busy` as well, because `accessibilityState.busy` does not reach
+       * the web export. Measured in the running export with the sign-in
+       * request held open: this button rendered `aria-disabled="true"` and
+       * `aria-label="Sign in"` and **no `aria-busy` at all**, while its
+       * visible text was empty — the label had been swapped for the spinner.
+       * So a sighted user saw progress and a screen reader was told the button
+       * was dimmed and nothing else.
+       *
+       * `CLAUDE.md` said this prop "renders as `aria-disabled` and
+       * `aria-busy`". Half of that is true. It is the same gap as
+       * `accessibilityState={{ selected }}` on the radios, one key over, and
+       * the same answer: the `aria-*` alias is right on iOS, on Android, and
+       * visible to a check here. `accessibilityState` stays for `disabled`,
+       * which does translate.
+       */
+      aria-busy={busy}
       accessibilityLabel={label}
       disabled={off}
       onPress={onPress}
@@ -81,7 +98,16 @@ export function Button({
       ]}
     >
       {busy ? (
-        <ActivityIndicator color={ink} />
+        /*
+         * Hidden from the accessibility tree, like `Waiting`'s below and for
+         * the same reason. The `Pressable` keeps its `accessibilityLabel` and
+         * carries `busy` in its own state, so "Sign in, busy" is already the
+         * announcement — a second, unnamed `role="progressbar"` inside it adds
+         * nothing but an `aria-progressbar-name` violation. No check here
+         * catches a button mid-flight on its own, so `mobile.mjs` holds the
+         * sign-in request open to see this one.
+         */
+        <ActivityIndicator color={ink} aria-hidden />
       ) : (
         <Text
           style={{ fontFamily: FAMILY.uiSemibold, fontSize: TEXT.control, color: ink }}
@@ -240,13 +266,37 @@ export function Divider() {
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.line }} />;
 }
 
-/** What a screen shows while it is waiting for its first answer. */
+/**
+ * What a screen shows while it is waiting for its first answer.
+ *
+ * The spinner is **hidden from the accessibility tree** and the caption beside
+ * it is the announcement. Two reasons, and the second is the measured one.
+ *
+ * Saying it once: React Native's `ActivityIndicator` renders
+ * `role="progressbar"`, so naming it would have a screen reader read these
+ * words twice — once as the progress indicator's name and once as the text
+ * under it. That is the session screen's argument against a live region on the
+ * question, one screen over.
+ *
+ * And unnamed it was a violation. Measured in `e2e/mobile.mjs` with `GET /me`
+ * held open, which is where the gate sits on a slow connection:
+ * `aria-progressbar-name`, serious, in both palettes — "aria-label attribute
+ * does not exist or is empty". It had never been seen because the other three
+ * call sites render this only until their data arrives, and the audit reaches
+ * them afterwards. This is the first screen the app draws.
+ *
+ * The caption is a polite live region so its arrival is announced without
+ * interrupting — `SaveStatus`'s choice on the web and for the same reason. The
+ * crisis block's `role="alert"` is the one place assertive is right.
+ */
 export function Waiting({ what = 'One moment…' }: { what?: string }) {
   const { c, s } = useTheme();
   return (
     <View style={[s.screen, { alignItems: 'center', justifyContent: 'center', gap: SPACE.lg }]}>
-      <ActivityIndicator color={c.accent} />
-      <Text style={s.caption}>{what}</Text>
+      <ActivityIndicator color={c.accent} aria-hidden />
+      <Text style={s.caption} accessibilityLiveRegion="polite" role="status">
+        {what}
+      </Text>
     </View>
   );
 }
