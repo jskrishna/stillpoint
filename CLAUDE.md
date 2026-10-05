@@ -2742,6 +2742,30 @@ there is no recovery path — change it or lose it and that content is gone, not
 locked out. This is also the reason password reset is safe to offer: the key is
 not derived from anyone's password.
 
+**A full rotation has been run now, which nothing had ever done.**
+`RotateEncryptionKeyTest` exercises the command on sqlite with its own
+fixtures; what had never happened was the real sequence against a real server
+with real rows. Driven end to end on the MySQL database the browser suite had
+just filled — 22 encrypted rows across `guided_sessions`, `journal_entries`
+and `safety_flags`:
+
+- `--dry-run` first: every row read cleanly, 22 would be re-encrypted.
+- the rotation itself, new key in `APP_KEY` and the old one in
+  `APP_PREVIOUS_KEYS`: 22 rows re-encrypted.
+- then the proof — the same three sampled values (a journal title, a safety
+  flag's excerpt, a session's `data` keys) read back **byte-identical under
+  the new key alone**, with `APP_PREVIOUS_KEYS` empty.
+- and the control, which is the half that makes the rest mean anything: the
+  **old** key now answers `DecryptException`. Without it, "the new key reads
+  everything" would be just as true of a command that had written nothing.
+
+What that does not say: it was MariaDB rather than MySQL 8.4, and 22 rows
+rather than a journal somebody has used for a year, so it is evidence about
+the mechanism and not about how long a real rotation takes. The command is
+already bounded for that, which was checked rather than assumed — it
+`chunkById`s and writes each row on its own, deliberately avoiding one
+transaction over every journal in the database.
+
 Rotating it is a migration, and `stillpoint:rotate-key` is it: old key into
 `APP_PREVIOUS_KEYS`, new one into `APP_KEY`, run it, and only then drop the old
 key. Its `--dry-run` reads every encrypted row and writes nothing, which makes
