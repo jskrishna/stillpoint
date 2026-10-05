@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byNewest, entryFrom, listSummary, withNote, withSharing } from './journal.js';
+import { sharesNewEntry } from './coach.js';
 import { apply, applyAll, forgivenessFor, startSession, type SessionEvent } from './session.js';
 import { STEP_ORDER } from './steps.js';
 
@@ -60,6 +61,30 @@ describe('entryFrom', () => {
     expect(entry?.reachedFinalStep).toBe(true);
     expect(entry?.sharedWithCoach).toBe(false);
     expect(entry?.kind).toBe('full');
+  });
+
+  it('carries what was said at step 1, which the PHP column holds', () => {
+    const said = 'My manager read my message out to the whole team meeting.';
+    const session = completed([{ type: 'step_satisfied', capture: { whatHappened: said } }]);
+
+    const entry = entryFrom(session, CTX);
+    expect(entry?.whatHappened).toBe(said);
+    // The title is a cut of it, not a replacement for it — which is what this
+    // interface used to carry instead of the field.
+    expect(entry?.title).not.toBe(said);
+  });
+
+  it('takes the sharing decision from the caller, as fromSession does', () => {
+    const session = completed();
+
+    // `always` with a coach paired: the setting the PHP hardcode broke.
+    expect(sharesNewEntry('always', true)).toBe(true);
+    expect(entryFrom(session, { ...CTX, sharedWithCoach: true })?.sharedWithCoach).toBe(true);
+
+    // And fails closed when nobody decided, which is the default's whole job.
+    expect(entryFrom(session, CTX)?.sharedWithCoach).toBe(false);
+    expect(sharesNewEntry('always', false)).toBe(false);
+    expect(sharesNewEntry('never', true)).toBe(false);
   });
 
   it('prefers a forgiveness the guide captured over the phrased one', () => {

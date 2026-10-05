@@ -2079,6 +2079,34 @@ authoritative the whole time — and the paging section of this file is at lengt
 about exactly the key both of them were missing. Prefer the PHP, or the fixture,
 over this package when they disagree about a rule nothing consumes.
 
+**And the same sweep's last stop was `entryFrom`, which had lost two fields
+rather than a sort key.** It is the TypeScript half of
+`JournalEntry::fromSession()`, and it differed in two places that are not
+symmetrical:
+
+- **`sharedWithCoach` was hardcoded `false`**, which is _the_ bug the PHP's own
+  docblock records — "it was hardcoded `false` here, which is how 'Share every
+  session' came to share nothing". That was fixed on the side that runs, where
+  the method takes the decision as an argument; this side kept the hardcode and
+  had no slot in `EntryContext` to pass anything into. `sharesNewEntry()` is one
+  module over in the same package, exported, and parity-compared over all three
+  settings against both pairing states. Note which way it fails, because it is
+  the direction that let it survive: hardcoding `false` shares nothing, so the
+  drift was invisible rather than dangerous. `EntryContext` carries it now,
+  defaulted `false` to match the PHP signature and because an entry nobody
+  decided about is not shared.
+- **`whatHappened` was not on the interface at all**, so the answer to step 1 —
+  the longest thing a person writes in a session — was dropped on the floor.
+  `App\Models\JournalEntry` stores `what_happened`, `JournalEntryResource`
+  serves it, and both entry screens render it as the first row. What the type
+  carried instead was `title`, which is `firstCharacters(text, 60)` **of** that
+  field, so the entry held a cut of the answer and not the answer.
+
+Which is the fourth and fifth findings from one question — "what does nothing
+consume?" — and together with the three orderings they are the argument for the
+paragraph above rather than two more fixes. Both go red by name against the old
+behaviour, checked.
+
 Both sides count characters now — `firstCharacters()` in
 `packages/protocol/src/utterance.ts`, which `recordable()` also uses, against
 `mb_substr` — and the fixture has the astral cases. Note what catching it looks

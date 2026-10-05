@@ -26,6 +26,19 @@ export interface JournalEntry {
   readonly durationMinutes: number;
   readonly kind: SessionKind;
   readonly feelings: readonly FeelingId[];
+  /**
+   * What the person said at step 1, in full.
+   *
+   * **It was not on this interface at all**, and `entryFrom` dropped it —
+   * where `App\Models\JournalEntry` stores `what_happened` and both entry
+   * screens render it as the first row under "What happened". So this type
+   * carried `title`, which is the first 60 characters of this field, and not
+   * the field.
+   *
+   * Optional because a session can end before step 1 is answered, which is
+   * also why the PHP column is nullable.
+   */
+  readonly whatHappened?: string;
   readonly memory?: Memory;
   /** The old belief, in the user's own words. */
   readonly belief?: string;
@@ -47,6 +60,24 @@ export interface EntryContext {
   readonly durationMinutes: number;
   /** Falls back to the session's own title, then to "Session". */
   readonly title?: string;
+  /**
+   * Whether this entry is shared with the owner's coach from the start.
+   *
+   * **It was hardcoded `false` here**, as `JournalEntry::fromSession()` once
+   * hardcoded it — which is how "Share every session" came to share nothing.
+   * That was fixed in the PHP, which takes the decision as an argument, and
+   * the docblock recording the bug lives there; this half kept the hardcode
+   * and had no slot to pass anything in.
+   *
+   * The decision is `sharesNewEntry()` in `./coach.js`, exported from this
+   * package and parity-compared over all three settings against both pairing
+   * states — one module away from the function that ignored it.
+   *
+   * Defaulted `false` rather than required, matching the PHP signature, and
+   * because `false` is the fail-closed answer: an entry nobody decided about
+   * is not shared.
+   */
+  readonly sharedWithCoach?: boolean;
 }
 
 /**
@@ -70,11 +101,12 @@ export function entryFrom(session: Session, ctx: EntryContext): JournalEntry | u
     kind: session.kind,
     feelings: data.feelings,
     reachedFinalStep: session.endReason === 'completed',
-    sharedWithCoach: false,
+    sharedWithCoach: ctx.sharedWithCoach ?? false,
   };
 
   // exactOptionalPropertyTypes: an absent field is omitted, never set to
   // undefined, so "no belief" and "belief: undefined" cannot diverge.
+  const whatHappened = data.whatHappened;
   const memory = data.memory;
   const belief = data.belief;
   const forgiveness = data.forgiveness ?? forgivenessFor(belief);
@@ -82,6 +114,7 @@ export function entryFrom(session: Session, ctx: EntryContext): JournalEntry | u
 
   return {
     ...base,
+    ...(whatHappened === undefined ? {} : { whatHappened }),
     ...(memory === undefined ? {} : { memory }),
     ...(belief === undefined ? {} : { belief }),
     ...(forgiveness === undefined ? {} : { forgiveness }),
