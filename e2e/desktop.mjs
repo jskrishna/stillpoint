@@ -1,6 +1,7 @@
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ACCOUNTS, PASSWORD } from './browser.mjs';
@@ -83,22 +84,45 @@ const { ok, bad, finish, watchForThrows } = reporter('the desktop shell');
 watchForThrows();
 
 /**
- * The app's own Electron binary, or a reason there is none.
+ * The app's own Electron binary, fetched here if it is not there yet.
  *
- * `electron`'s install script is the only one `pnpm-workspace.yaml` allows to
- * run, because without it `electron .` has nothing to run. Where egress to its
- * release host is blocked the binary is simply absent, and this says so and
- * stops rather than letting the require download one — a different Electron
- * from the one the app pins, fetched mid-check.
+ * Electron no longer ships an install script. Its package fetches the binary
+ * the first time it is `require`d, by running its own `install.js`, and this
+ * check used to rely on that without knowing it: the comment here said a
+ * missing binary "says so and stops rather than letting the require download
+ * one", directly above the `require` that downloaded it, and the first line
+ * of the step in CI was "Downloading Electron binary...". So the binary is
+ * fetched on purpose now, before anything is launched, by the package's own
+ * installer for its own pinned version, and the output says that is what is
+ * happening.
+ *
+ * **And if it cannot be had, that is a failure, not a skip.** This used to
+ * print "skipping" and finish with nothing failed, which reads "ALL PASSED"
+ * and counts as one of seven. A check that launched nothing has checked
+ * nothing, and where egress to the release host is blocked the honest result
+ * is red with the reason on it.
  */
-let electronBinary;
-try {
-  electronBinary = createRequire(join(DESKTOP, 'package.json'))('electron');
-  if (typeof electronBinary !== 'string' || !existsSync(electronBinary))
-    throw new Error(`not at ${String(electronBinary)}`);
-} catch (e) {
-  console.log(`\n  no Electron binary — skipping (${e instanceof Error ? e.message : String(e)})`);
-  console.log('  `pnpm install` runs its install script; see pnpm-workspace.yaml.');
+const electronDir = dirname(
+  createRequire(join(DESKTOP, 'package.json')).resolve('electron/package.json'),
+);
+
+/** Where the binary is, read from the package's own `path.txt`, or null. */
+const installedBinary = () => {
+  const pathFile = join(electronDir, 'path.txt');
+  if (!existsSync(pathFile)) return null;
+  const binary = join(electronDir, 'dist', readFileSync(pathFile, 'utf8').trim());
+  return existsSync(binary) ? binary : null;
+};
+
+if (installedBinary() === null) {
+  console.log('\n  Electron is not installed yet. Fetching it with its own install.js,');
+  console.log('  which is the version apps/desktop pins.');
+  spawnSync(process.execPath, [join(electronDir, 'install.js')], { stdio: 'inherit' });
+}
+
+const electronBinary = installedBinary();
+if (electronBinary === null) {
+  bad('the app’s own Electron is installed', `nothing at ${join(electronDir, 'dist')}`);
   await finish();
 }
 
@@ -147,12 +171,26 @@ const profile = mkdtempSync(join(tmpdir(), 'stillpoint-desktop-'));
  * downloads it synchronously if it is missing, so this is also where a missing
  * binary turns into a sentence instead of a stall.
  */
+/**
+ * The environment the app is launched with, minus one variable.
+ *
+ * `ELECTRON_RUN_AS_NODE` makes the Electron binary behave as plain Node, and
+ * an editor built on Electron sets it for whatever it spawns. Run from inside
+ * one, this check launched the app's own Electron as Node: `dist/main.js`
+ * failed on its first line ("does not provide an export named
+ * 'BrowserWindow'") and all that came back here was "Process failed to
+ * launch!", about an app with nothing wrong in it. Measured on macOS, the
+ * first time this ran outside the container: `Electron --version` printed
+ * Node's version until the variable was removed, and Electron's after.
+ */
+const { ELECTRON_RUN_AS_NODE: _runAsNode, ...launchEnv } = process.env;
+
 const start = () =>
   _electron.launch({
     executablePath: electronBinary,
     args: ['.', '--no-sandbox', `--user-data-dir=${profile}`],
     cwd: DESKTOP,
-    env: { ...process.env, STILLPOINT_PORT: PORT },
+    env: { ...launchEnv, STILLPOINT_PORT: PORT },
     timeout: 120000,
   });
 
@@ -433,5 +471,60 @@ else bad('and they are this account’s own', settings.slice(-400));
 
 if (!/14416|Tele-MANAS|\b112\b/.test(settings)) ok('and not another market’s');
 else bad('and not another market’s', settings.slice(-400));
+
+// ---------------------------------------------------------------------------
+console.log('\n8. Closing the window is not quitting (macOS)');
+
+/*
+ * On macOS an app stays open with no window, and coming back to it is a click
+ * on the dock icon, which Electron reports as `activate`. That handler used to
+ * start the whole app again: the bundled server was still running from the
+ * first start and still held the port, so the second start threw, a dialog
+ * said "Stillpoint is already running, or something else has its port", and
+ * the app quit. Closing the window and coming back ended it with an error
+ * about itself. The tray, the shortcut and the menu, the Help item included,
+ * did nothing at all while the window was closed.
+ *
+ * Only macOS can show it: everywhere else closing the last window quits, by
+ * design. So off macOS this says it was not run, rather than passing.
+ */
+if (process.platform !== 'darwin') {
+  console.log('  not run: only macOS keeps an app open with no window');
+} else {
+  await win.close();
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
+  const stillRunning = await app
+    .evaluate(({ app: electron }) => electron.isReady())
+    .catch(() => false);
+  if (stillRunning) ok('the app is still running with its window closed');
+  else bad('the app is still running with its window closed');
+
+  const reopened = app.waitForEvent('window', { timeout: 20000 }).catch(() => null);
+  await app
+    .evaluate(({ app: electron }) => {
+      electron.emit('activate');
+    })
+    .catch(() => undefined);
+  const back = await reopened;
+
+  if (back === null) {
+    bad('coming back to it opens a window again', 'no window appeared');
+  } else {
+    await back.waitForLoadState('domcontentloaded');
+    if (back.url().startsWith(`${ORIGIN}/`))
+      ok(`coming back to it opens a window again, on the app (${back.url()})`);
+    else bad('coming back to it opens a window again, on the app', back.url());
+
+    // The server it is talking to is the one from the first start: nothing
+    // was started a second time, which is what used to fail.
+    const answered = await fetch(`${ORIGIN}/welcome`).then(
+      (r) => r.status,
+      () => 0,
+    );
+    if (answered === 200) ok('and the bundled server was not started a second time');
+    else bad('and the bundled server was not started a second time', String(answered));
+  }
+}
 
 await finish(() => stop(app));

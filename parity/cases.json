@@ -365,6 +365,142 @@
       "category": null,
       "matched": null,
       "unreadable": false
+    },
+    {
+      "utterance": "honestly i dont want to be here any more",
+      "why": "the apostrophe left out, and it is a stop",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "don't want to be here",
+      "unreadable": false
+    },
+    {
+      "utterance": "i cant go on",
+      "why": "the same for hopelessness: medium, as with the apostrophe",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "can't go on",
+      "unreadable": false
+    },
+    {
+      "utterance": "je nen peux plus",
+      "why": "and in French",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "je n'en peux plus",
+      "unreadable": false
+    },
+    {
+      "utterance": "I donʼt want to live",
+      "why": "a modifier apostrophe (U+02BC), which both must call readable",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "don't want to live",
+      "unreadable": false
+    },
+    {
+      "utterance": "I don´t want to live",
+      "why": "an acute accent where the apostrophe goes",
+      "level": "medium",
+      "category": "self_harm",
+      "matched": "don't want to live",
+      "unreadable": false
+    },
+    {
+      "utterance": "I donʼt know what to say",
+      "why": "ordinary, and readable: U+02BC is used with Latin",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "i want to d​ie",
+      "why": "a zero-width space inside a word",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": false
+    },
+    {
+      "utterance": "i want to d­ie",
+      "why": "a soft hyphen inside a word",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": false
+    },
+    {
+      "utterance": "want​to​die",
+      "why": "a zero-width space where the spaces go: the strict reading",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": false
+    },
+    {
+      "utterance": "mettre ﬁn a mes jours",
+      "why": "a ligature for \"fi\"",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "mettre fin a mes jours",
+      "unreadable": false
+    },
+    {
+      "utterance": "it's been a long week and i'm tired of the meetings",
+      "why": "ordinary, with apostrophes",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "its been a long week and im tired of the meetings",
+      "why": "and without them",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "आत्‍महत्‍या",
+      "why": "a zero-width joiner inside a conjunct",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "आत्महत्या",
+      "unreadable": false
+    },
+    {
+      "utterance": "आत्‌महत्‌या",
+      "why": "a zero-width non-joiner inside a conjunct",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "आत्महत्या",
+      "unreadable": false
+    },
+    {
+      "utterance": "ｉ ｗａｎｔ ｔｏ ｄｉｅ",
+      "why": "fullwidth letters: Latin script, so readable, and now read",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": false
+    },
+    {
+      "utterance": "ｍｙ ｍａｎａｇｅｒ ｗａｓ ｒｕｄｅ ｔｏｄａｙ",
+      "why": "ordinary, in fullwidth letters",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "𝐢 𝐰𝐚𝐧𝐭 𝐭𝐨 𝐝𝐢𝐞",
+      "why": "mathematical bold: a stop, and still not all readable",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": true
     }
   ],
   "extraction": [
@@ -570,6 +706,67 @@
       "capture": {
         "whatHappened": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😢",
         "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😢"
+      }
+    },
+    {
+      "stepId": "notice",
+      "utterance": "three short words",
+      "substantive": true,
+      "capture": {
+        "whatHappened": "three short words",
+        "title": "three short words"
+      }
+    },
+    {
+      "stepId": "notice",
+      "utterance": "Pourquoi moi ?",
+      "substantive": true,
+      "capture": {
+        "whatHappened": "Pourquoi moi ?",
+        "title": "Pourquoi moi ?"
+      }
+    },
+    {
+      "stepId": "notice",
+      "utterance": "three　short　words",
+      "substantive": true,
+      "capture": {
+        "whatHappened": "three　short　words",
+        "title": "three　short　words"
+      }
+    },
+    {
+      "stepId": "notice",
+      "utterance": "threeshortwords",
+      "substantive": false,
+      "capture": {
+        "whatHappened": "threeshortwords",
+        "title": "threeshortwords"
+      }
+    },
+    {
+      "stepId": "notice",
+      "utterance": " ",
+      "substantive": false,
+      "capture": null
+    },
+    {
+      "stepId": "remember",
+      "utterance": " padded with a no-break space　",
+      "substantive": true,
+      "capture": {
+        "memory": {
+          "description": "padded with a no-break space"
+        }
+      }
+    },
+    {
+      "stepId": "inquire",
+      "utterance": "﻿I am alone. ",
+      "substantive": true,
+      "capture": {
+        "belief": "I am alone.",
+        "forgiveness": "Forgive me for believing that I am alone."
       }
     }
   ],

@@ -146,6 +146,32 @@ const browser = await launch();
 // a notch is the thing it cannot.
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 
+/*
+ * What the app hands to the speech engine, recorded instead of spoken.
+ *
+ * `expo-speech` reaches `speechSynthesis` in this export, so this is the only
+ * place the phone's "does the guide speak" can be seen without a phone. It is
+ * for the silent-session assertion in section 3, and section 2 presses a
+ * voice's preview first so that assertion has a control: a recorder that
+ * recorded nothing would otherwise read as silence.
+ */
+await page.addInitScript(() => {
+  window.__spoken = [];
+  Object.defineProperty(window, 'speechSynthesis', {
+    configurable: true,
+    value: {
+      speak: (u) => {
+        window.__spoken.push(u.text);
+        u.onend?.();
+      },
+      cancel: () => undefined,
+      pause: () => undefined,
+      resume: () => undefined,
+      getVoices: () => [],
+    },
+  });
+});
+
 /**
  * Anything the app threw.
  *
@@ -472,6 +498,17 @@ else bad('it makes the promise the designs make');
 
 await audit('voice setup', 'welcome/voice.tsx');
 
+// A preview speaks, whatever is chosen next. Pressed here as the control for
+// the silence asserted in section 3, and then the record is emptied.
+await page.getByRole('radio').first().click();
+await page.waitForTimeout(600);
+const previewed = await page.evaluate(() => window.__spoken.length);
+if (previewed > 0) ok('a voice can be heard before choosing');
+else bad('a voice can be heard before choosing', 'nothing was handed to the speech engine');
+await page.evaluate(() => {
+  window.__spoken = [];
+});
+
 await press('Keep it silent');
 await page.waitForTimeout(2200);
 
@@ -489,6 +526,16 @@ await page.waitForTimeout(2500);
 
 if (await atStep(1)) ok('the session starts at step 1 of 6');
 else bad('the session starts at step 1 of 6', (await body()).slice(0, 400));
+
+// "Keep it silent" was chosen above, and the phone read its questions aloud
+// anyway. Its session screen went quiet only for a *voice* setting of `off`,
+// which the server does not accept, and never looked at the talk mode this
+// button sets. Asserted on what was handed to the speech engine, which
+// `expo-speech` reaches through `speechSynthesis` in this export.
+const spokenInSilence = await page.evaluate(() => window.__spoken ?? null);
+if (Array.isArray(spokenInSilence) && spokenInSilence.length === 0)
+  ok('a session chosen as silent says nothing aloud');
+else bad('a session chosen as silent says nothing aloud', JSON.stringify(spokenInSilence));
 
 await audit('the session', 'session.tsx');
 
@@ -929,6 +976,75 @@ if (serverSays.entries === 1) ok('the safety-stopped session left no journal row
 else bad('the safety-stopped session left no journal row', String(serverSays.entries));
 
 await audit('the crisis pause', null);
+
+// ---------------------------------------------------------------------------
+console.log('\n5a. “Get help” shows a number and stops the session');
+
+// The button is on every step and nothing here had pressed it. It sent the
+// sentence "I need help, I do not feel safe" as an ordinary turn, which the
+// screen grades `none`: no number, no stop, and the request was recorded as
+// the step's answer. `e2e/flow.mjs` has the web's half of this.
+await page.goto(APP, { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+await press('Or a quick session');
+await page.waitForTimeout(2500);
+
+const callButtons = () => page.locator('[role="button"][aria-label^="Call "]').count();
+
+// With the request dying first: the numbers must not depend on it arriving.
+await page.route('**/help', (route) => route.abort());
+await press('Get help');
+await page
+  .waitForFunction(
+    () => document.querySelectorAll('[role="button"][aria-label^="Call "]').length >= 3,
+    null,
+    { timeout: 15000 },
+  )
+  .catch(() => undefined);
+const helpOffline = await body();
+await page.unroute('**/help');
+
+if ((await callButtons()) >= 3) ok('the numbers appear when the request never arrives');
+else bad('the numbers appear when the request never arrives', helpOffline.slice(0, 500));
+if (/988/.test(helpOffline) && /\b911\b/.test(helpOffline) && !/14416|\b112\b/.test(helpOffline))
+  ok('and they are this account’s own, not another market’s');
+else bad('and they are this account’s own, not another market’s', helpOffline.slice(0, 500));
+if (/step [1-6] of 6/i.test(helpOffline)) ok('and the session is not treated as stopped by that');
+else bad('and the session is not treated as stopped by that', helpOffline.slice(0, 500));
+
+// Now let it through: the server ends the session and the pause takes over.
+await press('Get help');
+await page
+  .waitForFunction(() => !/step [1-6] of 6/i.test(document.body.innerText), null, {
+    timeout: 15000,
+  })
+  .catch(() => undefined);
+
+const helpStopped = await body();
+if (!/step [1-6] of 6/i.test(helpStopped) && (await callButtons()) >= 3)
+  ok('with the request through, the pause takes over');
+else bad('with the request through, the pause takes over', helpStopped.slice(0, 500));
+
+const helpServer = await page.evaluate(async (base) => {
+  const token = window.localStorage.getItem('stillpoint.token.v1');
+  const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+  const open = await fetch(`${base}/sessions/current`, { headers }).then((r) => r.json());
+  const journal = await fetch(`${base}/journal`, { headers }).then((r) => r.json());
+  return { open, entries: journal.total };
+}, process.env.API_URL ?? 'http://localhost:8000/api');
+
+// Nothing is left open, so the session the button was pressed in has ended,
+// and it wrote no journal row: a session ended by a press of "Leave" would
+// have, which is how this tells a safety stop from an ordinary one.
+//
+// "Nothing open" arrives as an object with no id: the route answers a JSON
+// null, which Laravel writes as `{}`, and the client is what reads that as
+// null. Asked with a bare `fetch` here, so read the same way.
+if (helpServer.open === null || helpServer.open.id === undefined)
+  ok('the server ended the session');
+else bad('the server ended the session', JSON.stringify(helpServer.open).slice(0, 300));
+if (helpServer.entries === 1) ok('and it left no journal row (still 1)');
+else bad('and it left no journal row', String(helpServer.entries));
 
 // ---------------------------------------------------------------------------
 console.log('\n5b. Who can see your sessions, and when the app cannot tell');

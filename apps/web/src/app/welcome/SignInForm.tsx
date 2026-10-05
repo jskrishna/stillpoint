@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { describe } from '../../lib/describe';
+import { takeDestination } from '../../lib/after-welcome';
 import { inFlight } from '../../lib/presses';
 import styles from './welcome.module.css';
 
@@ -52,7 +53,19 @@ export default function SignInForm() {
 
       // Consent is the server's gate, not this screen's: it decides whether a
       // session may start, so it decides where the user goes next.
-      router.push(profile.hasRequiredConsent ? '/welcome/voice' : '/welcome/consent');
+      if (!profile.hasRequiredConsent) {
+        router.push('/welcome/consent');
+        return;
+      }
+
+      // Somebody who has consented already has been through the welcome flow,
+      // so signing in is the end of it for them: wherever they were going, or
+      // the app. This sent every returning user to voice setup instead, and
+      // that screen starts from Sage without reading the account and saves
+      // whichever of its two buttons is pressed, so each sign-in put a saved
+      // River back to Sage and wrote the talk mode over. The phone has always
+      // gone to the app from here.
+      router.push(takeDestination() ?? '/app');
     } catch (e: unknown) {
       setError(describe(e));
       setBusy(false);

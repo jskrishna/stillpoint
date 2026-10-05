@@ -36,8 +36,15 @@ final class SafetyFlagController extends Controller
         $filtered = SafetyFlag::query();
 
         // Open by default: the queue is work to be done, not a log.
-        if ($request->query('status', 'open') !== 'all') {
-            $filtered->where('status', $request->string('status', 'open')->toString());
+        //
+        // And anything that is not one plain string is the default too.
+        // `?status[]=open` reached `->string()` as an array and answered 500,
+        // on the screen a reviewer reads the queue from.
+        $status = $request->query('status', 'open');
+        $status = is_string($status) ? $status : 'open';
+
+        if ($status !== 'all') {
+            $filtered->where('status', $status);
         }
 
         /*

@@ -86,6 +86,26 @@ export default function Session() {
    * that screen. The web app has this in the same words.
    */
   const [unsentCrisis, setUnsentCrisis] = useState<readonly ApiHelpline[] | null>(null);
+  /**
+   * Helplines this screen is showing because the person asked, or because the
+   * server sent them beside a refusal. The web app has this in the same words.
+   *
+   * **"Get help"** puts the account's own numbers here the moment it is
+   * pressed, before anything is asked of the network, and then asks the server
+   * to end the session as a safety stop. It used to send the sentence "I need
+   * help, I do not feel safe" as an ordinary turn, which the screen grades
+   * `none`: the request was recorded as the step's answer and no number
+   * appeared.
+   *
+   * And **a turn the server refused because the session had ended**: it reads
+   * the words before refusing, and a `high` answer comes back as a 409 with
+   * the helplines on it.
+   *
+   * An offer and not the stop, like `unsentCrisis`. Unlike it, a later answer
+   * does not clear it: somebody who asked for help is not un-asked by
+   * carrying on.
+   */
+  const [offered, setOffered] = useState<readonly ApiHelpline[] | null>(null);
   const [exhausted, setExhausted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState('');
@@ -112,7 +132,7 @@ export default function Session() {
     void api
       .me()
       .then((profile) => {
-        setVoice(guideVoiceFor(profile.guideVoice));
+        setVoice(guideVoiceFor(profile.talkMode));
         setCountry(profile.country);
       })
       .catch(() => {
@@ -122,12 +142,21 @@ export default function Session() {
 
     // Resuming asks for the open session; starting asks for a new one, which
     // ends whatever was open. Both land in the same place from here.
-    void (
-      resuming
-        ? api.currentSession().then((open) => open ?? api.startSession(kind))
-        : api.startSession(kind)
-    )
-      .then(setSession)
+    //
+    // Carrying on does not start anything. It used to fall back to starting
+    // one when nothing was open, so "Carry on where you left off", pressed
+    // after the session had been finished on another device, quietly started
+    // a new full session and spent one of the week's three. With nothing to
+    // carry on, the home screen is the honest place to be: it asks the server
+    // what is open and says so.
+    void (resuming ? api.currentSession() : api.startSession(kind))
+      .then((found) => {
+        if (found === null) {
+          router.replace('/(tabs)');
+          return;
+        }
+        setSession(found);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.isUnauthenticated) {
           api.storeToken(null);
@@ -204,13 +233,24 @@ export default function Session() {
         setFeelings([]);
       } catch (e: unknown) {
         if (e instanceof ApiError && e.isConflict) {
+          // Refused, and read first: the server screens a turn before it
+          // answers 409, whether the step had moved on or the session had
+          // ended. An ended session cannot be stopped a second time, so for a
+          // `high` answer into one the numbers come back on the refusal.
+          if (e.helplines.length > 0) setOffered(e.helplines);
           // The session ended, or this answer was for a step that has moved
           // on. Either way the server knows where this session is and this
           // screen does not, so take its word for it — and clear the box,
           // because what is in it is not an answer to whatever is asked next.
-          setSession(await api.session(session.id));
-          setAnswer('');
-          setFeelings([]);
+          try {
+            setSession(await api.session(session.id));
+            setAnswer('');
+            setFeelings([]);
+          } catch (again: unknown) {
+            // This read sat in a `catch` with nothing around it, so a failure
+            // here was an unhandled rejection and a screen that said nothing.
+            setError(describe(again));
+          }
         } else {
           setError(describe(e));
           // The server never saw this one. See `unsentCrisis` above for why the
@@ -236,6 +276,33 @@ export default function Session() {
     }
   }, [session, voice]);
 
+  /**
+   * "Get help". The numbers first, from this device, and then the request.
+   *
+   * The order is the rule: a help button that shows a phone number only once a
+   * request has come back is one that shows nothing in a tunnel. So the
+   * account's own helplines go on the screen before the network is asked for
+   * anything, and what the server adds when it answers is the stop itself: the
+   * session ends, a flag reaches the queue, and the pause replaces this
+   * screen. If it does not answer, the numbers are still here and the failure
+   * says so beside them.
+   *
+   * No in-flight guard, deliberately. A second press sends a second request
+   * the server answers the same way, and the one thing a guard could do here
+   * is refuse somebody asking for help.
+   */
+  const getHelp = useCallback(async () => {
+    if (session === null) return;
+    setOffered(helplinesFor(country));
+    setError(null);
+    voice?.hush();
+    try {
+      setSession(await api.askForHelp(session.id));
+    } catch (e: unknown) {
+      setError(describe(e));
+    }
+  }, [session, country, voice]);
+
   /*
    * The same ordering the settings screen's choices needed, and for the same
    * reason: the summary offers three answers side by side, so a second tap is
@@ -250,6 +317,7 @@ export default function Session() {
     (rating: (typeof RATINGS)[number]['value']) =>
       queueRating(async () => {
         if (session === null) return;
+        setError(null);
         try {
           setSession(await api.rateSession(session.id, rating));
         } catch (e: unknown) {
@@ -317,6 +385,8 @@ export default function Session() {
     ) : (
       <Summary
         session={session}
+        offered={offered}
+        problem={error}
         onRate={(r) => {
           void rate(r);
         }}
@@ -364,11 +434,11 @@ export default function Session() {
         >
           <Text style={s.link}>✕ Leave</Text>
         </Pressable>
-        {/* Asks the server to screen it, exactly like any other answer. */}
+        {/* Not a turn: see `getHelp`. Nothing is recorded as an answer. */}
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            void send('I need help, I do not feel safe');
+            void getHelp();
           }}
         >
           <Text style={[s.link, { color: c.danger }]}>Get help</Text>
@@ -456,6 +526,8 @@ export default function Session() {
           {error}
         </Text>
       )}
+
+      <Offered helplines={offered} />
 
       {unsentCrisis === null || unsentCrisis.length === 0 ? null : (
         /*
@@ -568,12 +640,41 @@ function FeelingPicker({
   );
 }
 
+/**
+ * The numbers this screen offers on its own account. See `offered`.
+ *
+ * An alert over the whole block, for the reason the unsent-answer block is
+ * one: the sentence and the numbers have to be announced together. An
+ * unserved country has no numbers and so no block, because a sentence with
+ * nothing under it is the same mistake as a wrong number.
+ */
+function Offered({ helplines }: { helplines: readonly ApiHelpline[] | null }) {
+  const { s } = useTheme();
+
+  if (helplines === null || helplines.length === 0) return null;
+
+  return (
+    <View style={{ gap: SPACE.md }} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+      <Text style={s.lead}>If you are in danger right now, these do not need the internet.</Text>
+      {helplines.map((h) => (
+        <HelplineButton key={h.number} helpline={h} />
+      ))}
+    </View>
+  );
+}
+
 function Summary({
   session,
+  offered,
+  problem,
   onRate,
   onFinish,
 }: {
   session: ApiSession;
+  /** Helplines to keep on screen: this session ended some other way than a stop. */
+  offered: readonly ApiHelpline[] | null;
+  /** A failed rating. It used to be set and never drawn. */
+  problem: string | null;
   onRate: (r: (typeof RATINGS)[number]['value']) => void;
   onFinish: () => void;
 }) {
@@ -610,6 +711,13 @@ function Summary({
     >
       <Tag text={session.endReason === 'completed' ? 'Session complete' : 'Session saved'} />
       <Text style={s.title}>{session.endReason === 'completed' ? 'Well done.' : 'Saved.'}</Text>
+
+      {/*
+        Somebody asked for help, or said something the server stops for, into a
+        session that had already ended another way. It cannot become a safety
+        stop, so there is no pause to show; the numbers stay here instead.
+      */}
+      <Offered helplines={offered} />
 
       {rows.map((row) => (
         <View key={row.label} style={{ gap: SPACE.xs }}>
@@ -649,6 +757,18 @@ function Summary({
           })}
         </View>
       </Card>
+
+      {/*
+        A rating that did not save. `rate` has always set this, and the only
+        place it was drawn is the step screen, which an ended session never
+        renders: tap "Yes" with no signal and nothing changed and nothing was
+        said, then "Save and finish" left with the answer lost.
+      */}
+      {problem === null ? null : (
+        <Text style={s.error} accessibilityRole="alert">
+          {problem}
+        </Text>
+      )}
 
       <Button label="Save and finish" onPress={onFinish} />
     </ScrollView>

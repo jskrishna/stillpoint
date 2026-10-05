@@ -134,9 +134,22 @@ export const noEar: UserEar = {
   availability: { available: false, reason: NO_EAR_REASON },
 };
 
-export function guideVoiceFor(preference: string): GuideVoice {
-  // The profile's `guideVoice` is the domain's setting; 'off' is the only one
-  // that means silence, and anything else is a voice this stand-in cannot
-  // actually distinguish between. It will when there is a real engine.
-  return preference === 'off' ? silentGuide : systemGuideVoice();
+/**
+ * The guide for a session, from the account's talk mode.
+ *
+ * `type` is the mode that means silence, which is the web app's rule
+ * (`browserVoiceLoop` in `apps/web/src/lib/voice`) and the one the setup
+ * screen's "Keep it silent" writes. This used to read the *voice* setting
+ * instead and go quiet only for a value of `off`, which the server has never
+ * accepted: it validates `guideVoice` as `sage` or `river`. So nothing could
+ * make the phone silent. "Keep it silent" and "Type instead" both set the
+ * talk mode, which nothing here read, and the settings screen's "No voice"
+ * sent `off` and was answered 422. Somebody who had chosen silence was read
+ * their questions aloud, wherever they happened to be sitting.
+ *
+ * Which voice is still a setting this stand-in cannot tell apart. It will
+ * when there is a real engine.
+ */
+export function guideVoiceFor(talkMode: string): GuideVoice {
+  return talkMode === 'type' ? silentGuide : systemGuideVoice();
 }

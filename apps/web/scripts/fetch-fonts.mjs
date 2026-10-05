@@ -18,10 +18,13 @@
  */
 import { writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const UA =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
-const OUT = new URL('../public/fonts/', import.meta.url).pathname;
+// `fileURLToPath`, not `.pathname`: a pathname is percent-encoded, so a checkout
+// under a directory with a space in its name wrote to a path that is not there.
+const OUT = fileURLToPath(new URL('../public/fonts/', import.meta.url));
 
 // Variable faces, the whole weight range the product uses, plus Newsreader's
 // italic — which `<em>` would otherwise have the browser fake.

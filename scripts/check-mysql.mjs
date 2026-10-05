@@ -40,8 +40,11 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const API = new URL('../apps/api/', import.meta.url).pathname;
+// `fileURLToPath`, not `.pathname`: a pathname is percent-encoded, so a checkout
+// under a directory with a space in its name resolved to a path that is not there.
+const API = fileURLToPath(new URL('../apps/api/', import.meta.url));
 
 const HOST = process.env.MYSQL_HOST ?? '127.0.0.1';
 const PORT = process.env.MYSQL_PORT ?? '3306';

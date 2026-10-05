@@ -44,6 +44,19 @@ final class DemoSeeder extends Seeder
 
     public function run(): void
     {
+        // Never on a real deployment. These are four accounts whose password
+        // is printed in this repository, and one of them is an admin: seeded
+        // into production it is an open door to the safety queue. The
+        // deployment guide's own quickstart ended with `db:seed --force`,
+        // which runs this, so the door was one copied command away. It also
+        // publishes the step copy, which is a person's decision.
+        if (app()->isProduction()) {
+            throw new \RuntimeException(
+                'The demo seeder does not run in production: it makes an admin whose password is public. '.
+                'See deploy/README.md for how the first admin of a real deployment is made.',
+            );
+        }
+
         $password = (string) (env('SEED_PASSWORD') ?? self::PASSWORD);
 
         $user = $this->account('you@stillpoint.test', 'You', Role::User, $password);

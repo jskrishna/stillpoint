@@ -277,6 +277,16 @@ final class SafetyQueueApiTest extends TestCase
         $this->assertEquals($at, $flag->reviewed_at);
     }
 
+    public function test_a_malformed_status_filter_is_the_default_and_not_a_500(): void
+    {
+        $this->flag(User::factory()->create());
+        Sanctum::actingAs($this->staff(Role::Admin));
+
+        $this->getJson('/api/admin/safety-flags?status[]=open')
+            ->assertOk()
+            ->assertJsonPath('total', 1);
+    }
+
     private function staff(Role $role): User
     {
         return User::factory()

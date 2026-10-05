@@ -20,9 +20,9 @@ final readonly class ProtocolStep
     public function isComplete(): bool
     {
         return $this->prompts->main !== null
-            && trim($this->prompts->main) !== ''
+            && Text::trim($this->prompts->main) !== ''
             && $this->doneWhen !== null
-            && trim($this->doneWhen) !== ''
+            && Text::trim($this->doneWhen) !== ''
             && $this->maxGuideTurns !== null;
     }
 

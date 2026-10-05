@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\CalmerRating;
 use App\Domain\ConsentItem;
+use App\Domain\Helpline;
 use App\Domain\Plan;
 use App\Domain\SessionKind;
 use App\Domain\StepId;
@@ -15,6 +16,7 @@ use App\Http\Resources\SessionResource;
 use App\Models\GuidedSession;
 use App\Services\ProtocolVersionService;
 use App\Services\SessionService;
+use App\Support\BrokenCharacters;
 use App\Support\GuideBudget;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\JsonResponse;
@@ -68,7 +70,12 @@ final class SessionController extends Controller
         $used = $this->sessions->fullSessionsInWindow($user, Plan::ALLOWANCE_WINDOW_DAYS);
         $decision = $plan->mayStart($kind, $used);
 
-        if ($decision['allowed'] !== true) {
+        // Refused only when starting would make a session. At the edge of the
+        // allowance this check used to refuse a retry of the very start it
+        // had just allowed: the third full session answered 201, and the same
+        // request again answered 402 while that session sat open with nothing
+        // said into it, reachable from no screen.
+        if ($decision['allowed'] !== true && ! $this->sessions->wouldHandBack($user, $kind)) {
             return response()->json([
                 'message' => $decision['reason'] ?? 'Your plan does not allow another full session this week.',
                 'limit' => $decision['limit'] ?? null,
@@ -150,6 +157,11 @@ final class SessionController extends Controller
         //
         // `required` and `string` stay because there is no text to screen
         // otherwise, so nothing is lost by refusing those.
+        // Before the validation below, which would otherwise be the refusal:
+        // a body with half a character in it does not decode, so there would
+        // be no utterance to find.
+        BrokenCharacters::repair($request);
+
         $validated = $request->validate([
             'utterance' => ['required', 'string'],
         ]);
@@ -164,8 +176,13 @@ final class SessionController extends Controller
         $said = $request->input('step');
         $answering = is_string($said) ? StepId::tryFrom($said) : null;
 
+        // Refused, and read first. This used to answer 409 before anything
+        // had looked at what was said, which made it the one refusal still in
+        // front of the screen: a disclosure typed into a tab whose session
+        // had been ended from another device got "This session has ended."
+        // and nothing else. See `afterTheEnd()`.
         if ($session->toDomain()->hasEnded()) {
-            return response()->json(['message' => 'This session has ended.'], Response::HTTP_CONFLICT);
+            return $this->afterTheEnd($request, $session, $validated['utterance']);
         }
 
         // The budget is resolved here and passed in, so it applies *after* the
@@ -182,12 +199,14 @@ final class SessionController extends Controller
                 guideAvailable: $budget->remaining() > 0,
                 answering: $answering,
             );
-        } catch (SessionAlreadyEnded $e) {
+        } catch (SessionAlreadyEnded) {
             // The check above is the fast path; this is the one that ran under
             // the row lock. Between the two, another request can have ended
             // this session — most often by screening a crisis — and that stop
-            // is not something a turn already in flight may write away.
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_CONFLICT);
+            // is not something a turn already in flight may write away. The
+            // same answer as above, and these words are read for the same
+            // reason.
+            return $this->afterTheEnd($request, $session, $validated['utterance']);
         }
 
         if ($result->stale) {
@@ -237,6 +256,32 @@ final class SessionController extends Controller
      * and 30 answers in a minute is not someone working through something that
      * upset them.
      */
+    /**
+     * The 409 for a turn into a session that has ended, after the screen has
+     * read it.
+     *
+     * A `high` answer carries the helplines beside the refusal, because the
+     * session cannot be stopped a second time and the person still has to be
+     * given a number. Anything less is flagged and answered exactly like an
+     * ordinary refusal: the client is told as little as possible, so nothing
+     * here says a line was crossed.
+     */
+    private function afterTheEnd(Request $request, GuidedSession $session, string $utterance): JsonResponse
+    {
+        $assessment = $this->sessions->screenAfterEnd($session, $utterance);
+
+        $body = ['message' => 'This session has ended.'];
+
+        if ($assessment->level->mustStop()) {
+            $body['helplines'] = array_map(
+                fn (Helpline $h) => $h->forClient(),
+                Helpline::forCountry($request->user()?->country ?? Helpline::DEFAULT_COUNTRY),
+            );
+        }
+
+        return response()->json($body, Response::HTTP_CONFLICT);
+    }
+
     private function guideBudget(Request $request): GuideBudget
     {
         return new GuideBudget(
@@ -251,6 +296,20 @@ final class SessionController extends Controller
     {
         $this->authorizeOwnership($request, $session);
         $this->sessions->stop($session);
+
+        return new SessionResource($session->refresh(), $this->versions->forSession($session));
+    }
+
+    /**
+     * "Get help". Ends the session as a safety stop and answers with the
+     * helplines, with nothing read from the body: there is no utterance to
+     * validate and so nothing here that can refuse the request. See
+     * `SessionService::askForHelp()`.
+     */
+    public function help(Request $request, GuidedSession $session): SessionResource
+    {
+        $this->authorizeOwnership($request, $session);
+        $this->sessions->askForHelp($session);
 
         return new SessionResource($session->refresh(), $this->versions->forSession($session));
     }

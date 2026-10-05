@@ -96,7 +96,7 @@ export default function Overview() {
       <span className={styles.label}>WHAT THE SCREEN COULD NOT READ</span>
       <p className={styles.sub}>
         {overview.unreadableTurns === 0
-          ? 'Nothing this window. The safety screen reads English, Hinglish and Hindi; anything written in another script is not screened at all, and this is where that would show.'
+          ? 'Nothing this window. The safety screen reads English, French, Hinglish and Hindi; anything written in another script is not screened at all, and this is where that would show.'
           : `${String(overview.unreadableTurns)} ${
               overview.unreadableTurns === 1 ? 'turn' : 'turns'
             } in ${String(overview.unreadableSessions)} ${

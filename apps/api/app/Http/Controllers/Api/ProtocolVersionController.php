@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\ProtocolVersion;
 use App\Domain\StepId;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProtocolVersionResource;
@@ -67,8 +68,17 @@ final class ProtocolVersionController extends Controller
             'maxGuideTurns' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:20'],
         ]);
 
-        $draft = $this->versions->openDraft();
-        $saved = $this->versions->store($draft->withStepEdit($step, $validated));
+        // The `integer` rule accepts "3" as well as 3 and hands back whichever
+        // was sent, and the domain's field is an int: a string from a form
+        // post was a TypeError and a 500 where the rule had said it was fine.
+        if (isset($validated['maxGuideTurns'])) {
+            $validated['maxGuideTurns'] = (int) $validated['maxGuideTurns'];
+        }
+
+        // One transaction for the read and the write. See `editDraft()`.
+        $saved = $this->versions->editDraft(
+            fn (ProtocolVersion $draft) => $draft->withStepEdit($step, $validated),
+        );
 
         return response()->json(ProtocolVersionResource::toArray($saved));
     }
@@ -84,11 +94,12 @@ final class ProtocolVersionController extends Controller
             'pauseBody' => ['sometimes', 'filled', 'string', 'max:2000'],
         ]);
 
-        $draft = $this->versions->openDraft();
-        $saved = $this->versions->store($draft->withSafetyWording(
-            $validated['pauseTitle'] ?? null,
-            $validated['pauseBody'] ?? null,
-        ));
+        $saved = $this->versions->editDraft(
+            fn (ProtocolVersion $draft) => $draft->withSafetyWording(
+                $validated['pauseTitle'] ?? null,
+                $validated['pauseBody'] ?? null,
+            ),
+        );
 
         return response()->json(ProtocolVersionResource::toArray($saved));
     }

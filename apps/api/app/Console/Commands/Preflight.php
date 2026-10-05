@@ -48,11 +48,22 @@ final class Preflight extends Command
     /** @var list<array{level: string, what: string, why: string, fix: string}> */
     private array $found = [];
 
+    /**
+     * Whether `intl` is loaded. A seam, because a test cannot unload an
+     * extension, and the check that reads it is one whose failure nothing
+     * else in this repository would show. Null asks PHP.
+     *
+     * @var (\Closure(): bool)|null
+     */
+    public static ?\Closure $intlIsLoaded = null;
+
     public function handle(): int
     {
         $this->mailCanSend();
         $this->theGuideHasWords();
         $this->somebodyCanReadTheQueue();
+        $this->noDemoAccountIsHere();
+        $this->theScreenHasItsLibrary();
         $this->theWebAppMayCallTheApi();
         $this->debugIsOff();
         $this->theCacheIsNotTheDatabaseOnSqlite();
@@ -79,8 +90,8 @@ final class Preflight extends Command
                 'Nobody can reset a password',
                 "mail.default is '{$mailer}', so a reset link is written to the log instead of sent. ".
                 'The route answers 200 either way, so the person is told a link is on its way and none arrives.',
-                'Set MAIL_MAILER to smtp, resend, postmark or ses with that provider’s credentials. '.
-                'Laravel ships all four transports — no code here changes. LAUNCH.md item 2.',
+                'Set MAIL_MAILER to smtp with a provider’s host, port and credentials: nothing here changes. '.
+                'The resend, postmark and ses drivers each need their package installed first. LAUNCH.md item 2.',
             );
 
             return;
@@ -134,6 +145,59 @@ final class Preflight extends Command
                 'safety flag. A crisis disclosure would be recorded and seen by nobody.',
                 'Grant the first admin directly in the database — the console cannot, because reaching '.
                 'it needs the role it grants. Afterwards /admin/users is the only way, with a trail.',
+            );
+        }
+    }
+
+    /**
+     * The demo accounts are for a demo.
+     *
+     * `DemoSeeder` makes four, one of them an admin, and their password is
+     * printed in this repository. The deployment guide's quickstart used to
+     * end with `db:seed`, which runs it. On a real deployment that is an
+     * admin anybody can sign in as, reading the safety queue, and it made the
+     * check above pass: "an admin exists" was true of an account that should
+     * not. The seeder refuses in production now; this is for a database that
+     * was seeded before it did.
+     */
+    private function noDemoAccountIsHere(): void
+    {
+        if (! app()->isProduction()) {
+            return;
+        }
+
+        $demo = User::query()->where('email', 'like', '%@stillpoint.test')->pluck('email');
+
+        if ($demo->isNotEmpty()) {
+            $this->blocked(
+                'A demo account exists on this deployment',
+                $demo->implode(', ').' was made by the demo seeder, whose password is printed in the '.
+                'repository. If one of them is an admin, anybody can read the safety queue.',
+                'Delete those accounts, and grant admin to a real one from a shell. deploy/README.md says how.',
+            );
+        }
+    }
+
+    /**
+     * The risk screen needs `intl`, and runs without it.
+     *
+     * It folds accents and fullwidth letters with `Normalizer`. Where the
+     * extension is missing a polyfill answers instead, quietly, and that is
+     * an implementation the test suite has never run: CI installs the real
+     * one. The shipped image was in exactly that state, because its build
+     * removed the ICU library the extension links against, and every `php` in
+     * it started with a warning nobody was reading.
+     */
+    private function theScreenHasItsLibrary(): void
+    {
+        $loaded = self::$intlIsLoaded === null ? extension_loaded('intl') : (self::$intlIsLoaded)();
+
+        if (! $loaded) {
+            $this->blocked(
+                'The risk screen is running on a stand-in',
+                'The intl extension is not loaded, so the screen that decides whether a session stops '.
+                'is folding text with a polyfill the tests never exercise.',
+                'Install and enable intl for this PHP. In the image, `php -m` should list it with no warning.',
             );
         }
     }

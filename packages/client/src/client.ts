@@ -158,6 +158,19 @@ export function createClient(config: ClientConfig) {
 
     stopSession: (id: string) => t.request<ApiSession>(`/sessions/${id}/stop`, { method: 'POST' }),
 
+    /**
+     * "Get help". Ends the session as a safety stop and answers with it, the
+     * helplines included.
+     *
+     * A call of its own, with no body, because a press is not an utterance.
+     * Both session screens used to send a sentence through `takeTurn` and
+     * leave the server to screen it; the screen grades that sentence `none`,
+     * so the request was recorded as the step's answer and nobody was shown a
+     * number. A screen calling this still shows its own copy of the numbers
+     * first: this is a request, and a request can fail to arrive.
+     */
+    askForHelp: (id: string) => t.request<ApiSession>(`/sessions/${id}/help`, { method: 'POST' }),
+
     rateSession: (id: string, rating: 'yes' | 'a_little' | 'no') =>
       t.request<ApiSession>(`/sessions/${id}/rating`, { method: 'POST', body: { rating } }),
 

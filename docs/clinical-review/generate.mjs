@@ -353,6 +353,15 @@ w('Matched as substrings of the answer after lowercasing, straightening curly');
 w('apostrophes, and removing punctuation. So "KILL MYSELF." and "...kill');
 w('myself..." both match `kill myself`.');
 w();
+w('The answer is then read a second time, more forgivingly, against the same');
+w('list: apostrophes are dropped from both the answer and the phrase, characters');
+w('with no width (a joiner, a zero-width space, a soft hyphen) are removed, and');
+w('fullwidth or styled letters are folded to plain ones. So "dont want to live"');
+w("matches `don't want to live`, and a Hindi phrase matches with a joiner inside");
+w('one of its conjuncts. A match in either reading counts, so this second reading');
+w('only ever adds matches. It adds no phrase: every phrase the screen can find is');
+w('in the list below.');
+w();
 
 const total = BASELINE_RULES.reduce((n, r) => n + r.phrases.length, 0);
 w(`There are ${String(total)} phrases in ${String(BASELINE_RULES.length)} rules.`);

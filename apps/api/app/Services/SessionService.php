@@ -8,6 +8,9 @@ use App\Domain\CalmerRating;
 use App\Domain\CoachSharing;
 use App\Domain\Conversation;
 use App\Domain\EndReason;
+use App\Domain\RiskAssessment;
+use App\Domain\SafetyCategory;
+use App\Domain\SafetyLevel;
 use App\Domain\Session as DomainSession;
 use App\Domain\SessionKind;
 use App\Domain\StepId;
@@ -137,10 +140,35 @@ final readonly class SessionService
             ->first();
     }
 
-    /** The guide's opening line for the step the session is on. */
+    /**
+     * Whether starting this kind of session would hand back the one already
+     * open rather than make another.
+     *
+     * The same test `start()` applies under its lock, asked first by the
+     * controller, because an allowance check that runs before `start()` has
+     * to know when there is nothing to charge for: an untouched session of
+     * the kind asked for has been counted already and is what the caller
+     * gets back.
+     */
+    public function wouldHandBack(User $user, SessionKind $kind): bool
+    {
+        $open = $this->current($user);
+
+        return $open !== null && $open->kind === $kind && $open->toDomain()->isUntouched();
+    }
+
+    /**
+     * The guide's opening line for the step the session is on.
+     *
+     * From the version the session is pinned to, like every turn. This read
+     * the live one, so the two responses that are not a turn, resuming and
+     * the read after a 409, asked whatever had been published since: a
+     * session on 1.0 was shown 1.1's question and then judged, recorded and
+     * followed up from 1.0.
+     */
     public function openingLine(GuidedSession $row): string
     {
-        return $this->conversation->openingLine($row->toDomain(), $this->versions->current());
+        return $this->conversation->openingLine($row->toDomain(), $this->versions->forSession($row));
     }
 
     /**
@@ -221,6 +249,40 @@ final readonly class SessionService
     }
 
     /**
+     * Reads what was said into a session that has already ended.
+     *
+     * The turn is still refused; this is what happens before the refusal. The
+     * screen runs, and a flag is raised exactly as it would have been on a
+     * live session, so a disclosure typed into a tab whose session was ended
+     * from another device reaches the queue instead of a 409. The outcome
+     * says the session had already ended, because a reviewer told "Session
+     * stopped" would be reading about something that did not happen.
+     *
+     * Nothing about the session changes. It is terminal, and an unreadable
+     * turn is not counted against it for the same reason.
+     */
+    public function screenAfterEnd(GuidedSession $row, string $utterance): RiskAssessment
+    {
+        [$assessment, $flag] = $this->conversation->screenOnly($utterance);
+
+        if ($flag !== null) {
+            SafetyFlag::create([
+                'user_id' => $row->user_id,
+                'guided_session_id' => $row->id,
+                'level' => $flag->level,
+                'category' => $flag->category,
+                'excerpt' => $flag->excerpt,
+                'outcome' => $assessment->level->mustStop()
+                    ? 'The session had already ended. Helplines shown.'
+                    : 'Flagged for review. The session had already ended.',
+                'raised_at' => now(),
+            ]);
+        }
+
+        return $assessment;
+    }
+
+    /**
      * How many full sessions this user has started in the window.
      *
      * Counted from `started_at` rather than from journal rows, so a session
@@ -246,8 +308,63 @@ final readonly class SessionService
             // already stopped is what the user asked for either way, and the
             // domain leaves an ended session alone — including one that ended
             // for safety, which must never be reopened or relabelled.
+            //
+            // And nothing is written for one. It was journalled when it
+            // ended, so the only session that reaches here with no entry is
+            // one whose entry its owner has since deleted, and journalling it
+            // again brought back an empty "Session" they had been told was
+            // removed for good.
+            if ($row->toDomain()->hasEnded()) {
+                return $row;
+            }
+
             $row->storeDomain($row->toDomain()->withUserStopped())->save();
             $this->journal($row);
+
+            return $row;
+        });
+    }
+
+    /**
+     * Ends a session because the person asked for help.
+     *
+     * A `high` signal, which is what the button applied before there was a
+     * server to ask, so it ends as a safety stop: terminal, never journalled,
+     * and the response carries the helplines. Nothing is screened, because
+     * nothing was said. Whether this stops must not depend on a phrase list,
+     * and it did: the button used to send a sentence as an ordinary turn, the
+     * screen graded it `none`, and the request was recorded as the step's
+     * answer.
+     *
+     * It raises a flag, for the rule at the top of this class: a session is
+     * never recorded as stopped without the flag that stopped it. The excerpt
+     * is empty. That column is the person's own words and they typed none;
+     * the category says what happened instead.
+     *
+     * A session that has already ended is left exactly as it ended and raises
+     * nothing, like `stop()`: there is nothing left to stop, and an ended
+     * session is terminal. The caller is not refused for asking.
+     */
+    public function askForHelp(GuidedSession $row): GuidedSession
+    {
+        return DB::transaction(function () use ($row) {
+            $row = $this->locked($row);
+
+            if ($row->toDomain()->hasEnded()) {
+                return $row;
+            }
+
+            $row->storeDomain($row->toDomain()->withSafetySignal(SafetyLevel::High))->save();
+
+            SafetyFlag::create([
+                'user_id' => $row->user_id,
+                'guided_session_id' => $row->id,
+                'level' => SafetyLevel::High,
+                'category' => SafetyCategory::AskedForHelp,
+                'excerpt' => '',
+                'outcome' => 'Asked for help. Session stopped. Helplines shown.',
+                'raised_at' => now(),
+            ]);
 
             return $row;
         });

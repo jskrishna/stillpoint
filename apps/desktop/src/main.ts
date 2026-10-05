@@ -46,10 +46,40 @@ function icon(name: string) {
 }
 
 function show(): void {
-  if (window === null) return;
+  if (window === null) {
+    // Closed, with the app still running: macOS, or the tray anywhere. The
+    // way back is a new window on the app's first screen. See `go`.
+    go(APP_PATHS.start);
+    return;
+  }
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
+}
+
+/**
+ * Shows one of the app's own screens, making the window again if it has been
+ * closed.
+ *
+ * On macOS closing the window does not quit the app, and everything that
+ * navigates did it through `window?.loadURL`, which does nothing with no
+ * window. So with the window closed the tray's "Open Stillpoint" and "Start a
+ * session", the global shortcut and every menu item were silent no-ops,
+ * including the Help menu's "If you need someone now". The window is made
+ * again here instead. Nothing before `boot()` has an origin to load, and
+ * nothing can reach this before then.
+ */
+function go(path: string): void {
+  if (origin === '') return;
+
+  if (window === null) {
+    window = createWindow();
+    void window.loadURL(`${origin}${path}`);
+    return;
+  }
+
+  show();
+  void window.loadURL(`${origin}${path}`);
 }
 
 /**
@@ -60,8 +90,7 @@ function show(): void {
  * decides whether the plan allows one.
  */
 function startSession(): void {
-  show();
-  void window?.loadURL(`${origin}${APP_PATHS.session}`);
+  go(APP_PATHS.session);
 }
 
 function createWindow(): BrowserWindow {
@@ -145,15 +174,13 @@ function buildMenu(): void {
           {
             label: 'Journal',
             click: () => {
-              show();
-              void window?.loadURL(`${origin}${APP_PATHS.journal}`);
+              go(APP_PATHS.journal);
             },
           },
           {
             label: 'Settings',
             click: () => {
-              show();
-              void window?.loadURL(`${origin}${APP_PATHS.settings}`);
+              go(APP_PATHS.settings);
             },
           },
           { type: 'separator' as const },
@@ -194,8 +221,7 @@ function buildMenu(): void {
              */
             label: 'If you need someone now',
             click: () => {
-              show();
-              void window?.loadURL(`${origin}${APP_PATHS.settings}`);
+              go(APP_PATHS.settings);
             },
           },
         ],
@@ -255,10 +281,13 @@ async function boot(): Promise<void> {
       dialog.showErrorBox(
         'Stillpoint is already running, or something else has its port',
         e instanceof PortTakenError
-          ? `Stillpoint uses port ${String(e.port)} on this machine.\n\n` +
-              'Close whatever is using it, or set STILLPOINT_PORT to another one — ' +
-              'but note that changing it signs you out, because the port is part of ' +
-              'the address this app stores its session against.'
+          ? // No advice to move the port. This used to offer `STILLPOINT_PORT`
+            // with a warning that changing it "signs you out", which undersold
+            // it: the port is part of this app's origin, and the API's list
+            // of allowed origins names this one, so on any other port nobody
+            // can sign in at all.
+            `Stillpoint uses port ${String(e.port)} on this machine.\n\n` +
+              'Close whatever else is using it, then open Stillpoint again.'
           : String(e),
       );
       app.quit();
@@ -321,14 +350,32 @@ if (!app.requestSingleInstanceLock()) {
   // went wrong starting up was an unhandled rejection: the app exited with a
   // zero status, no dialog, and nothing in the log. The one thing worse than
   // failing to start is failing to start silently.
+  /*
+   * Started once, however many times it is asked for.
+   *
+   * `activate` used to call `boot()` again whenever there were no windows.
+   * On macOS that is every click on the dock icon after the window has been
+   * closed, and `boot()` starts the bundled server: the port was still held
+   * by this app's own server from the first time, so the second start threw
+   * `PortTakenError`, the dialog said "Stillpoint is already running, or
+   * something else has its port", and the app quit. Closing the window and
+   * coming back, which is the ordinary way to use a Mac app, ended it with an
+   * error about itself. The event also fires as the app first launches, when
+   * there is no window yet either.
+   *
+   * So there is one start, and coming back is `show()`, which makes the
+   * window again if it has gone.
+   */
+  let started: Promise<void> | null = null;
+  const bootOnce = (): Promise<void> => (started ??= boot());
+
   app
     .whenReady()
-    .then(() => boot())
+    .then(() => bootOnce())
     .catch(cannotStart);
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) void boot();
-    else show();
+    void bootOnce().then(show).catch(cannotStart);
   });
 
   app.on('window-all-closed', () => {

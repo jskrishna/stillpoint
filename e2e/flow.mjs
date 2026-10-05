@@ -414,6 +414,30 @@ await leftOff
   .click();
 await leftOff.waitForTimeout(1200);
 
+// A reload part-way through comes back to the same session. The address
+// stayed `/session`, which means "start one" and ends whatever is open: a
+// reload ended the session, journalled it half-finished and charged for
+// another. Counted on the server, since the screen looks the same either way.
+const sessionsAt = () =>
+  leftOff.evaluate(async () => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+    const open = await fetch('http://localhost:8000/api/sessions/current', { headers }).then((r) =>
+      r.json(),
+    );
+    return open === null ? null : `${String(open.id)}@${String(open.step?.ordinal)}`;
+  });
+const beforeReload = await sessionsAt();
+await leftOff.reload({ waitUntil: 'networkidle' });
+await leftOff
+  .waitForFunction(() => /Step \d of 6/.test(document.body.innerText), null, { timeout: 15000 })
+  .catch(() => undefined);
+const afterReload = await sessionsAt();
+if (beforeReload !== null && afterReload === beforeReload)
+  ok(`a reload carries on the same session, at the same step (${afterReload})`);
+else
+  bad('a reload carries on the same session, at the same step', `${beforeReload} → ${afterReload}`);
+
 await leftOff.goto(`${WEB}/app`, { waitUntil: 'networkidle' });
 await leftOff.waitForTimeout(1800);
 const athome = await leftOff.locator('body').innerText();
@@ -995,16 +1019,27 @@ await page.waitForTimeout(2000);
 const dead = await page.locator('body').innerText();
 if (/this week’s full sessions/i.test(dead)) ok('the session screen explains, rather than failing');
 else bad('the session screen explains', dead.slice(0, 300));
-if ((await page.getByRole('link', { name: 'Start a quick session' }).count()) > 0)
-  ok('and offers a quick session');
+const offerQuick = page.getByRole('button', { name: 'Start a quick session' });
+if ((await offerQuick.count()) > 0) ok('and offers a quick session');
 else bad('and offers a quick session');
 
-await page.goto(`${WEB}/session?kind=quick`, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => !document.body.innerText.includes('Starting…'), null, {
-  timeout: 15000,
-});
-if (/Step 1 of 6/.test(await page.locator('body').innerText())) ok('and that quick session runs');
-else bad('and that quick session runs', (await page.locator('body').innerText()).slice(0, 300));
+// Pressed, which this did not do. It asserted that the offer existed and then
+// loaded `/session?kind=quick` itself, and that works; the offer was a link to
+// the same page with a different query, so pressing it remounted nothing and
+// the refusal stayed where it was. The one way out of this screen did nothing.
+await offerQuick.click();
+const quickRan = await page
+  .waitForFunction(() => /Step 1 of 6/.test(document.body.innerText), null, { timeout: 15000 })
+  .then(
+    () => true,
+    () => false,
+  );
+if (quickRan) ok('and pressing it starts that quick session');
+else
+  bad(
+    'and pressing it starts that quick session',
+    (await page.locator('body').innerText()).slice(0, 300),
+  );
 
 // ------------------------------------------------- 5. insights
 console.log('\n5. Insights come from the server');
@@ -1483,6 +1518,118 @@ else
     `${String(rowsBeforeStop)} → ${String(rowsAfterStop)}`,
   );
 
+// ---------------------------------------------------------------------------
+console.log('\n7a. “Get help” shows a number and stops the session');
+
+// The button is on every step of the session, and nothing here had ever
+// pressed it. What it did, measured: it sent the sentence "I need help, I do
+// not feel safe" as an ordinary turn, the screen graded it `none`, and the
+// request was recorded as the step's answer. No number, no stop, and at step 1
+// the sentence became the journal entry's title. Before the web app was
+// pointed at the server the same button applied a `high` signal directly, so
+// this was a regression nobody had a check for.
+await page.goto(`${WEB}/session?kind=quick`, { waitUntil: 'networkidle' });
+await page.waitForFunction(() => /Step \d of 6/.test(document.body.innerText), null, {
+  timeout: 15000,
+});
+
+const helpRequests = [];
+const noteHelp = (r) => {
+  if (r.url().includes('/api/sessions/') && r.method() === 'POST')
+    helpRequests.push(r.url().replace(/^.*\/api/, ''));
+};
+page.on('request', noteHelp);
+
+// First with the request dying on the way out, because a help button that
+// shows a number only once a request has come back shows nothing in a tunnel.
+await page.route('**/help', (route) => route.abort());
+await page.getByRole('button', { name: 'Get help' }).click();
+const helped = await page
+  .waitForFunction(() => document.querySelectorAll('a[href^="tel:"]').length >= 3, null, {
+    timeout: 15000,
+  })
+  .then(
+    () => true,
+    () => false,
+  );
+const helpScreen = await text();
+await page.unroute('**/help');
+
+if (helped) ok('the numbers appear when the request never arrives');
+else bad('the numbers appear when the request never arrives', helpScreen.slice(0, 500));
+if (/988/.test(helpScreen) && /\b911\b/.test(helpScreen) && !/14416|\b112\b/.test(helpScreen))
+  ok('and they are this account\u2019s own, not another market\u2019s');
+else
+  bad('and they are this account\u2019s own, not another market\u2019s', helpScreen.slice(0, 500));
+if (/Step \d of 6/.test(helpScreen)) ok('and the session is not treated as stopped by that');
+else bad('and the session is not treated as stopped by that', helpScreen.slice(0, 500));
+
+const helpAlert = await page.evaluate(() => {
+  const link = document.querySelector('a[href^="tel:"]');
+  return link?.closest('[role="alert"]') !== null && link !== null;
+});
+if (helpAlert) ok('and they are announced, not only drawn');
+else bad('and they are announced, not only drawn');
+
+// The thing it used to do, asserted as an absence: no turn.
+if (!helpRequests.some((r) => r.includes('/turns')))
+  ok(`the press is not sent as an answer (${helpRequests.join(', ')})`);
+else bad('the press is not sent as an answer', helpRequests.join(', '));
+
+// Now let it through. The numbers are already on screen, and what the server
+// adds is the stop.
+await page.getByRole('button', { name: 'Get help' }).click();
+const pausedByHelp = await page
+  .waitForFunction(
+    () =>
+      document.activeElement?.tagName === 'H1' &&
+      document.querySelectorAll('a[href^="tel:"]').length >= 3 &&
+      !/Step \d of 6/.test(document.body.innerText),
+    null,
+    { timeout: 15000 },
+  )
+  .then(
+    () => true,
+    () => false,
+  );
+page.off('request', noteHelp);
+
+if (pausedByHelp) ok('with the request through, the pause takes over and takes focus');
+else
+  bad(
+    'with the request through, the pause takes over and takes focus',
+    (await text()).slice(0, 400),
+  );
+
+const helpedId = (helpRequests.find((r) => r.endsWith('/help')) ?? '').match(
+  /sessions\/([^/]+)/,
+)?.[1];
+if (helpedId === undefined) {
+  bad('captured the session the button was pressed in', helpRequests.join(', '));
+} else {
+  const after = await page.evaluate(async (id) => {
+    const token = window.localStorage.getItem('stillpoint.token.v1');
+    const headers = { Accept: 'application/json', Authorization: `Bearer ${token}` };
+    const session = await fetch(`http://localhost:8000/api/sessions/${id}`, { headers }).then((r) =>
+      r.json(),
+    );
+    return { endReason: session.endReason, whatHappened: session.data.whatHappened };
+  }, helpedId);
+
+  if (after.endReason === 'safety_stop') ok('the server ended it as a safety stop');
+  else bad('the server ended it as a safety stop', JSON.stringify(after));
+  // The old behaviour, by name: the sentence the button sent became this.
+  if (after.whatHappened === null) ok('and nothing was recorded as an answer');
+  else bad('and nothing was recorded as an answer', JSON.stringify(after));
+}
+
+await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+const rowsAfterHelp = await page.locator('a[href^="/app/journal/"]').count();
+if (rowsAfterHelp === rowsAfterStop) ok('and it left no journal entry either');
+else
+  bad('and it left no journal entry either', `${String(rowsAfterStop)} → ${String(rowsAfterHelp)}`);
+
 // Erasing the account. Last, because it ends the account this script has been
 // using — which is also the honest place to check it from.
 console.log('\n7b. Deleting the account');
@@ -1827,9 +1974,8 @@ if (link === undefined) {
   await resetPage.getByRole('button', { name: /^Sign in$/ }).click();
   await resetPage.waitForTimeout(3000);
 
-  // On the token, not the URL: signing in carries on through the welcome flow —
-  // voice setup comes after consent — so landing on `/welcome/voice` *is* being
-  // signed in, and a URL check reads it as not being.
+  // On the token, not the URL, so that a failure here is about signing in and
+  // not about where it landed. Where it lands is the next assertion's.
   const backIn = await resetPage.evaluate(() => window.localStorage.getItem('stillpoint.token.v1'));
   if (typeof backIn === 'string' && backIn !== '')
     ok(`the new password gets them back in (at ${new URL(resetPage.url()).pathname})`);
@@ -1838,6 +1984,15 @@ if (link === undefined) {
       'the new password gets them back in',
       (await resetPage.locator('body').innerText()).slice(0, 300),
     );
+
+  // And they land in the app, not back in voice setup. Signing in used to
+  // send every returning account there, and that screen starts from Sage
+  // without reading the account and saves whichever button is pressed: each
+  // sign-in put a saved voice back to the default and wrote the talk mode
+  // over. The phone has always gone straight to the app.
+  const landed = new URL(resetPage.url()).pathname;
+  if (landed === '/app') ok('a returning account lands in the app, past voice setup');
+  else bad('a returning account lands in the app, past voice setup', landed);
 
   // The whole point of the section, and the reason a reset is safe to offer at
   // all: the `encrypted` casts use the application's `APP_KEY`, not anything

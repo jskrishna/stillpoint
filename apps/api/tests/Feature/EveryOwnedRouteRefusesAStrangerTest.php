@@ -187,6 +187,7 @@ final class EveryOwnedRouteRefusesAStrangerTest extends TestCase
         // resource — and so a route quietly skipped — shows up as an absence.
         $this->assertSame([
             'POST api/sessions/{session}/turns',
+            'POST api/sessions/{session}/help',
             'GET api/sessions/{session}',
             'POST api/sessions/{session}/stop',
             'POST api/sessions/{session}/rating',

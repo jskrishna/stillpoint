@@ -73,12 +73,10 @@ final class SessionResource extends JsonResource
             'safety' => $stoppedForSafety ? [
                 'title' => $this->version->pauseTitle,
                 'body' => $this->version->pauseBody,
-                'helplines' => array_map(fn (Helpline $h) => [
-                    'name' => $h->name,
-                    'number' => $h->number,
-                    'detail' => $h->detail,
-                    'kind' => $h->kind,
-                ], Helpline::forCountry($request->user()?->country ?? Helpline::DEFAULT_COUNTRY)),
+                'helplines' => array_map(
+                    fn (Helpline $h) => $h->forClient(),
+                    Helpline::forCountry($request->user()?->country ?? Helpline::DEFAULT_COUNTRY),
+                ),
             ] : null,
         ];
     }

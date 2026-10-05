@@ -36,9 +36,30 @@ const KEY = 'stillpoint.token.v1';
  * a base URL and would be wrong for a secret. The default suits a simulator on
  * the same machine as `php artisan serve`; a real device needs the host's
  * address on the network, so `.env.example` says so.
+ *
+ * **Written as `process.env.EXPO_PUBLIC_API_URL`, in full, and that spelling
+ * is load-bearing.** Expo's Babel plugin replaces that exact member
+ * expression and nothing else. This used to read the variable through an
+ * alias (`const env = process.env`), which type-checks more quietly and is
+ * not inlined at all: measured with the variable set at build time, the
+ * exported bundle contained the address zero times and kept a runtime lookup
+ * that is always undefined outside `expo start`. So every built copy of this
+ * app called `localhost`, whatever it was built for, while Expo Go, which
+ * defines the variable at run time in development, worked. The one way of
+ * running it that anybody had tried was the one way that hid it.
+ * `e2e/mobile.mjs` could not see it either: its API is the default.
+ *
+ * **And the build clears the bundler's cache, which it has to now.** Metro
+ * caches this file after the variable has been replaced, and the variable's
+ * value is not part of what the cache is keyed on. So a build for one address
+ * followed by a build for another reused the first one's transform: measured,
+ * an export built with nothing set called the address a build before it had
+ * been given. That is the stale build directory this repository keeps being
+ * bitten by, in a cache nobody looks at, and it only became possible once the
+ * line above started working. `--clear` in this package's `build` script is
+ * what makes each build its own.
  */
-const env = process.env as Record<string, string | undefined>;
-const BASE = env['EXPO_PUBLIC_API_URL'] ?? 'http://localhost:8000/api';
+const BASE = (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'http://localhost:8000/api';
 
 /**
  * `localStorage`, for the web preview only.

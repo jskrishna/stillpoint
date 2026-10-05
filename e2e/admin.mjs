@@ -83,6 +83,28 @@ const stillRunning = await user.locator('body').innerText();
 if (/Step \d of 6/.test(stillRunning)) ok('a medium signal flags without stopping the session');
 else bad('a medium signal flags without stopping the session', stillRunning.slice(0, 220));
 
+// And then asks for help, in the session that is still running, so the queue
+// below has a row raised by the button rather than by anything typed.
+await user.getByRole('button', { name: 'Get help' }).click();
+const helpStopped = await user
+  .waitForFunction(
+    () =>
+      document.querySelectorAll('a[href^="tel:"]').length >= 3 &&
+      !/Step \d of 6/.test(document.body.innerText),
+    null,
+    { timeout: 15000 },
+  )
+  .then(
+    () => true,
+    () => false,
+  );
+if (helpStopped) ok('“Get help” stops the session and shows the helplines');
+else
+  bad(
+    '“Get help” stops the session and shows the helplines',
+    (await user.locator('body').innerText()).slice(0, 300),
+  );
+
 for (const route of ['/admin', '/admin/safety']) {
   await user.goto(`${WEB}${route}`, { waitUntil: 'networkidle' });
   await user.waitForTimeout(1500);
@@ -166,6 +188,22 @@ if (!signedIn) {
   else bad('the queue loads', queue.slice(0, 300));
   if (queue.includes('burden')) ok('a reviewer can read the excerpt');
   else bad('a reviewer can read the excerpt', queue.slice(0, 400));
+
+  // The row "Get help" raised. It has no excerpt, because the person typed
+  // nothing and the server puts no sentence in their mouth, so the queue says
+  // so in words: an empty pair of quotation marks would read as a disclosure
+  // that failed to load, on the one screen where that would matter.
+  const askedRow = admin.locator('tbody tr', { hasText: 'Asked for help' }).first();
+  if ((await askedRow.count()) === 0) {
+    bad('a press of “Get help” is in the queue', queue.slice(0, 400));
+  } else {
+    const asked = (await askedRow.innerText()).replace(/\s+/g, ' ');
+    if (/^High\b/.test(asked)) ok('a press of “Get help” is in the queue, as high');
+    else bad('a press of “Get help” is in the queue, as high', asked);
+    if (asked.includes('Nothing was typed') && !asked.includes('“”'))
+      ok('and it says nothing was typed, rather than quoting nothing');
+    else bad('and it says nothing was typed, rather than quoting nothing', asked);
+  }
 
   // The age of a flag, which the queue did not show at all. After its
   // severity it is what a reviewer needs most: a `high` raised four days ago
@@ -328,6 +366,13 @@ if (!signedIn) {
     if (stayed === 'button "Reviewed"')
       ok('reviewing keeps focus on the button, whose name becomes the news');
     else bad('reviewing keeps focus on the button', `focus is ${stayed}`);
+
+    // The count line, before any reload. The row stays in place marked
+    // Reviewed, and the line above it went on saying the old number: "2 open"
+    // over a row that said it had been dealt with.
+    const openNow = Number(/(\d+) open/.exec(await admin.locator('body').innerText())?.[1] ?? '-1');
+    if (openNow === openBefore - 1) ok(`and the count says one fewer is waiting (${openNow} open)`);
+    else bad('and the count says one fewer is waiting', `${openBefore} open → ${openNow}`);
 
     await admin.reload({ waitUntil: 'networkidle' });
     await admin.waitForTimeout(1800);

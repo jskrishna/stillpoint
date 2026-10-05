@@ -33,7 +33,11 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Off. The skeleton's `true` registers `GET` and `PUT
+            // storage/{path}` with no middleware at all, on an origin that
+            // serves JSON and nothing else: outside the `api` group, so past
+            // its security headers too. Nothing here stores a file.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

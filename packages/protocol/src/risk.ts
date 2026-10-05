@@ -84,8 +84,19 @@ export interface RiskAssessment {
  *
  * Adding a script here without adding phrases for it would be the wrong fix:
  * it would make `unreadable` say no about text that still nobody reads.
+ *
+ * `Script_Extensions`, not `Script`, and the reason is the other language.
+ * PCRE2 has matched a script's name against Script_Extensions since 10.40, so
+ * `\p{Latin}` in `App\Domain\PhraseRiskScreen` has always meant this wider
+ * property while `Script=Latin` here meant the narrower one. They differ on a
+ * letter that is Common script and used with Latin, and one of those is the
+ * modifier apostrophe (U+02BC) some keyboards type for an ordinary one: the
+ * browser called "don\u02bct" unreadable and the server called it read.
+ * Measured over every code point, the two classes are identical with this
+ * spelling. The server is the one that counts unreadable turns, so this side
+ * moved.
  */
-const READABLE_SCRIPTS = /[\p{Script=Latin}\p{Script=Devanagari}]+/gu;
+const READABLE_SCRIPTS = /[\p{Script_Extensions=Latin}\p{Script_Extensions=Devanagari}]+/gu;
 
 /**
  * Whether every letter in the utterance is in a script the screen can read.
@@ -422,14 +433,93 @@ function normalise(utterance: string): string {
       // Danda, double danda, and the zero-width joiners that a mobile keyboard
       // leaves inside a conjunct.
       .replace(/[\u0964\u0965\u200c\u200d]/gu, ' ')
-      // `\p{Script=Devanagari}` rather than the code-point range: it says what
-      // it means, it covers the extended block as well, and a hand-written
-      // range that includes combining marks is the thing
+      // The script's own property rather than the code-point range: it says
+      // what it means, it covers the extended block as well, and a
+      // hand-written range that includes combining marks is the thing
       // `no-misleading-character-class` is right to object to.
-      .replace(/[^a-z'\p{Script=Devanagari} ]+/gu, ' ')
+      // `Script_Extensions` for the reason `READABLE_SCRIPTS` gives: it is the
+      // class PCRE2's `\p{Devanagari}` has always been.
+      .replace(/[^a-z'\p{Script_Extensions=Devanagari} ]+/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim()
   );
+}
+
+/**
+ * What a keyboard types where an apostrophe goes.
+ *
+ * The curly pair and the backtick, which the strict reading already folds,
+ * and the ones it does not: the reversed quotation mark, the acute accent, the
+ * modifier apostrophe and the okina, the prime, and the fullwidth apostrophe.
+ */
+const APOSTROPHE_LIKE = /[\u2018\u2019\u201b`\u00b4\u02bc\u02bb\u2032\uff07]/g;
+
+/**
+ * Characters with no width, which sit inside a word and split it in two for a
+ * substring match: the zero-width space and the two joiners, the word joiner,
+ * the byte-order mark and the soft hyphen.
+ */
+// An alternation and not a character class: a joiner between two other
+// characters in a class is what `no-misleading-character-class` objects to,
+// and it would be right about most classes that looked like this one.
+const INVISIBLE = /\u200b|\u200c|\u200d|\u2060|\ufeff|\u00ad/g;
+
+/** A listed phrase as the forgiving reading spells it. */
+const withoutApostrophes = (phrase: string): string => phrase.replace(/'/g, '');
+
+/**
+ * A second, more forgiving reading of the same utterance.
+ *
+ * `normalise()` reads text as it was typed, and four ordinary things a phone
+ * does made a listed phrase unrecognisable to it. Measured over the rules
+ * themselves, before this existed:
+ *
+ * - **An apostrophe left out.** "dont", "cant", "jai". All twelve phrases that
+ *   contain one came back `none` without it, and one of the twelve is `high`:
+ *   a statement the screen stops a session for, typed the way a great many
+ *   people type, did not stop it. An apostrophe typed as some other character
+ *   (U+02BC, an acute accent, a prime) did the same, because everything that
+ *   is not a letter becomes a space and "don t" is not "don't".
+ * - **A joiner inside a conjunct.** `normalise()` turns U+200C and U+200D into
+ *   a space, which is harmless between two words and cuts one word in half.
+ *   All three Devanagari phrases with a conjunct came back `none` with a
+ *   joiner inside it, two of them `high`.
+ * - **A zero-width space or a soft hyphen inside a word**, which is what
+ *   copying out of a web page leaves: 131 of 155 phrases came back `none`.
+ * - **Fullwidth letters**, which an East Asian keyboard types in its wide
+ *   mode: all 135 Latin phrases came back `none` with `unreadable: false`,
+ *   since a fullwidth letter is Latin script. A confident clean answer about
+ *   text nobody had read, which is what French got before the accents were
+ *   folded.
+ *
+ * So this reading drops what the strict one keeps: apostrophes go, invisible
+ * characters go, and the fold is the compatibility one (NFKD), which turns a
+ * fullwidth letter, a ligature or a styled alphabet into the plain letter it
+ * stands for. Lower-casing comes after the fold because a styled capital has
+ * no lower case of its own until it has been folded to a plain one.
+ *
+ * **It is a second reading and not a changed rule, and that is the point.**
+ * `assess()` takes the strict reading first and this one after it, and a match
+ * in either counts, so nothing that matched before can stop matching. Deleting
+ * a joiner is right inside a word and wrong where it is the only thing between
+ * two words, and one rule could be right about only one of those.
+ *
+ * It adds no phrase and no language. `App\Domain\PhraseRiskScreen` has the
+ * same reading in the same order, and the parity fixture covers it.
+ */
+function normaliseForgivingly(utterance: string): string {
+  return utterance
+    .replace(APOSTROPHE_LIKE, "'")
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[\u0300-\u036f]+/gu, '')
+    .normalize('NFC')
+    .replace(INVISIBLE, '')
+    .replace(/'/g, '')
+    .replace(/[\u0964\u0965]/gu, ' ')
+    .replace(/[^a-z\p{Script_Extensions=Devanagari} ]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -445,18 +535,29 @@ export const baselineRiskScreen: RiskScreen = {
     // the evidence is gone. That was the whole bug.
     const unreadable = !readsEverything(utterance);
 
-    const text = normalise(utterance);
-    if (text === '') return { level: 'none', unreadable };
+    // Two readings, strict first. A later match replaces an earlier one only
+    // when it is more severe, so whatever the strict reading found is still
+    // what is reported, and the forgiving one can only add to it.
+    const readings = [
+      { text: normalise(utterance), spelt: (phrase: string) => phrase },
+      { text: normaliseForgivingly(utterance), spelt: withoutApostrophes },
+    ];
 
     let best:
       | { level: Exclude<SafetyLevel, 'none'>; category: SafetyCategory; matched: string }
       | undefined;
 
-    for (const rule of BASELINE_RULES) {
-      for (const phrase of rule.phrases) {
-        if (!text.includes(phrase)) continue;
-        if (best === undefined || SEVERITY[rule.level] > SEVERITY[best.level]) {
-          best = { level: rule.level, category: rule.category, matched: phrase };
+    for (const { text, spelt } of readings) {
+      if (text === '') continue;
+
+      for (const rule of BASELINE_RULES) {
+        for (const phrase of rule.phrases) {
+          if (!text.includes(spelt(phrase))) continue;
+          if (best === undefined || SEVERITY[rule.level] > SEVERITY[best.level]) {
+            // The phrase as it is listed, whichever reading found it: that is
+            // what a reviewer is shown.
+            best = { level: rule.level, category: rule.category, matched: phrase };
+          }
         }
       }
     }

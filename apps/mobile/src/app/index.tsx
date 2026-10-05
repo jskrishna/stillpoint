@@ -29,8 +29,18 @@ export default function Gate() {
         setTo(profile.hasRequiredConsent ? 'app' : 'consent');
       })
       .catch((e: unknown) => {
-        if (e instanceof ApiError && e.isUnauthenticated) api.storeToken(null);
-        setTo('welcome');
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          api.storeToken(null);
+          setTo('welcome');
+          return;
+        }
+        // Not refused, only not answered: no signal, a restart, a rate limit.
+        // The token is still good as far as anybody knows, so this is still a
+        // signed-in person, and sending them to the sign-in form told them
+        // they were not, with no reason given and no way back but to sign in
+        // again. Every screen in the app handles its own failed read and its
+        // own 401, and the server is what gates a session on consent.
+        setTo('app');
       });
   }, []);
 

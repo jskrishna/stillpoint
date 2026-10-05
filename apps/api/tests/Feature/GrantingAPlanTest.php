@@ -255,6 +255,10 @@ final class GrantingAPlanTest extends TestCase
         $this->assertSame('reviewer@example.com', $trail->changed_by_email);
         $this->assertSame('plus', $trail->to_plan->value);
 
+        // Somebody to hand the console to, because the last admin cannot
+        // erase themselves any more than they can be demoted.
+        User::factory()->admin()->create();
+
         app(AccountDeletionService::class)->erase($admin->refresh());
         $this->assertSame(
             AccountDeletionService::ERASED,

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, type ApiJournalEntry } from '../../../lib/api';
 import { describeLoad } from '../../../lib/describe';
+import { inFlight } from '../../../lib/presses';
 import styles from '../app.module.css';
 import { SESSION_KIND_LABEL, duration, relativeDay } from '@stillpoint/protocol';
 
@@ -26,6 +27,17 @@ export default function JournalList() {
   const [loadingMore, setLoadingMore] = useState(false);
   /** The sentence, not a boolean: the reason is the server's. */
   const [failed, setFailed] = useState<string | null>(null);
+  /**
+   * A later page that did not arrive, kept apart from `failed`.
+   *
+   * `failed` means the journal could not be read at all, and the screen draws
+   * it in place of the list. "Load older" used to set it too, so one page
+   * failing replaced every entry already on screen with a sentence, and
+   * nothing cleared it: a press that then succeeded added rows to a list that
+   * was never drawn again. The entries somebody has are still theirs when the
+   * next twenty do not come.
+   */
+  const [moreFailed, setMoreFailed] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   /**
    * What arrived, for a screen reader, and empty until something has.
@@ -59,9 +71,17 @@ export default function JournalList() {
       });
   }, [router]);
 
-  const loadOlder = async () => {
-    if (cursor === null || loadingMore) return;
+  // A closure and not the `loadingMore` state, which a second press in the
+  // same frame still sees as false: both read one cursor and both appended
+  // the same page. `lib/presses.ts` has the measurement.
+  const once = useRef(inFlight()).current;
+
+  const loadOlder = () => once(runLoadOlder);
+
+  const runLoadOlder = async () => {
+    if (cursor === null) return;
     setLoadingMore(true);
+    setMoreFailed(null);
     try {
       const page = await api.journal(PAGE, cursor);
       const shown = (entries?.length ?? 0) + page.items.length;
@@ -86,7 +106,7 @@ export default function JournalList() {
       // describe" was true of this line only because it did not bind one, and
       // a 429 here — the budget every authenticated route shares — was being
       // reported as a bad connection.
-      setFailed(describeLoad('more', e));
+      setMoreFailed(describeLoad('more', e));
     } finally {
       setLoadingMore(false);
     }
@@ -128,7 +148,9 @@ export default function JournalList() {
       </p>
 
       {failed !== null ? (
-        <p className={styles.failure}>{failed}</p>
+        <p className={styles.failure} role="alert">
+          {failed}
+        </p>
       ) : entries === null ? (
         <p className={styles.loading}>Loading…</p>
       ) : entries.length === 0 ? (
@@ -148,6 +170,12 @@ export default function JournalList() {
             <span className={styles.chevron}>›</span>
           </Link>
         ))
+      )}
+
+      {moreFailed === null ? null : (
+        <p className={styles.failure} role="alert">
+          {moreFailed}
+        </p>
       )}
 
       {cursor === null ? null : (

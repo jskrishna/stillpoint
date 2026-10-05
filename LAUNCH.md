@@ -106,10 +106,15 @@ environment, set `MAIL_MAILER`. Then
 `CoachInviteController::forCoach()` should stop returning the invitation token
 to the coach, since the invitee will receive it directly.
 
-**There is no code to write.** Laravel ships `smtp`, `resend`, `postmark` and
-`ses` transports, so this is `MAIL_MAILER`, that provider's credentials, and
-`MAIL_FROM_ADDRESS` on a domain you may send for. Nothing in `apps/api`
-changes.
+**Over SMTP there is no code to write.** It is `MAIL_MAILER=smtp`, the
+provider's host, port and credentials, and `MAIL_FROM_ADDRESS` on a domain you
+may send for, and `docker-compose.yml` passes all of them through. Every
+provider above offers SMTP.
+
+This said the same of the `resend`, `postmark` and `ses` drivers, which was
+wrong: Laravel has the drivers and `apps/api/composer.json` has none of their
+packages, so each of those is a `composer require` first. `deploy/README.md`
+names them.
 
 **What was missing is that nothing said so.** A deployment with
 `MAIL_MAILER=log` passes every check in this repository —
@@ -136,13 +141,28 @@ starts the stack and then runs `deploy/smoke.mjs` against it, which registers
 an account, runs a session, says something that must stop one, and asserts the
 server stopped it and sent helplines.
 
-**Read that in the past tense, and check the date.** That job has not run since
-the account went on a billing hold — every run since finishes in seconds with
-no logs, which is not a result (see "A red CI badge is not a result" in
-`CLAUDE.md`). So "the stack builds and starts" is true as of the last run
-before the hold and unverified for everything after it. Clearing the hold is
-the only thing that changes that, and it is a billing setting rather than
-anything in the repository.
+**That job is running again.** For twenty-six pushes it did not: the account
+was on a billing hold and every run finished in seconds with no logs, which is
+not a result (see "A red CI badge is not a result" in `CLAUDE.md`). The hold
+has cleared, and the run for the commit before this page was last edited
+finished green on all four jobs. `gh run list` says what the latest one did,
+which is a better source than this paragraph.
+
+**And one thing that job had been getting wrong while green.** The API image
+could not load `intl`: its build removed the ICU library the extension links
+against, so every `php` in it started with a warning and the risk screen ran on
+a polyfill the tests never exercise. The job checks exit codes, and that is a
+warning. Fixed in `deploy/api.Dockerfile`, which now fails the build if the
+extension is not there, and `stillpoint:preflight` reports it on a running
+deployment.
+
+**Two things the quickstart told you to do that you should not.** It ended with
+`db:seed --force`, which seeds the demo accounts: an admin whose password is
+printed in this repository, on your production database. The seeder refuses in
+production now and the line is gone. And `APP_PREVIOUS_KEYS`, which is how a
+key rotation reads what the old key wrote, was never passed into the
+containers, so the documented rotation would have run with the old key
+invisible and re-encrypted nothing. `docker-compose.yml` passes it through now.
 
 **What can be checked without it: `pnpm run check:edge`.** It runs the real
 `deploy/nginx.conf` — three lines substituted, all of them naming the
@@ -349,9 +369,10 @@ gone into their layout. The safety-relevant parts are correct — the helplines
 on `/` come from the shared constant and the prices come from `plans.ts`.
 
 **This item used to say they "say true things", and four lines on `/pricing`
-do not.** Read against the code rather than against the designs: `plan` is
-consulted in exactly two places in the API — the session allowance and the
-profile response — and `Plan` controls exactly one thing, full sessions per
+do not.** Read against the code rather than against the designs: `plan`
+decides something in exactly one place in the API, the session allowance (the
+profile, the grant route and the accounts list read it and decide nothing),
+and `Plan` controls exactly one thing, full sessions per
 week, which is 3 on Free and unlimited on Plus and Coach. Of the nine feature
 lines on that page, each with a tick beside it:
 
@@ -399,7 +420,7 @@ every call it makes is cross-origin, and dropping `:8735` from
 while every other desktop check stays green. Measured. That is a command
 rather than a claim about CI on purpose: the sentence used to say "on every CI
 run", which is a thing a reader cannot check from here and which was false for
-twenty-seven consecutive pushes while the account's Actions billing was on
+twenty-six consecutive pushes while the account's Actions billing was on
 hold — the runs reported failure in two seconds having never started. There is no installer, no signing, no notarisation and
 no auto-update, and it has never run on macOS or Windows. Each of those costs a
 certificate or a server rather than a line of configuration.
@@ -486,11 +507,11 @@ honest about both halves:
 **And a set of things that were described rather than verified, now driven.**
 These are not features; they are claims this repository made about itself that
 nobody had tested, and the reason they are listed here is that each one was
-previously waiting on CI, which has been held:
+previously waiting on CI, which was held at the time:
 
 - **The migrations run up, back down and up again on a real MySQL-family
-  server**, and the whole PHP suite passes against it — 646 of 647, one
-  skipped because the two rows it needs are the ones MySQL's unique index
+  server**, and the whole PHP suite passed against it when that was run: all
+  but one, skipped because the two rows it needs are the ones MySQL's unique index
   refuses, which is the fact that test exists to state. `pnpm run check:mysql`.
   `CLAUDE.md` said apt could not install a MySQL here, and that was simply
   false.

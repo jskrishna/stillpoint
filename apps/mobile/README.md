@@ -22,6 +22,15 @@ reach and a real device cannot: copy `.env.example` to `.env` and point
 API with `--host=0.0.0.0`. The API's `CORS_ALLOWED_ORIGINS` already lists
 Expo's `:8081` and a static export's `:4000` for development.
 
+That variable reaches a **built** app now, which it did not. `src/api.ts` read
+it through an alias, and Expo only inlines the exact expression
+`process.env.EXPO_PUBLIC_API_URL`: measured, an export built with the variable
+set did not contain the address, so every built copy of this app called
+`localhost` whatever it was built for. `expo start` defines the variable at run
+time, so Expo Go worked and hid it. The `build` script also passes `--clear`,
+because Metro caches the file with the address already in it and does not
+notice the address changing.
+
 **On a real phone, the one command is `pnpm run demo --lan`.** It binds all
 three servers to `0.0.0.0`, rebuilds the web app for this machine's address —
 `NEXT_PUBLIC_API_URL` is baked in at build time, so a `.next` left from a
@@ -137,8 +146,8 @@ Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 
 **What the browser can check, it now does: axe runs at every screen that
-check walks, in both palettes** — `grep -c 'await audit(' ../../e2e/mobile.mjs`
-says how many, and it is ten — inside `e2e/mobile.mjs`, because these screens cannot be reached
+check walks, in both palettes** (`grep -c 'await audit(' ../../e2e/mobile.mjs`
+says how many) inside `e2e/mobile.mjs`, because these screens cannot be reached
 by URL and so could not have an audit of their own. It found the two things
 worth knowing about here.
 

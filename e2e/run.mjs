@@ -42,6 +42,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { connect } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -68,19 +69,45 @@ const log = (line) => {
   console.log(`\x1b[2m[e2e]\x1b[0m ${line}`);
 };
 
-/** Runs something to completion, inheriting stdio, and resolves its code. */
+/**
+ * Runs something to completion, inheriting stdio, and resolves its code.
+ *
+ * A command that cannot be started at all is a failed run and not a thrown
+ * one. With no `error` listener a missing binary is an unhandled event: Node
+ * exits there and then, past `shutDown()`, and leaves three servers holding
+ * their ports for the next run to trip over. Measured on macOS, where the
+ * binary that was missing was `xvfb-run`.
+ */
 function run(command, commandArgs, options = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, commandArgs, { stdio: 'inherit', cwd: root, ...options });
+    child.on('error', (e) => {
+      console.error(`[e2e] could not start \`${command}\`: ${e.message}`);
+      resolve(127);
+    });
     child.on('close', (code) => resolve(code ?? 1));
   });
 }
 
-/** Starts something and leaves it running. */
+/**
+ * Starts something and leaves it running, in a process group of its own.
+ *
+ * None of the three servers is the process that holds the port. `php artisan
+ * serve` starts `php -S` workers, eight of them here, and `pnpm exec next
+ * start` starts node; a signal sent to the command reaches the command and
+ * nothing it started. Measured after a run that had printed "stopped the API"
+ * and "stopped the web app": eight PHP workers and the Next server were still
+ * listening on :8000 and :3000, re-parented to pid 1. The next run then either
+ * refuses to start or, before `portsAreFree()` existed, checked the build they
+ * were still serving. A group is what lets `shutDown()` end all of it.
+ */
+const GROUPS = process.platform !== 'win32';
+
 function start(name, command, commandArgs, options = {}) {
   const child = spawn(command, commandArgs, {
     cwd: root,
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: GROUPS,
     ...options,
   });
   const tail = [];
@@ -93,6 +120,24 @@ function start(name, command, commandArgs, options = {}) {
   child.stderr?.on('data', keep);
   child.on('error', keep);
   return { name, child, tail };
+}
+
+/** Whether anything is already listening on a port of this machine. */
+function listening(port) {
+  const tried = (host) =>
+    new Promise((resolve) => {
+      const socket = connect({ port: Number(port), host });
+      const settle = (answer) => {
+        socket.destroy();
+        resolve(answer);
+      };
+      socket.setTimeout(1000, () => settle(false));
+      socket.once('connect', () => settle(true));
+      socket.once('error', () => settle(false));
+    });
+
+  // Both loopbacks: `next start` listens on `::` and PHP's server on 127.0.0.1.
+  return Promise.all([tried('127.0.0.1'), tried('::1')]).then((found) => found.includes(true));
 }
 
 async function answers(url, expected) {
@@ -160,6 +205,39 @@ function lanAddress() {
 
 const lan = flags.has('--lan') ? lanAddress() : null;
 
+/**
+ * Where the mobile app's web export is served. `MOBILE_PORT` moves it.
+ *
+ * 4000 is the default because it always was, and it was the only one of the
+ * three ports with no way to change it: the script wrote the number out, so on
+ * a machine where something else holds 4000 the phone's check could not run
+ * at all. That is not an exotic machine. This was found on one where a local
+ * WordPress tool listens there, and whose `.env` had already had `:4001` added
+ * to `CORS_ALLOWED_ORIGINS` by hand, which is half of the workaround and no
+ * use without the other half.
+ */
+const MOBILE_PORT = process.env.MOBILE_PORT ?? '4000';
+const MOBILE_URL = process.env.MOBILE_URL ?? `http://127.0.0.1:${MOBILE_PORT}`;
+
+/** The desktop app's port, which is its identity. See `apps/desktop/src/server.ts`. */
+const DESKTOP_PORT = process.env.STILLPOINT_PORT ?? '8735';
+
+/**
+ * Every origin a browser in this run calls the API from.
+ *
+ * Built here rather than left to `apps/api/.env`, for the reason `CACHE_STORE`
+ * is set below: a run that depends on what somebody's `.env` happens to list is
+ * a run that passes on one machine and shows another a screen where nothing
+ * loads. The web app, the mobile export, Expo's own dev server and the desktop
+ * shell, under both local spellings, and under this machine's network address
+ * too when `--lan` is given.
+ */
+const origins = [...['localhost', '127.0.0.1'], ...(lan === null ? [] : [lan])]
+  .flatMap((host) =>
+    ['3000', MOBILE_PORT, '8081', DESKTOP_PORT].map((port) => `http://${host}:${port}`),
+  )
+  .join(',');
+
 if (flags.has('--lan') && lan === null) {
   // Loudly, because the alternative is `--lan` quietly behaving like an
   // ordinary run: every server on loopback, the phone refused, and nothing
@@ -195,12 +273,22 @@ const env = {
    *
    * `APP_FRONTEND_URL` is where a password-reset link points, and a link to
    * localhost is one nobody can follow from a phone.
+   *
+   * `EXPO_PUBLIC_API_URL` is the same fact as the first one, for the mobile
+   * export, and it was missing. The banner below prints "the phone app, at
+   * phone width" at this machine's address, and that export was built to call
+   * `localhost:8000`: on a phone that is the phone, and on this machine the
+   * origin it was served from was not in the list above, which named the web
+   * app's port and nothing else. So the fourth address the banner printed
+   * loaded a screen that could reach nothing, from anywhere. The file server
+   * answering 200 is what was measured, and it says the files are there.
    */
+  CORS_ALLOWED_ORIGINS: process.env.CORS_ALLOWED_ORIGINS ?? origins,
   ...(lan === null
     ? {}
     : {
         NEXT_PUBLIC_API_URL: `http://${lan}:8000/api`,
-        CORS_ALLOWED_ORIGINS: `http://${lan}:3000,http://localhost:3000,http://127.0.0.1:3000`,
+        EXPO_PUBLIC_API_URL: `http://${lan}:8000/api`,
         APP_FRONTEND_URL: `http://${lan}:3000`,
       }),
 };
@@ -223,9 +311,16 @@ async function build() {
 
   const mobileBuilt = existsSync(join(root, 'apps/mobile/dist/index.html'));
   const needsMobile = scripts.includes('mobile') || flags.has('--demo');
-  if (needsMobile && (!mobileBuilt || !flags.has('--no-build'))) {
-    log('building the mobile app’s web export');
-    if ((await run('pnpm', ['--filter', '@stillpoint/mobile', 'run', 'build'])) !== 0) return false;
+  // Rebuilt under `--lan` for the web app's reason: the API's address is
+  // inlined into this bundle too.
+  if (needsMobile && (!mobileBuilt || !flags.has('--no-build') || lan !== null)) {
+    log(
+      lan === null
+        ? 'building the mobile app’s web export'
+        : `building the mobile app’s web export for ${lan}`,
+    );
+    if ((await run('pnpm', ['--filter', '@stillpoint/mobile', 'run', 'build'], { env })) !== 0)
+      return false;
   }
 
   // The desktop shell, which is its own build: `tsc` for the main process plus
@@ -280,19 +375,68 @@ const started = [];
 
 function shutDown() {
   for (const { name, child } of started) {
-    if (child.exitCode === null) {
-      child.kill('SIGTERM');
+    try {
+      // The whole group, by its negative id: the command and everything it
+      // started. Sent whether or not the command itself has already exited,
+      // because its workers outlive it.
+      if (GROUPS && child.pid !== undefined) process.kill(-child.pid, 'SIGTERM');
+      else child.kill('SIGTERM');
       log(`stopped ${name}`);
+    } catch {
+      // No such group: it had already gone, which is the state being asked for.
     }
   }
 }
 
-process.on('SIGINT', () => {
-  shutDown();
-  process.exit(130);
-});
+// SIGTERM as well as Ctrl-C. The servers are in groups of their own now, so a
+// signal sent to this process no longer reaches them unless this passes it on.
+for (const [signal, code] of [
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+]) {
+  process.on(signal, () => {
+    shutDown();
+    process.exit(code);
+  });
+}
+
+/**
+ * Refuses to start beside a server that is already there.
+ *
+ * `waitForServers` asks each address whether it answers, and cannot ask
+ * *whose* answer it is. A `next start` left over from an earlier run, or from
+ * `--keep`, answers 200 on :3000 while the one started here dies on
+ * `EADDRINUSE`, and every check then runs against the older build: the stale
+ * build directory this repository keeps being bitten by, with the staleness in
+ * a process instead of a file. So a taken port is a sentence and a stop.
+ */
+async function portsAreFree() {
+  const needed = [
+    ['8000', 'the API', null],
+    ['3000', 'the web app', null],
+    ...(scripts.includes('mobile') || flags.has('--demo')
+      ? [[MOBILE_PORT, 'the mobile export', 'MOBILE_PORT']]
+      : []),
+  ];
+
+  let free = true;
+  for (const [port, name, variable] of needed) {
+    if (!(await listening(port))) continue;
+    free = false;
+    console.error(`[e2e] something is already listening on :${port}, where ${name} goes.`);
+    console.error(
+      variable === null
+        ? '      Stop it first: a run beside it would be checking whatever that is.'
+        : `      Stop it, or move this one: ${variable}=4001 pnpm run e2e`,
+    );
+  }
+
+  return free;
+}
 
 async function main() {
+  if (!(await portsAreFree())) return 1;
+
   if (!flags.has('--no-build')) {
     if (!(await build())) return 1;
     if (!(await seed())) return 1;
@@ -334,7 +478,7 @@ async function main() {
     const mobile = start('the mobile export', 'python3', [
       '-m',
       'http.server',
-      '4000',
+      MOBILE_PORT,
       '--bind',
       lan === null ? '127.0.0.1' : '0.0.0.0',
       '--directory',
@@ -343,7 +487,7 @@ async function main() {
     started.push(mobile);
     servers.push({
       name: 'the mobile export',
-      url: 'http://127.0.0.1:4000/',
+      url: `http://127.0.0.1:${MOBILE_PORT}/`,
       expect: [200],
       process: mobile,
     });
@@ -363,7 +507,7 @@ async function main() {
     console.log(`    the app and the marketing site   http://${host}:3000`);
     console.log(`    the admin console                http://${host}:3000/admin`);
     console.log(`    the coach portal                 http://${host}:3000/coach`);
-    console.log(`    the phone app, at phone width    http://${host}:4000`);
+    console.log(`    the phone app, at phone width    http://${host}:${MOBILE_PORT}`);
     console.log(`    the API                          http://${host}:8000/api`);
     console.log('');
 
@@ -442,10 +586,18 @@ async function main() {
     // The desktop shell is an Electron app and needs a display. It brings its
     // own server on 8735 rather than using the three above, because that port
     // is the app's identity — see `apps/desktop/src/server.ts`.
+    //
+    // Only Linux has a display to be missing. macOS and Windows draw a window
+    // with no `DISPLAY` set at all, so asking for `xvfb-run` there was asking
+    // for a program neither has, on the two platforms a desktop app is for.
+    const headless = process.platform === 'linux' && process.env.DISPLAY === undefined;
+    const script = join(here, `${name}.mjs`);
+    // The mobile check is told where the export is, since that can move now.
+    const scriptEnv = { env: { ...process.env, MOBILE_URL } };
     const code =
-      name === 'desktop' && process.env.DISPLAY === undefined
-        ? await run('xvfb-run', ['-a', 'node', join(here, `${name}.mjs`)])
-        : await run('node', [join(here, `${name}.mjs`)]);
+      name === 'desktop' && headless
+        ? await run('xvfb-run', ['-a', 'node', script], scriptEnv)
+        : await run('node', [script], scriptEnv);
     results.push({ name, code });
   }
 

@@ -18,7 +18,18 @@
 export type SafetyLevel = 'none' | 'low' | 'medium' | 'high';
 
 /** What kind of concern was detected, as the flag queue categorises them. */
-export type SafetyCategory = 'self_harm' | 'harm_to_others' | 'trauma' | 'medical';
+export type SafetyCategory =
+  | 'self_harm'
+  | 'harm_to_others'
+  | 'trauma'
+  | 'medical'
+  /**
+   * The person pressed "Get help". Not something the screen detected, and
+   * deliberately not one of the four above: somebody who does not feel safe
+   * has not said why, and "Self-harm" beside their row would be a guess a
+   * reviewer then reads as a finding.
+   */
+  | 'asked_for_help';
 
 /** Human-readable category names, as the queue prints them. */
 export const SAFETY_CATEGORY_LABEL = {
@@ -26,6 +37,7 @@ export const SAFETY_CATEGORY_LABEL = {
   harm_to_others: 'Harm to others',
   trauma: 'Trauma',
   medical: 'Medical',
+  asked_for_help: 'Asked for help',
 } as const satisfies Readonly<Record<SafetyCategory, string>>;
 
 /** What a caller must do for a given safety level. */

@@ -63,7 +63,10 @@ session driver owns that name.
 ## Encryption
 
 Personal text uses `encrypted` casts — session data, the journal's title, what
-happened, belief, forgiveness, memory and note, and a safety flag's excerpt.
+happened, belief, forgiveness, memory and note, a safety flag's excerpt, and a
+coach's notes about a client. A new one goes in `RotateEncryptionKey::COLUMNS`
+in the same commit, and that command refuses to rotate while a model in
+`app/Models` declares one it does not list.
 Encrypted columns cannot be queried or indexed, which is deliberate: aggregates
 run in PHP over a user's own window rather than with `GROUP BY`. Do not drop the
 encryption to make a query easier.

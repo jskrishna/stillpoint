@@ -12,6 +12,14 @@ enum SafetyCategory: string
     case Trauma = 'trauma';
     case Medical = 'medical';
 
+    /**
+     * The person pressed "Get help". Not something the screen detected, and
+     * deliberately not filed under one of the four above: somebody who does
+     * not feel safe has not said why, and "Self-harm" beside their row would
+     * be a guess a reviewer then reads as a finding.
+     */
+    case AskedForHelp = 'asked_for_help';
+
     public function label(): string
     {
         return match ($this) {
@@ -19,6 +27,7 @@ enum SafetyCategory: string
             self::HarmToOthers => 'Harm to others',
             self::Trauma => 'Trauma',
             self::Medical => 'Medical',
+            self::AskedForHelp => 'Asked for help',
         };
     }
 }

@@ -59,7 +59,7 @@ already done and tested.
 **[`DECISIONS.md`](DECISIONS.md) is the list of what is waiting on somebody
 choosing something** rather than on somebody writing code: the step copy, the
 voice vendor, a mail provider, clinical sign-off for the risk screen, billing,
-and three retention questions. Each is also written down where the code waits
+and two retention questions. Each is also written down where the code waits
 for it; that page exists so the list can be read in one go.
 
 Plans: **Free** (3 full sessions a week, unlimited quick sessions, journal),
@@ -115,8 +115,8 @@ The backend is separate, and has its own README in `apps/api`:
 cd apps/api
 composer install
 cp .env.example .env && php artisan key:generate
-touch database/database.sqlite   # no MySQL in a development container
-php artisan migrate && php artisan db:seed
+touch database/database.sqlite   # .env.example is set up for sqlite
+php artisan migrate && php artisan db:seed   # the four demo accounts
 php artisan serve --port=8000
 ./vendor/bin/phpunit             # the domain and feature tests
 ```
@@ -305,7 +305,7 @@ everything they operate. Light and dark renderings define the same roles.
 An earlier "Dusk to Light" exploration exists in the design artifacts and is not
 current — Warm & Clear is the newest direction and the only one drawn for all
 five surfaces. The one thing carried over is the feeling palette, since nothing
-in Warm & Clear assigns the twelve feelings colours.
+in Warm & Clear assigns the thirteen feelings colours.
 
 ## The conversation seam
 

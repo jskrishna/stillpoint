@@ -39,8 +39,9 @@ jobs:
 
     # The suite runs on sqlite for speed, but the schema is MySQL's to satisfy:
     # column types, index lengths and foreign keys differ. This service is what
-    # actually verifies the migrations against the database we ship on — no
-    # MySQL server is available in the development container.
+    # actually verifies the migrations against the database we ship on.
+    # `pnpm run check:mysql` does the same locally, against whatever
+    # MySQL-family server is there.
     services:
       mysql:
         image: mysql:8.4
@@ -92,8 +93,12 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: root
 
+      # Every one of them. This was `migrate:rollback --step=10`, written when
+      # there were ten, and there are twenty-three: thirteen `down()` methods
+      # had stopped being run here while the step's name went on saying they
+      # were. `migrate:reset` is all of them, however many there are.
       - name: Roll the migrations back, so down() is exercised too
-        run: php artisan migrate:rollback --force --step=10
+        run: php artisan migrate:reset --force
         env:
           DB_CONNECTION: mysql
           DB_HOST: 127.0.0.1
@@ -135,12 +140,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        env:
-          # CI builds the desktop app's main process and bundles the web app
-          # into it; it never launches Electron, and there is no display to
-          # launch it on. Downloading the 280 MB platform binary on every run
-          # would be the slowest step here and buy nothing.
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        # No `ELECTRON_SKIP_BINARY_DOWNLOAD` here any more. It was set to keep
+        # the 280 MB binary out of this job, and nothing reads it: Electron
+        # ships no install script now and fetches its binary the first time it
+        # is required, so an install downloads nothing either way and this job
+        # never requires it.
 
       # The web app consumes the workspace packages through node_modules, so
       # their built output must exist before lint and typecheck run.
@@ -225,8 +229,6 @@ jobs:
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: Install PHP dependencies
         working-directory: apps/api
@@ -240,12 +242,22 @@ jobs:
           # Written into .env rather than exported, so every later step and the
           # server's worker processes read the same database without anyone
           # remembering to pass it along.
-          sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=mysql|' .env
-          sed -i 's|^DB_HOST=.*|DB_HOST=127.0.0.1|' .env
-          sed -i 's|^DB_PORT=.*|DB_PORT=3306|' .env
-          sed -i 's|^DB_DATABASE=.*|DB_DATABASE=stillpoint_e2e|' .env
-          sed -i 's|^DB_USERNAME=.*|DB_USERNAME=root|' .env
-          sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=root|' .env
+          #
+          # Removed and appended rather than edited in place. These were six
+          # `sed` replacements keyed on each line already being there, and
+          # `.env.example` is sqlite now with the MySQL lines commented out,
+          # so five of the six would have matched nothing and left this job
+          # on a database called `laravel` without a word.
+          sed -i -E '/^#? ?DB_(CONNECTION|HOST|PORT|DATABASE|USERNAME|PASSWORD)=/d' .env
+          {
+            echo 'DB_CONNECTION=mysql'
+            echo 'DB_HOST=127.0.0.1'
+            echo 'DB_PORT=3306'
+            echo 'DB_DATABASE=stillpoint_e2e'
+            echo 'DB_USERNAME=root'
+            echo 'DB_PASSWORD=root'
+          } >> .env
+          grep -c '^DB_' .env
           php artisan migrate --force
           php artisan db:seed --force
 
@@ -350,7 +362,7 @@ jobs:
           exit 1
         working-directory: apps/api
 
-      # Six scripts, run whatever any one of them does: a failure in the
+      # Seven scripts, run whatever any one of them does: a failure in the
       # safety stop and a failure in the coach's sharing rule are different
       # news, and stopping at the first would hide the second.
       - name: The user journey, including the safety stop
@@ -364,7 +376,7 @@ jobs:
         if: '!cancelled()'
         run: node e2e/coach.mjs
 
-      - name: WCAG 2.1 AA, every route, both palettes, two widths
+      - name: WCAG 2.2 AA, every route, both palettes, two widths and a reflow pass
         if: '!cancelled()'
         run: node e2e/a11y.mjs
 

@@ -51,8 +51,11 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
+// `fileURLToPath`, not `.pathname`: a pathname is percent-encoded, so a checkout
+// under a directory with a space in its name resolved to a path that is not there.
+const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '');
 const API = `${ROOT}/apps/api`;
 
 const PORT = process.env.EDGE_PORT ?? '8081';

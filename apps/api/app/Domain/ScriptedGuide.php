@@ -26,7 +26,7 @@ final class ScriptedGuide implements Guide
         $step = $version->step($stepId);
 
         // Opening the step: ask the main question, say nothing about an answer.
-        if (trim($utterance) === '') {
+        if (Text::trim($utterance) === '') {
             return new GuideReply($step->prompts->main ?? '', false);
         }
 

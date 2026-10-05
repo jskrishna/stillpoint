@@ -8,7 +8,10 @@
 #   cp deploy/.env.example .env && $EDITOR .env   # APP_KEY is not optional
 #   docker compose up --build
 #   docker compose exec api php artisan migrate --force
-#   docker compose exec api php artisan db:seed --force   # demo accounts
+#
+# No `db:seed` here. That seeds the demo accounts, which includes an admin
+# whose password is printed in this repository. deploy/README.md says how the
+# first admin of a real deployment is made.
 #
 # Then the web app is on http://localhost:3000 and the API on
 # http://localhost:8000.
@@ -66,6 +69,28 @@ services:
       # the log rather than sent. deploy/README.md calls this out: it is the
       # one thing here that is not production-ready.
       MAIL_MAILER: ${MAIL_MAILER:-log}
+      # Passed through, because this list is all the container sees: there is
+      # no `env_file`, and `.dockerignore` keeps `apps/api/.env` out of the
+      # image. Each of these is something deploy/README.md tells an operator
+      # to set, and setting it in `.env` did nothing while it was missing here.
+      #
+      # `APP_PREVIOUS_KEYS` is the one that could cost a journal. Rotation is
+      # "old key here, new key in APP_KEY, run stillpoint:rotate-key, then
+      # drop the old key". Without this line the command never saw the old
+      # key, could read no row, and left every row as it was; dropping the old
+      # key afterwards, as the procedure says to, would have left a database
+      # nothing can decrypt.
+      APP_PREVIOUS_KEYS: ${APP_PREVIOUS_KEYS:-}
+      # Which proxies to believe about the caller's address. Empty trusts
+      # none, which is right while this nginx is the edge. See deploy/README.md.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SCHEME: ${MAIL_SCHEME:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-hello@example.com}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Stillpoint}
 
   # Laravel's scheduler, which until now nothing ran.
   #
@@ -95,6 +120,9 @@ services:
       APP_ENV: production
       APP_DEBUG: 'false'
       APP_KEY: ${APP_KEY:?set APP_KEY in .env — see deploy/README.md}
+      # The same keys as the API, so that whatever this container is asked to
+      # run by hand, `stillpoint:rotate-key` included, reads what the API reads.
+      APP_PREVIOUS_KEYS: ${APP_PREVIOUS_KEYS:-}
       DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: '3306'

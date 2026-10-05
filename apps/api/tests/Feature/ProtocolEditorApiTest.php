@@ -216,6 +216,16 @@ final class ProtocolEditorApiTest extends TestCase
     }
 
     /** Fills every step so the draft is publishable. */
+    public function test_a_turn_limit_sent_as_a_string_is_saved_as_a_number(): void
+    {
+        Sanctum::actingAs(User::factory()->create(['role' => 'admin']));
+
+        // What a form post sends. The rule accepted it and the save threw.
+        $this->patchJson('/api/admin/protocol-versions/draft/steps/notice', ['maxGuideTurns' => '3'])
+            ->assertSuccessful()
+            ->assertJsonPath('steps.0.maxGuideTurns', 3);
+    }
+
     private function fillEveryStep(): void
     {
         $this->postJson('/api/admin/protocol-versions/draft')->assertOk();
@@ -227,5 +237,32 @@ final class ProtocolEditorApiTest extends TestCase
                 'maxGuideTurns' => 3,
             ])->assertOk();
         }
+    }
+
+    /**
+     * An edit reads the draft and writes it under one lock.
+     *
+     * The race this closes needs two connections, which sqlite does not have,
+     * so what is asserted is the structure, with comments stripped so prose
+     * about the mechanism cannot stand in for it: neither edit route writes a
+     * version it read in a separate step, and the method they call instead
+     * does both inside a transaction.
+     */
+    public function test_an_edit_does_not_write_a_draft_it_read_before_a_publish_could_land(): void
+    {
+        $strip = fn (string $php): string => (string) preg_replace('#/\*.*?\*/|//[^\n]*#s', '', $php);
+
+        $controller = $strip((string) file_get_contents(
+            app_path('Http/Controllers/Api/ProtocolVersionController.php'),
+        ));
+        $this->assertSame(2, substr_count($controller, '->editDraft('));
+        $this->assertStringNotContainsString('->store(', $controller);
+        $this->assertStringNotContainsString('->openDraft();'."\n".'        $saved', $controller);
+
+        $service = $strip((string) file_get_contents(app_path('Services/ProtocolVersionService.php')));
+        $this->assertMatchesRegularExpression(
+            '/function editDraft\(.*?\{\s*return DB::transaction\(.*?openDraft\(\)/s',
+            $service,
+        );
     }
 }

@@ -67,9 +67,7 @@ final readonly class Conversation
         // speech.
         $recorded = Utterance::recordable($utterance);
 
-        $flag = $assessment->level->mustFlag() && $assessment->category !== null
-            ? new SafetyFlag($assessment->level, $assessment->category, trim($recorded))
-            : null;
+        $flag = self::flagFor($assessment, $recorded);
 
         // Record the signal first, whatever it was: a Medium flag must survive
         // even when the turn then proceeds normally.
@@ -120,6 +118,32 @@ final readonly class Conversation
             : $reply->say;
 
         return new TurnResult($next, $say, $reply->advance, $assessment, false, $flag);
+    }
+
+    /**
+     * Screens words that cannot be a turn, because the session they were said
+     * into has already ended.
+     *
+     * `takeTurn()` answers an ended session with nothing and reads nothing,
+     * which is right for the reducer and was the last refusal in front of the
+     * screen: the caller got a 409 and the words went unread. An ended session
+     * cannot be stopped again, so there is no session to return here. What is
+     * left is the assessment and the flag, and the caller does the rest.
+     *
+     * @return array{RiskAssessment, ?SafetyFlag}
+     */
+    public function screenOnly(string $utterance): array
+    {
+        $assessment = $this->risk->assess($utterance);
+
+        return [$assessment, self::flagFor($assessment, Utterance::recordable($utterance))];
+    }
+
+    private static function flagFor(RiskAssessment $assessment, string $recorded): ?SafetyFlag
+    {
+        return $assessment->level->mustFlag() && $assessment->category !== null
+            ? new SafetyFlag($assessment->level, $assessment->category, Text::trim($recorded))
+            : null;
     }
 
     /** The guide's opening line for the step a session is on. */

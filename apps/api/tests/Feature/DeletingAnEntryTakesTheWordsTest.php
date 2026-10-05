@@ -155,4 +155,29 @@ final class DeletingAnEntryTakesTheWordsTest extends TestCase
             SafetyFlag::query()->where('user_id', $user->id)->firstOrFail()->excerpt,
         );
     }
+
+    /**
+     * "Removed for good" has to survive a stale tab.
+     *
+     * `stop()` journalled whenever no entry existed, without asking whether
+     * this call was what ended the session. So stopping a session whose entry
+     * had been deleted, which is what a second tab left on its summary does
+     * when "Leave" is pressed, wrote a new entry: empty, titled "Session", in
+     * the journal and in the insights counts. Measured.
+     */
+    public function test_stopping_the_session_again_does_not_bring_the_entry_back(): void
+    {
+        $user = User::factory()->create();
+        $session = $this->sessionWithEntry($user);
+        Sanctum::actingAs($user);
+
+        $entry = JournalEntry::query()->where('guided_session_id', $session->id)->sole();
+        $this->deleteJson("/api/journal/{$entry->id}")->assertSuccessful();
+        $this->assertSame(0, JournalEntry::query()->where('user_id', $user->id)->count());
+
+        $this->postJson("/api/sessions/{$session->id}/stop")->assertOk();
+
+        $this->assertSame(0, JournalEntry::query()->where('user_id', $user->id)->count());
+        $this->assertSame(0, $this->getJson('/api/journal')->assertOk()->json('total'));
+    }
 }

@@ -90,7 +90,11 @@ final class NoRateLimitBeforeTheScreenTest extends TestCase
 
         // And the helplines are there, which is the whole point of not
         // refusing it.
-        $this->assertNotSame([], $turn->json('helplines'));
+        //
+        // `safety.helplines`, and counted. This read `json('helplines')`, a
+        // key the response has never had, so it compared null with an empty
+        // array and passed whatever was sent.
+        $this->assertCount(3, $turn->json('safety.helplines'));
     }
 
     /**

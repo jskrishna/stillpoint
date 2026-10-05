@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baselineRiskScreen, noRiskScreen } from './risk.js';
+import { BASELINE_RULES, baselineRiskScreen, noRiskScreen } from './risk.js';
 
 const assess = (text: string) => baselineRiskScreen.assess(text);
 
@@ -332,6 +332,159 @@ describe('French', () => {
       expect(inLatin.level).toBe('none');
       // Not honest, and nothing distinguishes it from an ordinary bad day.
       expect(inLatin.unreadable).toBe(false);
+    }
+  });
+});
+
+describe('the same phrase, the way a phone types it', () => {
+  /*
+   * Every case here is a phrase the screen already lists, typed in a way it
+   * did not recognise. Measured before this was fixed, over the rules
+   * themselves rather than over examples picked by hand:
+   *
+   *   - all twelve phrases that contain an apostrophe came back `none` with the
+   *     apostrophe left out, which is how a great many people type on a phone
+   *     ("dont", "cant", "jai"). One of the twelve is `high`, so a statement
+   *     the screen stops a session for did not stop it;
+   *   - all three Devanagari phrases with a conjunct in them came back `none`
+   *     with a joiner inside the conjunct, two of them `high`. The normaliser
+   *     turned a joiner into a space, which is right between two words and
+   *     splits one word in half;
+   *   - 131 of 155 came back `none` with a zero-width space or a soft hyphen
+   *     inside a word, which is what copying text out of a web page leaves;
+   *   - and all 135 Latin phrases came back `none` in fullwidth letters, with
+   *     `unreadable: false`, because a fullwidth letter is Latin script.
+   *
+   * None of this adds a phrase or a language. It is one more reading of the
+   * same text against the same list, and a match in either reading counts, so
+   * nothing that matched before can stop matching.
+   */
+  const rank = { none: 0, low: 1, medium: 2, high: 3 } as const;
+  const listed = BASELINE_RULES.flatMap((rule) =>
+    rule.phrases.map((phrase) => ({ phrase, level: rule.level })),
+  );
+
+  /** Asserts a respelling of every phrase it applies to is graded no lower. */
+  const gradedNoLower = (respell: (phrase: string) => string, atLeast: number) => {
+    const changed = listed.filter(({ phrase }) => respell(phrase) !== phrase);
+    // A respelling that applies to nothing would pass in silence.
+    expect(changed.length).toBeGreaterThanOrEqual(atLeast);
+
+    const missed = changed.filter(
+      ({ phrase, level }) => rank[assess(respell(phrase)).level] < rank[level],
+    );
+    expect(missed.map(({ phrase }) => phrase)).toEqual([]);
+  };
+
+  it('reads a phrase with its apostrophe left out', () => {
+    gradedNoLower((phrase) => phrase.replaceAll("'", ''), 12);
+  });
+
+  it('stops for the one of those that is a statement of intent', () => {
+    const high = listed.filter(({ phrase, level }) => level === 'high' && phrase.includes("'"));
+    expect(high.length).toBeGreaterThan(0);
+    for (const { phrase } of high) {
+      const typed = `honestly i ${phrase.replaceAll("'", '')} any more`;
+      expect(assess(typed).level, typed).toBe('high');
+      // What a reviewer is shown is the phrase as it is listed.
+      expect(assess(typed).matched).toBe(phrase);
+    }
+  });
+
+  it.each([
+    ['a modifier apostrophe', '\u02bc'],
+    ['an acute accent', '\u00b4'],
+    ['a prime', '\u2032'],
+    ['a fullwidth apostrophe', '\uff07'],
+    ['a reversed quotation mark', '\u201b'],
+    ['an okina', '\u02bb'],
+  ])('reads %s as an apostrophe', (_name, character) => {
+    gradedNoLower((phrase) => phrase.replaceAll("'", character), 12);
+  });
+
+  it.each([
+    ['a zero-width joiner', '\u200d'],
+    ['a zero-width non-joiner', '\u200c'],
+  ])('reads a conjunct with %s inside it', (_name, joiner) => {
+    gradedNoLower((phrase) => phrase.replaceAll('\u094d', `\u094d${joiner}`), 3);
+  });
+
+  it('still reads a joiner that stands where a space should be', () => {
+    // The other half, and the reason there are two readings rather than one
+    // changed rule: deleting a joiner is right inside a word and would join
+    // two words that had only a joiner between them. Those matched before.
+    gradedNoLower((phrase) => phrase.replaceAll(' ', '\u200c'), 140);
+    gradedNoLower((phrase) => phrase.replaceAll(' ', '\u200b'), 140);
+  });
+
+  it.each([
+    ['a zero-width space', '\u200b'],
+    ['a soft hyphen', '\u00ad'],
+    ['a word joiner', '\u2060'],
+    ['a byte-order mark', '\ufeff'],
+  ])('reads a word with %s inside it', (_name, invisible) => {
+    gradedNoLower((phrase) => `${phrase.slice(0, 2)}${invisible}${phrase.slice(2)}`, 155);
+  });
+
+  it('reads fullwidth letters, which an East Asian keyboard types', () => {
+    const fullwidth = (phrase: string) =>
+      [...phrase]
+        .map((c) => (/[a-z]/.test(c) ? String.fromCodePoint(c.charCodeAt(0) + 0xfee0) : c))
+        .join('');
+    gradedNoLower(fullwidth, 135);
+
+    // And it no longer answers "nothing found" about text it had not read.
+    expect(assess(fullwidth('i want to die'))).toMatchObject({ level: 'high', unreadable: false });
+  });
+
+  it('reads a ligature and a styled alphabet', () => {
+    gradedNoLower((phrase) => phrase.replaceAll('fi', '\ufb01').replaceAll('fl', '\ufb02'), 1);
+
+    // Mathematical bold, which is what "bold text" generators produce. The
+    // letters are not Latin script, so the screen still says it could not read
+    // all of it, and it stops on what it could.
+    const bold = [...'i want to die']
+      .map((c) => (/[a-z]/.test(c) ? String.fromCodePoint(0x1d41a + c.charCodeAt(0) - 97) : c))
+      .join('');
+    expect(assess(bold)).toMatchObject({ level: 'high', unreadable: true });
+  });
+
+  it('changes nothing about a phrase typed as it is listed', () => {
+    // The strict reading runs first and is not altered, so the grade and the
+    // phrase a reviewer is shown are what they were.
+    for (const { phrase, level } of listed) {
+      expect(rank[assess(phrase).level], phrase).toBeGreaterThanOrEqual(rank[level]);
+    }
+    expect(assess('I want to kill myself').matched).toBe('kill myself');
+  });
+
+  it('leaves an ordinary bad day alone, apostrophes and all', () => {
+    for (const said of [
+      "I can't believe my manager said that in front of everyone",
+      'i cant believe my manager said that in front of everyone',
+      "It's been a long week and I'm tired of the meetings",
+      'its been a long week and im tired of the meetings',
+      "we'll be here until six, she'll call when it's done",
+      'Ｍｙ ｍａｎａｇｅｒ ｗａｓ ｒｕｄｅ ｔｏｄａｙ',
+      'my man\u00adager was rude to\u200bday',
+    ]) {
+      expect(assess(said).level, said).toBe('none');
+    }
+  });
+
+  it('agrees with the server about which letters it can read', () => {
+    // PCRE2 has matched a script name against Script_Extensions since 10.40,
+    // and JavaScript's `Script=` is the narrower property. So the two
+    // languages disagreed about a letter that is Common script and used with
+    // Latin: the modifier apostrophe, which some keyboards type for an
+    // ordinary one. The browser said it could not read "don\u02bct" and the
+    // server said it could, and the server is the one that counts those turns.
+    for (const said of [
+      'I don\u02bct know',
+      'c\u02c7est',
+      '\u092e\u0948\u0902 \u0920\u0940\u0915',
+    ]) {
+      expect(assess(said).unreadable, said).toBe(false);
     }
   });
 });

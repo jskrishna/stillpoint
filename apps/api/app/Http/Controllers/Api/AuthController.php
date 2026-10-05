@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Plan;
+use App\Exceptions\LastAdminCannotLeave;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AccountDeletionService;
@@ -253,7 +254,14 @@ final class AuthController extends Controller
             ]);
         }
 
-        $removed = $deletions->erase($user);
+        try {
+            $removed = $deletions->erase($user);
+        } catch (LastAdminCannotLeave $e) {
+            // Refused in words, after the password and the typed confirmation
+            // have both been checked, so this tells nobody anything about an
+            // account that is not theirs.
+            return response()->json(['message' => $e->getMessage()], Response::HTTP_CONFLICT);
+        }
 
         // The session goes with it, for the same reason logout drops one.
         Auth::guard('web')->logout();

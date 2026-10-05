@@ -28,6 +28,22 @@ final class ProtocolVersionService
      *
      * A session is run against the version it was pinned to, so publishing
      * never changes the questions under someone already part-way through.
+     *
+     * **Never a draft.** The lookup is by number, and a number alone does not
+     * say whether anybody published it: a session started before the first
+     * publish is pinned to the baseline's "1.0", and the first draft is stored
+     * as the row (1, 0, draft). Without the status filter that unpublished
+     * draft was the session's version, so its copy was asked of people and an
+     * edit in the editor changed the question a running session got next,
+     * the pause's wording included. A draft is nobody's version until a
+     * person publishes it, which is the whole point of having one.
+     *
+     * What this leaves, said plainly: once that first draft *is* published it
+     * is "1.0" too, so a session begun on the baseline before it picks the
+     * published copy up from then on. That happens once in a deployment's
+     * life, to sessions the baseline was asking nothing at three of six
+     * steps, and separating the two labels is a change to version numbering
+     * rather than to this lookup.
      */
     public function forSession(GuidedSession $session): ProtocolVersion
     {
@@ -37,7 +53,11 @@ final class ProtocolVersionService
         }
 
         [$major, $minor] = array_pad(array_map('intval', explode('.', $label)), 2, 0);
-        $row = ProtocolVersionModel::query()->where('major', $major)->where('minor', $minor)->first();
+        $row = ProtocolVersionModel::query()
+            ->where('major', $major)
+            ->where('minor', $minor)
+            ->where('status', '!=', 'draft')
+            ->first();
 
         return $row === null ? ProtocolVersion::baseline() : self::toDomain($row);
     }
@@ -97,6 +117,29 @@ final class ProtocolVersionService
 
             return $this->store($draft);
         });
+    }
+
+    /**
+     * Opens the draft, applies one edit and writes it, in one transaction.
+     *
+     * The two edit routes used to call `openDraft()` and then `store()` as
+     * separate steps. `openDraft()` commits and lets its lock go, so a publish
+     * could land between them: the edit had read a draft, the publish made
+     * that row live, and the edit's write then set the same row back to
+     * `draft`. The version that had just gone live was unpublished again and
+     * the one before it was already archived, so nothing was live at all and
+     * every session started on the baseline, which asks nothing at three of
+     * six steps. The editor autosaves on a timer, so an autosave and a press
+     * of Publish in flight together is an ordinary afternoon.
+     *
+     * Inside one transaction the lock `openDraft()` takes is held until the
+     * write is done, and it is the lock `publishDraft()` waits on.
+     *
+     * @param  \Closure(ProtocolVersion): ProtocolVersion  $edit
+     */
+    public function editDraft(\Closure $edit): ProtocolVersion
+    {
+        return DB::transaction(fn (): ProtocolVersion => $this->store($edit($this->openDraft())));
     }
 
     /** Writes a version, inserting or updating the row for its number. */

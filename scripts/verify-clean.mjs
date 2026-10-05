@@ -50,10 +50,22 @@ const log = (line) => {
   console.log(`\x1b[2m[verify]\x1b[0m ${line}`);
 };
 
-/** Runs something to completion, inheriting stdio, and resolves its code. */
+/**
+ * Runs something to completion, inheriting stdio, and resolves its code.
+ *
+ * A command that cannot be started is a failed step, with a sentence. Without
+ * the `error` listener a missing `pnpm`, `composer` or `git` was an unhandled
+ * event: the script died where it stood, after the delete and before the
+ * reinstall, with a stack trace for an explanation. `e2e/run.mjs` had the same
+ * gap and it was found the same way, by a machine that lacked one binary.
+ */
 function run(command, args, options = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { stdio: 'inherit', cwd: root, ...options });
+    child.on('error', (e) => {
+      console.error(`[verify] could not start \`${command}\`: ${e.message}`);
+      resolve(127);
+    });
     child.on('close', (code) => resolve(code ?? 1));
   });
 }

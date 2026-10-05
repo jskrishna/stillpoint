@@ -10,11 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.stillpoint.mobile",
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Stillpoint listens while you talk through what happened, so you can speak instead of type. Nothing is recorded.",
-        "NSSpeechRecognitionUsageDescription": "Stillpoint turns what you say into text so the guide can follow along."
-      }
+      "bundleIdentifier": "app.stillpoint.mobile"
     },
     "android": {
       "package": "app.stillpoint.mobile",
@@ -23,7 +19,7 @@
         "backgroundColor": "#FBF4EC",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": []
     },
     "web": {
       "output": "static",

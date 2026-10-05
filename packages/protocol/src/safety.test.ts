@@ -74,6 +74,9 @@ describe('the flag queue', () => {
       harm_to_others: 'Harm to others',
       trauma: 'Trauma',
       medical: 'Medical',
+      // Not a thing the screen detects: the person pressed "Get help". Its
+      // own category so the row does not guess at why.
+      asked_for_help: 'Asked for help',
     });
   });
 

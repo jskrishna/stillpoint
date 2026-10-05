@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ApiError,
   api,
@@ -10,6 +10,7 @@ import {
   type Profile,
 } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { inFlight } from '../../../lib/presses';
 import { useStaleGuard } from '../../../lib/stale';
 import styles from '../admin.module.css';
 import { LOCALE, PLAN_IDS, PLAN_LABEL, isPlanId } from '@stillpoint/protocol';
@@ -77,6 +78,24 @@ export default function Accounts() {
   const [trailProblem, setTrailProblem] = useState<string | null>(null);
   const [plans, setPlans] = useState<readonly ApiPlanChange[]>([]);
   const [plansProblem, setPlansProblem] = useState<string | null>(null);
+  /**
+   * Where each trail goes on from, and how long it is.
+   *
+   * Both reads asked for twenty rows and kept the rows: the cursor and the
+   * total the server sent with them were dropped. So under "Every change is
+   * recorded here" the screen showed the twenty most recent and no way to the
+   * rest, and the twenty-first most recent grant of Admin, which is a grant
+   * of the safety queue, could not be seen from anywhere. A subset presented
+   * as the whole, on the record of who was given what.
+   */
+  const [trailMore, setTrailMore] = useState<{ cursor: string | null; total: number }>({
+    cursor: null,
+    total: 0,
+  });
+  const [plansMore, setPlansMore] = useState<{ cursor: string | null; total: number }>({
+    cursor: null,
+    total: 0,
+  });
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -132,6 +151,7 @@ export default function Accounts() {
       .roleChanges(20)
       .then((page) => {
         setTrail(page.items);
+        setTrailMore({ cursor: page.nextCursor, total: page.total });
         setTrailProblem(null);
       })
       .catch(() => {
@@ -152,6 +172,7 @@ export default function Accounts() {
       .planChanges(20)
       .then((page) => {
         setPlans(page.items);
+        setPlansMore({ cursor: page.nextCursor, total: page.total });
         setPlansProblem(null);
       })
       .catch(() => {
@@ -201,6 +222,39 @@ export default function Accounts() {
       setSaving(null);
     }
   };
+
+  /*
+   * The next twenty of a trail. One press at a time: a second would read the
+   * same cursor and append the same rows.
+   */
+  const onceMoreTrail = useRef(inFlight()).current;
+  const onceMorePlans = useRef(inFlight()).current;
+
+  const moreTrail = () =>
+    onceMoreTrail(async () => {
+      if (trailMore.cursor === null) return;
+      try {
+        const page = await api.roleChanges(20, trailMore.cursor);
+        setTrail((current) => [...current, ...page.items]);
+        setTrailMore({ cursor: page.nextCursor, total: page.total });
+        setTrailProblem(null);
+      } catch {
+        setTrailProblem('Could not read more of the role trail. Reload to see it.');
+      }
+    });
+
+  const morePlans = () =>
+    onceMorePlans(async () => {
+      if (plansMore.cursor === null) return;
+      try {
+        const page = await api.planChanges(20, plansMore.cursor);
+        setPlans((current) => [...current, ...page.items]);
+        setPlansMore({ cursor: page.nextCursor, total: page.total });
+        setPlansProblem(null);
+      } catch {
+        setPlansProblem('Could not read more of the plan trail. Reload to see it.');
+      }
+    });
 
   const loadMore = async () => {
     // `loadingMore` as well as the cursor: this had only the cursor check, so
@@ -438,6 +492,17 @@ export default function Accounts() {
           </table>
         </TableScroll>
       )}
+      {trailMore.cursor === null ? null : (
+        <button
+          type="button"
+          className={`${styles.button} ${styles.secondary}`}
+          onClick={() => {
+            void moreTrail();
+          }}
+        >
+          {`Load more (${String(trail.length)} of ${String(trailMore.total)})`}
+        </button>
+      )}
 
       <span className={styles.label} style={{ marginTop: 24 }}>
         PLAN CHANGES
@@ -485,6 +550,17 @@ export default function Accounts() {
             </tbody>
           </table>
         </TableScroll>
+      )}
+      {plansMore.cursor === null ? null : (
+        <button
+          type="button"
+          className={`${styles.button} ${styles.secondary}`}
+          onClick={() => {
+            void morePlans();
+          }}
+        >
+          {`Load more (${String(plans.length)} of ${String(plansMore.total)})`}
+        </button>
       )}
     </>
   );

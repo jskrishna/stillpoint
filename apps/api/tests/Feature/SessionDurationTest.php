@@ -158,4 +158,59 @@ final class SessionDurationTest extends TestCase
 
         $this->assertSame(1, $row->activeMinutes());
     }
+
+    /**
+     * A session carried on weeks later does not lock its owner out.
+     *
+     * `journal_entries.duration_minutes` is an unsigned small integer, which
+     * holds 65,535: forty-five and a half days. `activeMinutes()` is start to
+     * last turn with no ceiling, and the home screen's primary button is
+     * "Carry on where you left off" with no age limit on what it carries on.
+     * So one answer, a gap of seven weeks and one more answer made a number
+     * the column cannot hold. sqlite stores it without complaint, which is
+     * why nothing here saw it. MySQL in strict mode refuses the row, and the
+     * refusal is inside the transaction that ends the session: finishing it,
+     * stopping it and starting any other session, quick ones included, all
+     * journal that session first, so all three answered 500 from then on.
+     *
+     * The stored value is capped at what the column holds. That is the fix
+     * for the lock-out and nothing more: what a session carried on after
+     * seven weeks should be said to have lasted is the threshold question
+     * `activeMinutes()` already says is a product decision.
+     */
+    public function test_a_session_resumed_weeks_later_still_fits_its_column(): void
+    {
+        $this->consentedUser();
+
+        $id = $this->postJson('/api/sessions')->json('id');
+        $this->answer($id, 'notice', 'My manager dismissed my work in front of the team');
+
+        $row = GuidedSession::query()->findOrFail($id);
+        $row->started_at = now()->subDays(50);
+        $row->last_turn_at = now();
+        $row->saveQuietly();
+
+        // Not vacuous: this session really is longer than the column.
+        $this->assertGreaterThan(65535, $row->activeMinutes());
+
+        // Starting another one ends this one and journals it, which is the
+        // request that answered 500.
+        $this->postJson('/api/sessions', ['kind' => 'quick'])->assertCreated();
+
+        $entry = JournalEntry::query()->where('guided_session_id', $id)->sole();
+        $this->assertSame(JournalEntry::MAX_DURATION_MINUTES, $entry->duration_minutes);
+    }
+
+    public function test_the_cap_is_the_columns_own_ceiling(): void
+    {
+        // The other half: a cap that drifted from the column would either
+        // overflow again or truncate for no reason. Read from the migration,
+        // because sqlite will not say what a column can hold.
+        $migration = (string) file_get_contents(
+            database_path('migrations/2026_10_03_000003_create_journal_entries_table.php'),
+        );
+
+        $this->assertStringContainsString("unsignedSmallInteger('duration_minutes')", $migration);
+        $this->assertSame(65535, JournalEntry::MAX_DURATION_MINUTES);
+    }
 }

@@ -29,9 +29,24 @@ FROM php:8.3-fpm-alpine AS runtime
 # `pdo_mysql` for the database, `bcmath` for Laravel's arithmetic helpers,
 # `opcache` because an interpreter re-parsing the framework on every request is
 # the single biggest thing between this and a usable response time.
-RUN apk add --no-cache icu-dev oniguruma-dev \
+#
+# `intl` is the one that matters most and the one this image did not have.
+# The risk screen folds accents and fullwidth letters with `Normalizer`, which
+# is `intl`. It was compiled here against `icu-dev` and then `apk del icu-dev`
+# took `icu-libs` away with it, so the extension could not load: every `php`
+# in the built image started with "Unable to load dynamic library 'intl'" and
+# the screen ran on Symfony's polyfill instead, an implementation the test
+# suite never exercises, in the one place it runs for real. The build stayed
+# green because it checks exit codes and that is a warning.
+#
+# So the runtime library is installed by name and stays; only the headers are
+# in the group that is removed. `oniguruma-dev` was here for `mbstring`, which
+# the base image already has.
+RUN apk add --no-cache icu-libs \
+    && apk add --no-cache --virtual .build-deps icu-dev \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql bcmath intl opcache \
-    && apk del icu-dev oniguruma-dev
+    && apk del .build-deps \
+    && php -r 'extension_loaded("intl") || exit(1);'
 
 COPY deploy/php.ini /usr/local/etc/php/conf.d/stillpoint.ini
 

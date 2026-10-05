@@ -8,6 +8,7 @@ import {
   calmerJournalLabel,
   coachSharingFromStored,
   duration,
+  feeling,
   mayShareEntry,
   relativeDay,
   type CoachSharing,
@@ -162,7 +163,13 @@ export default function Entry() {
     { label: 'What happened', value: entry.whatHappened },
     {
       label: 'What you felt',
-      value: entry.feelings.length === 0 ? null : entry.feelings.join(', '),
+      // Their labels, not their ids. This joined the ids as they are stored,
+      // so the entry read "angry, ashamed" where the session's own summary,
+      // the journal list and the web all read "Angry, Ashamed".
+      value:
+        entry.feelings.length === 0
+          ? null
+          : entry.feelings.map((id) => feeling(id)?.label ?? id).join(', '),
     },
     {
       label: 'What it reminded you of',

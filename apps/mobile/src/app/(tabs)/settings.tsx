@@ -10,6 +10,7 @@ import {
   TALK_MODES,
   TALK_MODE_LABEL,
   PLAN_LABEL,
+  DEFAULT_COUNTRY,
   helplinesFor,
   isPlanId,
   relativeDay,
@@ -245,7 +246,37 @@ export default function Settings() {
     );
   };
 
-  if (profile === null) return <Waiting what="Loading your settings…" />;
+  if (profile === null) {
+    // Still waiting, or the read failed. This returned the spinner for both,
+    // ahead of the only place the failure is drawn, so with no signal the
+    // screen span for ever and said nothing. It is also the screen somebody
+    // opens to find a crisis number outside a session, so the numbers do not
+    // wait on the account: the country did not arrive, and these are the
+    // default market's, which is the consent screen's fallback too.
+    if (problem === null) return <Waiting what="Loading your settings…" />;
+
+    return (
+      <ScrollView
+        style={s.screen}
+        contentContainerStyle={{
+          padding: SPACE.xl,
+          paddingTop: insets.top + SPACE.xl,
+          paddingBottom: SPACE['3xl'],
+          gap: SPACE.xl,
+        }}
+      >
+        <Text style={s.title}>Settings</Text>
+        <Text style={s.error} accessibilityRole="alert">
+          {problem}
+        </Text>
+        <Group label="If you need someone now">
+          {helplinesFor(DEFAULT_COUNTRY).map((h) => (
+            <HelplineButton key={h.number} helpline={h} />
+          ))}
+        </Group>
+      </ScrollView>
+    );
+  }
 
   const helplines = helplinesFor(profile.country);
 
@@ -261,7 +292,11 @@ export default function Settings() {
     >
       <Text style={s.title}>Settings</Text>
 
-      {problem === null ? null : <Text style={s.error}>{problem}</Text>}
+      {problem === null ? null : (
+        <Text style={s.error} accessibilityRole="alert">
+          {problem}
+        </Text>
+      )}
 
       <Card>
         <Text style={s.subheading}>{profile.name}</Text>
@@ -290,14 +325,11 @@ export default function Settings() {
             }}
           />
         ))}
-        <Choice
-          label="No voice"
-          detail="Read the steps instead"
-          on={profile.guideVoice === 'off'}
-          onPress={() => {
-            void change({ guideVoice: 'off' });
-          }}
-        />
+        {/*
+          There was a third choice here, "No voice", which sent a value the
+          server has never accepted and so could not be selected. Silence is
+          the talk mode below: "Type instead", as on the web.
+        */}
       </Group>
 
       <Group label="How you talk to it">

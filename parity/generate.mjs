@@ -24,6 +24,7 @@ import { format, resolveConfig } from 'prettier';
 // deliberately not a workspace package, because the fixture belongs to neither
 // side. Run `pnpm run build:packages` first, which `parity:generate` does.
 import {
+  BASELINE_RULES,
   baselineRiskScreen,
   answerKindOf,
   apply,
@@ -49,6 +50,30 @@ import {
   RECORDED_UTTERANCE_LIMIT,
   recordable,
 } from '../packages/protocol/dist/index.js';
+
+/**
+ * Cases built from the rules rather than typed out, so they are whatever the
+ * screen lists today: the first `high` Devanagari phrase with a conjunct in
+ * it, with each joiner put inside the conjunct, and one plain sentence in
+ * fullwidth letters and in mathematical bold.
+ */
+const conjunct = BASELINE_RULES.filter((rule) => rule.level === 'high')
+  .flatMap((rule) => rule.phrases)
+  .find((phrase) => phrase.includes('\u094d'));
+if (conjunct === undefined) throw new Error('no high Devanagari phrase with a conjunct');
+
+const restyled = (text, base) =>
+  [...text]
+    .map((c) => (/[a-z]/.test(c) ? String.fromCodePoint(base + c.charCodeAt(0) - 97) : c))
+    .join('');
+
+const FORGIVING = [
+  [conjunct.replaceAll('\u094d', '\u094d\u200d'), 'a zero-width joiner inside a conjunct'],
+  [conjunct.replaceAll('\u094d', '\u094d\u200c'), 'a zero-width non-joiner inside a conjunct'],
+  [restyled('i want to die', 0xff41), 'fullwidth letters: Latin script, so readable, and now read'],
+  [restyled('my manager was rude today', 0xff41), 'ordinary, in fullwidth letters'],
+  [restyled('i want to die', 0x1d41a), 'mathematical bold: a stop, and still not all readable'],
+];
 
 /** Utterances the screen must agree on, with why a surprising one is there. */
 const UTTERANCES = [
@@ -122,6 +147,24 @@ const UTTERANCES = [
   // the one `unreadable` cannot announce. Pinned so it is a known answer
   // rather than a surprise.
   ['quiero morirme', 'Spanish: not covered, and not reported unreadable'],
+  // The same listed phrases, typed the way a phone types them. Each of these
+  // came back `none` until the screen was given a second, more forgiving
+  // reading, and the two languages build that reading from separate Unicode
+  // libraries (`String.prototype.normalize` and `intl`), which is where they
+  // could come apart. Nothing here is a new phrase.
+  ['honestly i dont want to be here any more', 'the apostrophe left out, and it is a stop'],
+  ['i cant go on', 'the same for hopelessness: medium, as with the apostrophe'],
+  ['je nen peux plus', 'and in French'],
+  ['I don\u02bct want to live', 'a modifier apostrophe (U+02BC), which both must call readable'],
+  ['I don\u00b4t want to live', 'an acute accent where the apostrophe goes'],
+  ['I don\u02bct know what to say', 'ordinary, and readable: U+02BC is used with Latin'],
+  ['i want to d\u200bie', 'a zero-width space inside a word'],
+  ['i want to d\u00adie', 'a soft hyphen inside a word'],
+  ['want\u200bto\u200bdie', 'a zero-width space where the spaces go: the strict reading'],
+  ['mettre \ufb01n a mes jours', 'a ligature for "fi"'],
+  ["it's been a long week and i'm tired of the meetings", 'ordinary, with apostrophes'],
+  ['its been a long week and im tired of the meetings', 'and without them'],
+  ...FORGIVING,
 ];
 
 /** Step answers both implementations must read the same way. */
@@ -177,6 +220,21 @@ const STEP_CASES = [
   ['notice', '😢'.repeat(40)],
   ['notice', `a${'😢'.repeat(40)}`],
   ['notice', `${'x'.repeat(59)}😢`],
+
+  // White space, which the two languages meant differently. PHP's `trim()` and
+  // an unflagged `\s` are ASCII; JavaScript's are every Unicode space. So the
+  // server counted three words with a no-break or ideographic space between
+  // them as one word and did not move the step on, and kept a leading
+  // byte-order mark the browser dropped. `App\Domain\Text` is JavaScript's
+  // class written out, and these pin it, including U+0085, which PCRE's
+  // Unicode `\s` calls a space and JavaScript does not.
+  ['notice', 'three\u00a0short\u00a0words'],
+  ['notice', 'Pourquoi moi\u202f?'],
+  ['notice', 'three\u3000short\u3000words'],
+  ['notice', 'three\u0085short\u0085words'],
+  ['notice', '\u00a0'],
+  ['remember', '\u00a0padded with a no-break space\u3000'],
+  ['inquire', '\ufeffI am alone.\u2028'],
 ];
 
 /**

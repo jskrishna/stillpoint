@@ -20,6 +20,23 @@ final readonly class Helpline
     ) {}
 
     /** Countries this product knows crisis numbers for. */
+    /**
+     * As a response carries it. One place, because the pause and the refusal
+     * of a turn into an ended session both send this list, and two mappings
+     * is two places for one of them to drop a field.
+     *
+     * @return array{name: string, number: string, detail: string, kind: string}
+     */
+    public function forClient(): array
+    {
+        return [
+            'name' => $this->name,
+            'number' => $this->number,
+            'detail' => $this->detail,
+            'kind' => $this->kind,
+        ];
+    }
+
     public const COUNTRIES = ['CA', 'IN'];
 
     /** What a new account is assumed to be in: Canada is the first market. */

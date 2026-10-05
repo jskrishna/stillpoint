@@ -300,4 +300,39 @@ final class AccountDeletionApiTest extends TestCase
 
         return $user->refresh();
     }
+
+    /**
+     * The last admin cannot be demoted, and could erase themselves.
+     *
+     * Measured: the only admin sent `DELETE /me` with their own password and
+     * the typed confirmation, and it answered 200 with zero admins left and an
+     * open flag in a queue nobody could read. The guard was on the role route
+     * alone.
+     */
+    public function test_the_only_admin_cannot_erase_their_own_account(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'password' => 'a-long-enough-password']);
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/me', ['password' => 'a-long-enough-password', 'confirm' => 'DELETE'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', fn (string $m) => str_contains($m, 'only admin'));
+
+        $this->assertSame(1, User::query()->where('role', 'admin')->count());
+    }
+
+    public function test_an_admin_who_is_not_the_last_one_can(): void
+    {
+        // The control. A guard that refused every admin would pass the test
+        // above and take erasure away from people entitled to it.
+        User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin', 'password' => 'a-long-enough-password']);
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/me', ['password' => 'a-long-enough-password', 'confirm' => 'DELETE'])
+            ->assertOk();
+
+        $this->assertSame(1, User::query()->where('role', 'admin')->count());
+        $this->assertNull(User::query()->find($admin->id));
+    }
 }

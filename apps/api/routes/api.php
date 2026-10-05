@@ -67,6 +67,12 @@ Route::middleware('throttle:guessable')->group(function () {
 Route::middleware('auth:sanctum')
     ->post('sessions/{session}/turns', [SessionController::class, 'turn']);
 
+// "Get help", and here for the same reason: the request a rate limit would
+// refuse is somebody asking for help. It ends the session as a safety stop
+// and returns the helplines, with no body to validate and nothing to screen.
+Route::middleware('auth:sanctum')
+    ->post('sessions/{session}/help', [SessionController::class, 'help']);
+
 // Throttled as a whole. These are authenticated routes, so the limit is per
 // account rather than per address — `ThrottleRequests` keys on the user id, so
 // it is shared across every device somebody is signed in on — and it is

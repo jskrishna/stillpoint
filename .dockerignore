@@ -4,6 +4,7 @@
 **/node_modules
 **/dist
 **/.next
+**/.next-standalone
 **/.expo
 apps/desktop/web
 apps/api/vendor

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Models\CoachClient;
 use App\Models\GuidedSession;
 use App\Models\JournalEntry;
 use App\Models\SafetyFlag;
@@ -60,6 +61,7 @@ final class RotateEncryptionKey extends Command
         GuidedSession::class => ['data'],
         JournalEntry::class => ['title', 'what_happened', 'belief', 'forgiveness', 'memory', 'note'],
         SafetyFlag::class => ['excerpt'],
+        CoachClient::class => ['coach_notes'],
     ];
 
     public function handle(): int
@@ -225,8 +227,15 @@ final class RotateEncryptionKey extends Command
     {
         $missing = [];
 
-        foreach (self::COLUMNS as $model => $covered) {
-            /** @var Model $instance */
+        // Every model in `app/Models`, not only the ones the list names. This
+        // walked the list itself, so it could notice a column missing from a
+        // model it knew and never a model it did not: a fourth model with an
+        // encrypted cast would have kept the old key through a rotation, in
+        // silence, which is the failure this method exists to make loud.
+        foreach (glob(app_path('Models/*.php')) ?: [] as $file) {
+            /** @var class-string<Model> $model */
+            $model = 'App\\Models\\'.basename($file, '.php');
+            $covered = self::COLUMNS[$model] ?? [];
             $instance = new $model;
 
             foreach ($instance->getCasts() as $column => $cast) {

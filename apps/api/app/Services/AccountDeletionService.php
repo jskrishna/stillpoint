@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\Role;
+use App\Exceptions\LastAdminCannotLeave;
 use App\Models\CoachInvite;
 use App\Models\PlanChange;
 use App\Models\RoleChange;
@@ -52,6 +54,28 @@ final readonly class AccountDeletionService
     public function erase(User $user): array
     {
         return DB::transaction(function () use ($user): array {
+            // The last admin cannot be demoted, and for the same reason
+            // cannot erase themselves: either way the product is left with
+            // nobody who can administer it or read the safety queue, and
+            // getting one back takes a shell on the database. The role route
+            // had this guard and this route did not, so the one account the
+            // rule protects could remove itself with its own password.
+            //
+            // Counted under the lock the role route takes, on the set of
+            // admins in id order, so a demotion and an erasure arriving
+            // together cannot each see two admins.
+            if (($user->role ?? Role::User) === Role::Admin) {
+                $admins = User::query()
+                    ->where('role', Role::Admin->value)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->pluck('id');
+
+                if ($admins->count() <= 1) {
+                    throw new LastAdminCannotLeave;
+                }
+            }
+
             $removed = [
                 'sessions' => $user->sessions()->count(),
                 'journalEntries' => $user->journalEntries()->count(),

@@ -184,20 +184,32 @@ final class PhraseRiskScreen implements RiskScreen
         // the evidence is gone. That was the whole bug.
         $unreadable = ! self::readsEverything($utterance);
 
-        $text = self::normalise($utterance);
-        if ($text === '') {
-            return RiskAssessment::none($unreadable);
-        }
+        // Two readings, strict first. A later match replaces an earlier one
+        // only when it is more severe, so whatever the strict reading found is
+        // still what is reported, and the forgiving one can only add to it.
+        $readings = [
+            [self::normalise($utterance), false],
+            [self::normaliseForgivingly($utterance), true],
+        ];
 
         $best = null;
 
-        foreach (self::RULES as $rule) {
-            foreach ($rule['phrases'] as $phrase) {
-                if (! str_contains($text, $phrase)) {
-                    continue;
-                }
-                if ($best === null || $rule['level']->rank() > $best['level']->rank()) {
-                    $best = ['level' => $rule['level'], 'category' => $rule['category'], 'matched' => $phrase];
+        foreach ($readings as [$text, $forgiving]) {
+            if ($text === '') {
+                continue;
+            }
+
+            foreach (self::RULES as $rule) {
+                foreach ($rule['phrases'] as $phrase) {
+                    $spelt = $forgiving ? str_replace("'", '', $phrase) : $phrase;
+                    if (! str_contains($text, $spelt)) {
+                        continue;
+                    }
+                    if ($best === null || $rule['level']->rank() > $best['level']->rank()) {
+                        // The phrase as it is listed, whichever reading found
+                        // it: that is what a reviewer is shown.
+                        $best = ['level' => $rule['level'], 'category' => $rule['category'], 'matched' => $phrase];
+                    }
                 }
             }
         }
@@ -226,6 +238,12 @@ final class PhraseRiskScreen implements RiskScreen
      *
      * The port of `readsEverything` in `packages/protocol/src/risk.ts`; the
      * parity fixture covers it.
+     *
+     * `\p{Latin}` here is Script_Extensions, not Script: PCRE2 has matched a
+     * script's name that way since 10.40. So a letter that is Common script
+     * and used with Latin, such as the modifier apostrophe some keyboards
+     * type, counts as readable. The TypeScript side said `Script=` and
+     * disagreed about exactly those letters until it was changed to match.
      */
     private static function readsEverything(string $utterance): bool
     {
@@ -277,6 +295,53 @@ final class PhraseRiskScreen implements RiskScreen
         // `\p{Devanagari}` rather than the code-point range: it says what it
         // means and covers the extended block too.
         $text = preg_replace("/[^a-z'\p{Devanagari} ]+/u", ' ', $text) ?? '';
+        $text = preg_replace('/\s+/u', ' ', $text) ?? '';
+
+        return trim($text);
+    }
+
+    /**
+     * A second, more forgiving reading of the same utterance.
+     *
+     * The port of `normaliseForgivingly` in `packages/protocol/src/risk.ts`,
+     * which has the measurements. In short: `normalise()` reads text as it
+     * was typed, and four ordinary things a phone does made a listed phrase
+     * unrecognisable to it. An apostrophe left out ("dont", "cant", "jai")
+     * sent all twelve phrases that contain one to `none`, one of them `high`.
+     * A joiner inside a Devanagari conjunct, which `normalise()` turns into a
+     * space, cut the word in half. A zero-width space or a soft hyphen inside
+     * a word did the same to 131 of 155. And fullwidth letters matched
+     * nothing while counting as readable, because they are Latin script.
+     *
+     * So this reading drops what the strict one keeps: apostrophes go,
+     * invisible characters go, and the fold is the compatibility one (NFKD).
+     * Lower-casing comes after the fold because a styled capital has no lower
+     * case of its own until it has been folded to a plain one.
+     *
+     * **It is a second reading and not a changed rule.** `assess()` takes the
+     * strict one first and a match in either counts, so nothing that matched
+     * before can stop matching. It adds no phrase and no language, and the
+     * parity fixture covers it.
+     */
+    private static function normaliseForgivingly(string $utterance): string
+    {
+        // What a keyboard types where an apostrophe goes: the curly pair, the
+        // reversed one, the backtick, the acute accent, the modifier
+        // apostrophe and the okina, the prime, and the fullwidth apostrophe.
+        $text = preg_replace('/[\x{2018}\x{2019}\x{201b}`\x{00b4}\x{02bc}\x{02bb}\x{2032}\x{ff07}]/u', "'", $utterance) ?? '';
+
+        $decomposed = Normalizer::normalize($text, Normalizer::FORM_KD);
+        $text = mb_strtolower(is_string($decomposed) ? $decomposed : $text);
+        $text = preg_replace('/[\x{0300}-\x{036f}]+/u', '', $text) ?? '';
+        $recomposed = Normalizer::normalize($text, Normalizer::FORM_C);
+        $text = is_string($recomposed) ? $recomposed : $text;
+
+        // No width, and inside a word: the zero-width space and the two
+        // joiners, the word joiner, the byte-order mark and the soft hyphen.
+        $text = preg_replace('/[\x{200b}\x{200c}\x{200d}\x{2060}\x{feff}\x{00ad}]/u', '', $text) ?? '';
+        $text = str_replace("'", '', $text);
+        $text = preg_replace('/[\x{0964}\x{0965}]/u', ' ', $text) ?? '';
+        $text = preg_replace('/[^a-z\p{Devanagari} ]+/u', ' ', $text) ?? '';
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
         return trim($text);

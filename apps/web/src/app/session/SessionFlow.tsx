@@ -21,6 +21,7 @@ import { FEELING_COLOR } from '@stillpoint/design-tokens';
 import HelplineLink from '../../components/HelplineLink';
 import { ApiError, api, hasToken, type ApiHelpline, type ApiSession } from '../../lib/api';
 import { describe } from '../../lib/describe';
+import { inOrder } from '../../lib/presses';
 import { browserVoiceLoop, type VoiceLoop } from '../../lib/voice';
 import styles from './session.module.css';
 
@@ -70,6 +71,28 @@ export default function SessionFlow() {
    * not.
    */
   const [unsentCrisis, setUnsentCrisis] = useState<readonly ApiHelpline[] | null>(null);
+  /**
+   * Helplines this screen is showing because the person asked, or because the
+   * server sent them beside a refusal.
+   *
+   * Two ways in. **"Get help"** puts the account's own numbers here the moment
+   * it is pressed, before anything is asked of the network, and then asks the
+   * server to end the session as a safety stop; when that answers, the pause
+   * replaces this. The button used to send the sentence "I need help, I do not
+   * feel safe" as an ordinary turn, which the screen grades `none`: the
+   * request was recorded as the step's answer, the guide moved on, and no
+   * number appeared. Measured, and it had been that way since the web app was
+   * first pointed at the server.
+   *
+   * And **a turn the server refused because the session had ended**: it reads
+   * the words before refusing, and a `high` answer comes back as a 409 with
+   * the helplines on it.
+   *
+   * Like `unsentCrisis`, this is an offer and not the stop. Unlike it, a later
+   * answer does not clear it: somebody who asked for help is not un-asked by
+   * carrying on.
+   */
+  const [offered, setOffered] = useState<readonly ApiHelpline[] | null>(null);
   const [exhausted, setExhausted] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState('');
@@ -111,6 +134,57 @@ export default function SessionFlow() {
   // the difference between spending one of three and spending two.
   const resuming = search.get('resume') === '1';
 
+  /**
+   * Starts a session, or carries on the open one.
+   *
+   * Two things about it that were not true before.
+   *
+   * **Carrying on does not start anything.** `?resume=1` used to fall back to
+   * `startSession` when nothing was open, so "Carry on where you left off",
+   * pressed after the session had been finished on another device, quietly
+   * started a new full session at step 1 and spent one of the week's three to
+   * do it. With nothing to carry on, the honest place to be is the home
+   * screen, which asks the server what is open and says so.
+   *
+   * **And once a session is running, the address says so.** The URL stayed
+   * `/session`, and that address means "start one", which ends whatever is
+   * open. So reloading the page part-way through ended the session as
+   * `user_stopped`, journalled it half-finished and charged for another. It is
+   * replaced with the carrying-on address as soon as there is a session to
+   * carry on, and a reload now comes back to the same step.
+   */
+  const begin = useCallback(
+    (asKind: 'quick' | 'full', resume: boolean) => {
+      (resume ? api.currentSession() : api.startSession(asKind))
+        .then((found) => {
+          if (found === null) {
+            router.replace('/app');
+            return;
+          }
+          setSession(found);
+          router.replace('/session?resume=1', { scroll: false });
+        })
+        .catch((e: unknown) => {
+          if (e instanceof ApiError && e.isUnauthenticated) {
+            router.push('/welcome');
+            return;
+          }
+          if (e instanceof ApiError && e.status === 403) {
+            router.push('/welcome/consent');
+            return;
+          }
+          if (e instanceof ApiError && e.status === 402) {
+            // The plan's full-session allowance is spent. A quick session is
+            // always available, so offer that rather than a dead end.
+            setExhausted(e.message);
+            return;
+          }
+          setError(describe(e));
+        });
+    },
+    [router],
+  );
+
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -135,30 +209,9 @@ export default function SessionFlow() {
       });
 
     // Resuming asks for the open session; starting asks for a new one, which
-    // ends whatever was open. Both land in the same place from here.
-    (resuming
-      ? api.currentSession().then((open) => open ?? api.startSession(kind))
-      : api.startSession(kind)
-    )
-      .then(setSession)
-      .catch((e: unknown) => {
-        if (e instanceof ApiError && e.isUnauthenticated) {
-          router.push('/welcome');
-          return;
-        }
-        if (e instanceof ApiError && e.status === 403) {
-          router.push('/welcome/consent');
-          return;
-        }
-        if (e instanceof ApiError && e.status === 402) {
-          // The plan's full-session allowance is spent. A quick session is
-          // always available, so offer that rather than a dead end.
-          setExhausted(e.message);
-          return;
-        }
-        setError(describe(e));
-      });
-  }, [router, kind, resuming]);
+    // ends whatever was open.
+    begin(kind, resuming);
+  }, [router, kind, resuming, begin]);
 
   /**
    * Says the step's question aloud, once per question.
@@ -236,13 +289,24 @@ export default function SessionFlow() {
         setFeelings([]);
       } catch (e: unknown) {
         if (e instanceof ApiError && e.isConflict) {
+          // Refused, and read first: the server screens a turn before it
+          // answers 409, whether the step had moved on or the session had
+          // ended. An ended session cannot be stopped a second time, so for a
+          // `high` answer into one the numbers come back on the refusal.
+          if (e.helplines.length > 0) setOffered(e.helplines);
           // The session ended, or this answer was for a step that has moved
           // on. Either way the server knows where this session is and this
           // screen does not, so take its word for it — and clear the box,
           // because what is in it is not an answer to whatever is asked next.
-          setSession(await api.session(session.id));
-          setAnswer('');
-          setFeelings([]);
+          try {
+            setSession(await api.session(session.id));
+            setAnswer('');
+            setFeelings([]);
+          } catch (again: unknown) {
+            // This read sat in a `catch` with nothing around it, so a failure
+            // here was an unhandled rejection and a screen that said nothing.
+            setError(describe(again));
+          }
         } else {
           setError(describe(e));
           // The server never saw this one. See `unsentCrisis` above for why
@@ -268,16 +332,53 @@ export default function SessionFlow() {
     }
   }, [session, voice]);
 
+  /**
+   * "Get help". The numbers first, from this device, and then the request.
+   *
+   * The order is the rule: a help button that shows a phone number only once
+   * a request has come back is one that shows nothing in a tunnel. So the
+   * account's own helplines go on the screen before the network is asked for
+   * anything, and what the server adds when it answers is the stop itself:
+   * the session ends, a flag reaches the queue, and the pause replaces this
+   * screen. If it does not answer, the numbers are still here and the failure
+   * says so beside them.
+   *
+   * No in-flight guard, deliberately. A second press sends a second request
+   * the server answers the same way, and the one thing a guard could do here
+   * is refuse somebody asking for help.
+   */
+  const getHelp = useCallback(async () => {
+    if (session === null) return;
+    setOffered(helplinesFor(country));
+    setError(null);
+    voice?.guide.stop();
+    try {
+      setSession(await api.askForHelp(session.id));
+    } catch (e: unknown) {
+      setError(describe(e));
+    }
+  }, [session, country, voice]);
+
+  /*
+   * In order, like the phone's. The summary offers three answers side by side,
+   * so a second press is a change of mind rather than a duplicate, and nothing
+   * ordered the two requests: whichever arrived last decided what the journal
+   * says. `lib/presses.ts` has the measurement from the sharper case.
+   */
+  const queueRating = useRef(inOrder()).current;
+
   const rate = useCallback(
-    async (rating: (typeof RATINGS)[number]['value']) => {
-      if (session === null) return;
-      try {
-        setSession(await api.rateSession(session.id, rating));
-      } catch (e: unknown) {
-        setError(describe(e));
-      }
-    },
-    [session],
+    (rating: (typeof RATINGS)[number]['value']) =>
+      queueRating(async () => {
+        if (session === null) return;
+        setError(null);
+        try {
+          setSession(await api.rateSession(session.id, rating));
+        } catch (e: unknown) {
+          setError(describe(e));
+        }
+      }),
+    [session, queueRating],
   );
 
   if (exhausted !== null) {
@@ -286,9 +387,25 @@ export default function SessionFlow() {
         <h1 className={styles.question}>That is this week’s full sessions</h1>
         <p className={styles.missing}>{exhausted}</p>
         <div className={styles.actions}>
-          <Link href="/session?kind=quick" className={`${styles.button} ${styles.primary}`}>
+          {/*
+            A button that starts one, where there was a link to
+            `/session?kind=quick`. From this screen that is the same page with
+            a different query, so nothing was remounted: the effect above had
+            already run, this refusal stayed on screen, and the one way out of
+            "that is this week's full sessions" did nothing when pressed. The
+            check for it loaded the address afresh, which does work, so it
+            never pressed what a person presses.
+          */}
+          <button
+            type="button"
+            className={`${styles.button} ${styles.primary}`}
+            onClick={() => {
+              setExhausted(null);
+              begin('quick', false);
+            }}
+          >
             Start a quick session
-          </Link>
+          </button>
           <Link href="/pricing" className={`${styles.button} ${styles.secondary}`}>
             See the plans
           </Link>
@@ -329,6 +446,8 @@ export default function SessionFlow() {
     ) : (
       <Summary
         session={session}
+        offered={offered}
+        problem={error}
         onRate={(r) => {
           void rate(r);
         }}
@@ -372,12 +491,8 @@ export default function SessionFlow() {
           <CloseIcon />
           Leave
         </button>
-        {/* Asks the server to screen it, exactly like any other answer. */}
-        <button
-          type="button"
-          className={styles.getHelp}
-          onClick={() => void send('I need help, I do not feel safe')}
-        >
+        {/* Not a turn: see `getHelp`. Nothing is recorded as an answer. */}
+        <button type="button" className={styles.getHelp} onClick={() => void getHelp()}>
           Get help
         </button>
       </div>
@@ -455,6 +570,8 @@ export default function SessionFlow() {
           {error}
         </p>
       )}
+
+      <Offered helplines={offered} />
 
       {unsentCrisis === null || unsentCrisis.length === 0 ? null : (
         /*
@@ -563,12 +680,41 @@ function FeelingPicker({
   );
 }
 
+/**
+ * The numbers this screen offers on its own account. See `offered`.
+ *
+ * An alert over the whole block, for the reason the unsent-answer block is
+ * one: the sentence and the numbers have to be announced together. An
+ * unserved country has no numbers and so no block, because a sentence with
+ * nothing under it is the same mistake as a wrong number.
+ */
+function Offered({ helplines }: { helplines: readonly ApiHelpline[] | null }) {
+  if (helplines === null || helplines.length === 0) return null;
+
+  return (
+    <div className={styles.safety} role="alert">
+      <p className={styles.safetyBody}>
+        If you are in danger right now, these do not need the internet.
+      </p>
+      {helplines.map((h) => (
+        <HelplineLink key={h.number} helpline={h} />
+      ))}
+    </div>
+  );
+}
+
 function Summary({
   session,
+  offered,
+  problem,
   onRate,
   onFinish,
 }: {
   session: ApiSession;
+  /** Helplines to keep on screen: this session ended some other way than a stop. */
+  offered: readonly ApiHelpline[] | null;
+  /** A failed rating. It used to be set and never drawn. */
+  problem: string | null;
   onRate: (r: (typeof RATINGS)[number]['value']) => void;
   onFinish: () => void;
 }) {
@@ -608,6 +754,13 @@ function Summary({
       <h1 className={styles.summaryTitle} ref={title} tabIndex={-1}>
         {session.endReason === 'completed' ? 'Well done.' : 'Saved.'}
       </h1>
+
+      {/*
+        Somebody asked for help, or said something the server stops for, into a
+        session that had already ended another way. It cannot become a safety
+        stop, so there is no pause to show; the numbers stay here instead.
+      */}
+      <Offered helplines={offered} />
 
       <div className={styles.rows}>
         {rows.map((row) => (
@@ -660,6 +813,18 @@ function Summary({
           ))}
         </div>
       </div>
+
+      {/*
+        A rating that did not save. `rate` has always set this, and the only
+        place it was drawn is the step screen, which an ended session never
+        renders: press "Yes" with no signal and nothing changed and nothing was
+        said, then "Save and finish" left with the answer lost.
+      */}
+      {problem === null ? null : (
+        <p className={styles.missing} role="alert">
+          {problem}
+        </p>
+      )}
 
       <div className={styles.actions}>
         <button type="button" className={`${styles.button} ${styles.primary}`} onClick={onFinish}>

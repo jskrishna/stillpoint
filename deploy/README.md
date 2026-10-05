@@ -1,14 +1,13 @@
 # Running Stillpoint
 
-Four containers — MySQL, PHP-FPM, nginx, and the Next.js app — defined in
-`docker-compose.yml` at the repository root.
+Five containers, defined in `docker-compose.yml` at the repository root: MySQL,
+PHP-FPM, nginx, Laravel's scheduler, and the Next.js app.
 
 ```bash
 cp deploy/.env.example .env
 $EDITOR .env                  # APP_KEY and the two passwords are not optional
 docker compose up --build
 docker compose exec api php artisan migrate --force
-docker compose exec api php artisan db:seed --force   # the demo accounts
 ```
 
 The web app is then on <http://localhost:3000> and the API on
@@ -17,8 +16,34 @@ The web app is then on <http://localhost:3000> and the API on
 To generate the key before the first run:
 
 ```bash
-docker compose run --rm api php artisan key:generate --show
+echo "base64:$(openssl rand -base64 32)"
 ```
+
+This page used to give `docker compose run --rm api php artisan key:generate
+--show` for that, which cannot run: the compose file refuses to start anything
+while `APP_KEY` is empty, that command included.
+
+**Do not run `db:seed` here.** The quickstart above used to end with it. It
+seeds the demo accounts, and one of them is an admin whose password is printed
+in this repository, so on a real deployment it is an open door to the safety
+queue. It also publishes the draft step copy, which is meant to be a person's
+decision (`LAUNCH.md` item 4), and it makes `stillpoint:preflight` report "an
+admin exists" and "a version is live" about an admin anybody can sign in as.
+The seeder refuses to run when `APP_ENV` is `production`.
+
+The first admin of a real deployment is made from a shell, once, because no
+request can set a role:
+
+```bash
+docker compose exec api php artisan tinker --execute="
+  \$u = App\Models\User::where('email', 'you@your-domain.example')->firstOrFail();
+  \$u->role = App\Domain\Role::Admin;
+  \$u->save();
+"
+```
+
+Register that account through the web app first, with its own password. Every
+later role is granted from `/admin/users`.
 
 ## APP_KEY is the whole journal
 
@@ -66,6 +91,11 @@ front of real people:
 - **TLS terminates somewhere else.** `deploy/nginx.conf` listens on port 80 and
   assumes something in front of it holds the certificate. Bearer tokens over
   plain HTTP are bearer tokens in public.
+- **`CORS_ALLOWED_ORIGINS` has to name every origin a browser calls from**, and
+  the default names the web app's alone. The desktop app is its own origin,
+  `http://127.0.0.1:8735`, fixed on purpose. A desktop build pointed at this
+  deployment cannot sign anybody in until that origin is in the list, and the
+  screen will blame the connection.
 - **And the thing that terminates it has to be named in `TRUSTED_PROXIES`.**
   This one is easy to miss because nothing visibly breaks. The API generates no
   URLs — the reset link and the invitation link both come from
@@ -86,10 +116,17 @@ front of real people:
   configuration nobody can actually reset a password. It is the one thing here
   that is deliberately not finished, and it needs a provider decision.
 
-  There is **no code to write** for it: Laravel ships `smtp`, `resend`,
-  `postmark` and `ses` transports, so choosing one is `MAIL_MAILER` plus that
-  provider's credentials and `MAIL_FROM_ADDRESS` on a domain you may send for.
-  What was missing is that nothing said so — see the command below.
+  For `smtp` there is **no code to write**: it is `MAIL_MAILER=smtp`, the
+  provider's host, port and credentials, and `MAIL_FROM_ADDRESS` on a domain you
+  may send for, all of which `docker-compose.yml` passes through from `.env`.
+  Every transactional provider offers SMTP.
+
+  This used to say the same of `resend`, `postmark` and `ses`, and that was
+  wrong: Laravel has the drivers but not their packages, and
+  `apps/api/composer.json` requires none of them. Each needs a
+  `composer require` first (`resend/resend-php`, `symfony/postmark-mailer` with
+  `symfony/http-client`, or `aws/aws-sdk-php`), which changes `composer.json`
+  and `composer.lock`, and its own key added to the compose file's list.
 
 **`php artisan stillpoint:preflight` says what this deployment cannot do.**
 Run it against the thing you just deployed. Everything it reports leaves the

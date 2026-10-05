@@ -8,8 +8,6 @@ use App\Domain\SafetyLevel;
 use App\Domain\SessionKind;
 use App\Domain\StepId;
 use App\Models\GuidedSession;
-use App\Models\JournalEntry;
-use App\Models\SafetyFlag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -45,14 +43,25 @@ final class EncryptedColumnsAreWideEnoughTest extends TestCase
      */
     private function widenedColumns(): array
     {
-        $file = database_path('migrations/2026_10_03_180000_widen_the_encrypted_text_columns.php');
-        $this->assertFileExists($file);
+        // The two migrations that widen a column for an encrypted cast, each
+        // declaring what it widens. A second one exists because a fourth
+        // encrypted column was added after the first was written.
+        $columns = [];
 
-        /** @var object $migration */
-        $migration = require $file;
+        foreach ([
+            '2026_10_03_180000_widen_the_encrypted_text_columns.php',
+            '2026_10_06_000000_encrypt_the_coachs_notes.php',
+        ] as $name) {
+            $file = database_path('migrations/'.$name);
+            $this->assertFileExists($file);
 
-        /** @var array<string, list<string>> $columns */
-        $columns = (new ReflectionClass($migration))->getConstant('COLUMNS');
+            /** @var object $migration */
+            $migration = require $file;
+
+            /** @var array<string, list<string>> $declared */
+            $declared = (new ReflectionClass($migration))->getConstant('COLUMNS');
+            $columns = array_merge($columns, $declared);
+        }
 
         return $columns;
     }
@@ -64,7 +73,10 @@ final class EncryptedColumnsAreWideEnoughTest extends TestCase
     {
         $found = [];
 
-        foreach ([GuidedSession::class, JournalEntry::class, SafetyFlag::class] as $class) {
+        // Every model, found on disk. This named three, so an encrypted cast
+        // on a fourth was a column nobody had been asked to widen.
+        foreach (glob(app_path('Models/*.php')) ?: [] as $file) {
+            $class = 'App\\Models\\'.basename($file, '.php');
             /** @var Model $model */
             $model = new $class;
             foreach ($model->getCasts() as $column => $cast) {

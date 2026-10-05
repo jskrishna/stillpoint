@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FEELINGS, LOCALE, duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiClientDetail } from '../../../lib/api';
-import { describe } from '../../../lib/describe';
+import { describe, describeLoad } from '../../../lib/describe';
 import { SaveStatus, type SaveState } from '../../../components/SaveStatus';
 import styles from '../coach.module.css';
 
@@ -26,6 +26,13 @@ const SAVE_AFTER_MS = 700;
  */
 export default function ClientDetail({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ApiClientDetail | null | undefined>(undefined);
+  /**
+   * The read failed, which is not the client being somebody else's. Every
+   * failure used to draw "Not found. This client is not one of yours.", so a
+   * dropped request told a coach they had lost a client. Only a 404 means
+   * that, and it is what the server answers for a pairing that has ended.
+   */
+  const [unread, setUnread] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [now, setNow] = useState<Date | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -47,7 +54,11 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
           router.push('/welcome');
           return;
         }
-        setClient(null);
+        if (e instanceof ApiError && e.status === 404) {
+          setClient(null);
+          return;
+        }
+        setUnread(describeLoad('this client', e));
       });
   }, [clientId, router]);
 
@@ -84,6 +95,18 @@ export default function ClientDetail({ clientId }: { clientId: string }) {
     };
   }, [notes, clientId]);
 
+  if (unread !== null) {
+    return (
+      <>
+        <p className={styles.empty} role="alert">
+          {unread}
+        </p>
+        <Link href="/coach" className={styles.open}>
+          Back to clients
+        </Link>
+      </>
+    );
+  }
   if (client === undefined) return <p className={styles.empty}>Loading…</p>;
   if (client === null) {
     return (

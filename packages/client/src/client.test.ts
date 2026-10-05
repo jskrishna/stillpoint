@@ -292,6 +292,37 @@ describe('the paths', () => {
     expect(calls[0]?.init.body).toBe(JSON.stringify({ utterance: 'I am upset' }));
   });
 
+  it('asks for help on a route of its own, with nothing in the body', async () => {
+    const { api, calls } = clientWith([{ status: 200, body: { id: 's1' } }], 'tok');
+
+    await api.askForHelp('s1');
+
+    // Not a turn. The button used to send a sentence through the turns route
+    // and the screen graded it `none`, so it was recorded as an answer.
+    expect(calls[0]?.url).toBe('https://api.test/api/sessions/s1/help');
+    expect(calls[0]?.init.method).toBe('POST');
+    expect(calls[0]?.init.body).toBeUndefined();
+  });
+
+  it('sends half a character as a replacement, not as a body PHP cannot read', async () => {
+    const { api, calls } = clientWith([{ status: 200, body: { id: 's1' } }], 'tok');
+
+    // Half an emoji, which a JavaScript string can hold: cut by a length
+    // limit, a paste or a backspace. `JSON.stringify` writes it as an escape
+    // and PHP's `json_decode` rejects the whole body for it, so the turn was
+    // answered 422 "The utterance field is required." and never screened.
+    await api.takeTurn('s1', 'I am upset \ud83d and \ude22 alone \ud83d\ude22', 'notice');
+
+    expect(calls[0]?.init.body).toBe(
+      JSON.stringify({
+        utterance: 'I am upset \ufffd and \ufffd alone \ud83d\ude22',
+        step: 'notice',
+      }),
+    );
+    // And what is sent is a string every decoder agrees about.
+    expect(String(calls[0]?.init.body)).not.toMatch(/\\ud[89a-f]/i);
+  });
+
   it('asks for the open session before starting one', async () => {
     const { api, calls } = clientWith([{ status: 200, body: { id: 's1' } }], 'tok');
 

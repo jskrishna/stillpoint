@@ -42,6 +42,27 @@ final class NoWebSessionsTest extends TestCase
         );
     }
 
+    /**
+     * And nothing is served from outside the API at all.
+     *
+     * The case above looks for the `web` group, and two routes got past it by
+     * being in no group: Laravel's local disk shipped with `'serve' => true`,
+     * which registers `GET` and `PUT storage/{path}` with no middleware. They
+     * start no session, so that case was right to pass. They also carry none
+     * of the `api` group's headers, on an origin described everywhere as
+     * serving JSON and nothing else.
+     */
+    public function test_every_route_is_the_api_or_the_health_check(): void
+    {
+        $elsewhere = collect(Route::getRoutes()->getRoutes())
+            ->map(fn ($route) => $route->uri())
+            ->reject(fn (string $uri) => $uri === 'up' || str_starts_with($uri, 'api/'))
+            ->values()
+            ->all();
+
+        $this->assertSame([], $elsewhere);
+    }
+
     public function test_the_root_is_not_a_page(): void
     {
         $this->get('/')->assertNotFound();

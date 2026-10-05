@@ -175,6 +175,15 @@ Matched as substrings of the answer after lowercasing, straightening curly
 apostrophes, and removing punctuation. So "KILL MYSELF." and "...kill
 myself..." both match `kill myself`.
 
+The answer is then read a second time, more forgivingly, against the same
+list: apostrophes are dropped from both the answer and the phrase, characters
+with no width (a joiner, a zero-width space, a soft hyphen) are removed, and
+fullwidth or styled letters are folded to plain ones. So "dont want to live"
+matches `don't want to live`, and a Hindi phrase matches with a joiner inside
+one of its conjuncts. A match in either reading counts, so this second reading
+only ever adds matches. It adds no phrase: every phrase the screen can find is
+in the list below.
+
 There are 155 phrases in 8 rules.
 
 ### Graded high

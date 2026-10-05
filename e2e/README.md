@@ -47,9 +47,20 @@ checks use — `next start` is not supported alongside `output: 'standalone'`),
 the window on the app's own origin, no Node in the page, the navigation pin in
 the real main process rather than only in `navigation.test.ts`, `window.open`
 refusing a `file:` URL, and `localStorage` surviving a relaunch, which is the
-whole reason the port is fixed at 8735. It needs a display; `pnpm run e2e`
-wraps it in `xvfb-run`. It proves nothing about packaging, signing, or macOS
-and Windows — `LAUNCH.md` item 8 is still item 8.
+whole reason the port is fixed at 8735. On Linux it needs a display, so
+`pnpm run e2e` wraps it in `xvfb-run` there and only there: macOS and Windows
+draw a window with no `DISPLAY` at all, and the runner used to ask for
+`xvfb-run` on them too, which neither has. It has now run on macOS, where its
+last section closes the window and comes back to the app, the one thing only a
+Mac can show. It proves nothing about packaging or signing, and it has not run
+on Windows: `LAUNCH.md` item 8 is still item 8.
+
+It fetches Electron itself if the binary is not there, with the package's own
+installer, and fails if it cannot. It used to print "skipping" and pass.
+
+If you run it from an editor built on Electron, the editor sets
+`ELECTRON_RUN_AS_NODE`, which makes Electron behave as plain Node. The script
+takes that variable out of what it launches the app with.
 
 `mobile.mjs` is the odd one out and the most useful recently: it is the only
 thing that runs `apps/mobile`. CI typechecked that app and `expo export`
@@ -65,9 +76,10 @@ separate one: those screens cannot be reached by URL (the export is a plain
 file server with no client-side routing, so a direct URL gets a 404 or
 expo-router's "Unmatched Route" — and both of those pass an audit having
 measured nothing). So axe runs at every screen this script walks, in both
-palettes — `grep -c 'await audit(' mobile.mjs` is the count, and it is ten.
-A command rather than a number because this one has already gone stale once,
-within an hour of being written, when the forgotten-password screen was added. `document-title` is the one rule turned off, and why is in
+palettes. `grep -c 'await audit(' mobile.mjs` is the count. This sentence
+used to end "and it is ten" and then went stale, twice, which is why it is a
+command and no longer a number: the script itself compares what it audited
+with the screens on disk and fails if one is missing. `document-title` is the one rule turned off, and why is in
 the comment beside it: the export serves one `index.html` and `headerShown` is
 false on every stack, so there are no titles to find and a phone has no
 document to title.
@@ -82,7 +94,7 @@ pnpm run e2e --keep          # leave the servers up afterwards
 pnpm run demo --lan          # the demo, reachable from a phone on this network
 ```
 
-`e2e/run.mjs` does what the six steps below do: builds the packages, the web
+`e2e/run.mjs` does what the steps below do: builds the packages, the web
 app and — only when that script is in the run — the Expo export or the desktop
 shell, reseeds with
 `DemoSeeder`, starts the three servers, waits for each to answer, runs every
@@ -218,18 +230,33 @@ cd apps/mobile/dist && python3 -m http.server 4000 --bind 127.0.0.1 &
 node e2e/flow.mjs
 ```
 
-`e2e/browser.mjs` holds what all four agree on: the two URLs, the seeded
+`e2e/browser.mjs` holds what every script agrees on: the two URLs, the seeded
 accounts and the password, and how to find a browser. `WEB_URL`, `API_URL`,
 `SEED_PASSWORD` and `CHROMIUM_PATH` override the defaults. Chromium is looked
 for in three places in order — `CHROMIUM_PATH`, the development container's
 fixed path, then Playwright's own — because the container blocks Playwright's
-download and CI does not have the container's path.
+download and CI does not have the container's path. Anywhere else, that third
+one has to be installed once: `pnpm exec playwright install chromium`.
 
-The section that matters most is the last one. It types crisis language into the
-browser and asserts that the **server** ends the session, that the Tele-MANAS
-and 112 numbers are shown, and that no journal row was written. Those are the
-rules in `CLAUDE.md` that must never be weakened, checked against the real
-stack rather than a mock.
+Three things `pnpm run e2e` needs that are about your machine and not about the
+product:
+
+- **Ports 8000 and 3000 free, and 4000 for the mobile export.** The runner
+  checks before it starts and says which is taken. `MOBILE_PORT=4001 pnpm run
+e2e` moves the mobile export; the other two are part of what the web app and
+  the phone app were built to call.
+- **It reseeds the database `apps/api/.env` points at**, with `migrate:fresh`.
+  To keep that one, give the run its own: `DB_CONNECTION=sqlite
+DB_DATABASE=/somewhere/e2e.sqlite pnpm run e2e` (the file has to exist).
+- **A checkout path with a space in it works**, which it did not: four scripts
+  made a file path from a URL's percent-encoded pathname.
+
+The section that matters most is section 7. It types crisis language into the
+browser and asserts that the **server** ends the session, that 9-8-8, Québec's
+line and 911 are shown and another market's numbers are not, and that no
+journal row was written. Section 7a presses "Get help", which nothing used to.
+Those are the rules in `CLAUDE.md` that must never be weakened, checked against
+the real stack rather than a mock.
 
 ## The admin console
 
@@ -257,7 +284,9 @@ cd apps/api && php artisan tinker --execute="
 node e2e/admin.mjs
 ```
 
-`ADMIN_EMAIL` and `ADMIN_PASSWORD` override the defaults.
+`ADMIN_EMAIL` overrides the default address. The password is `SEED_PASSWORD`,
+one for every seeded account; this line used to name an `ADMIN_PASSWORD` that
+nothing reads.
 
 ## The coach portal
 
@@ -299,7 +328,8 @@ cd apps/api && php artisan tinker --execute="
 node e2e/coach.mjs
 ```
 
-`COACH_EMAIL`, `COACH_PASSWORD` and `CLIENT_EMAIL` override the defaults.
+`COACH_EMAIL` and `CLIENT_EMAIL` override the defaults, with `SEED_PASSWORD`
+for both.
 
 ## The accessibility audit
 

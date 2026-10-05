@@ -77,7 +77,7 @@ signed in to somebody's journal.
 everything before an `@` is userinfo. That would have navigated the window that
 is signed in to somebody's journal, with this app's frame around it. A pin a
 string can step around is not a pin. `src/navigation.test.ts` has the case;
-five of its nine tests go red if the prefix check comes back.
+several of its tests go red if the prefix check comes back.
 
 **And `shell.openExternal` is given four schemes, not whatever it is handed.**
 The renderer is sandboxed, but the content policy keeps `'unsafe-inline'` and
@@ -96,11 +96,18 @@ launch. `src/server.ts` has the reasoning. It is for this machine.
 
 ## What is verified, and what is not
 
-`pnpm run build` and `pnpm run typecheck` run in CI. The app has been launched
-under Xvfb in the development container, which proves the server starts, the
-window opens and the app renders — re-verified after the standalone build moved
-to its own `distDir`, which is exactly the sort of change that breaks this and
-nothing else.
+`pnpm run build` and `pnpm run typecheck` run in CI, and so does
+`e2e/desktop.mjs`, which launches the app and asserts what only a running one
+shows: the bundled server starts, the page has no Node, the navigation pin
+holds in the real main process, somebody can sign in from this origin, and
+every path the menu reaches is a real screen. `e2e/README.md` has the list.
+
+It has run on macOS now, once, from that script, which is where one bug only a
+Mac has was found: closing the window does not quit a Mac app, and coming back
+by the dock icon started the whole app a second time, on a port its own server
+still held, so it quit with an error about itself. The window is made again
+instead, and the tray, the shortcut and the menu no longer do nothing while it
+is closed. It has still never been packaged, and never run on Windows.
 
 **The app surface has no desktop layout.** `apps/web`'s `/app` caps its content
 column at 430px and puts the navigation along the bottom — it is the phone
@@ -139,6 +146,9 @@ global shortcut and the window-position file have only ever run on Linux.
   `@stillpoint/*` symlinks pnpm leaves in `node_modules`.
 - **The copy dereferences symlinks**, because pnpm's point at a store that is
   not on the user's machine.
-- **Electron's binary is not downloaded by default.** pnpm 10 does not run a
-  dependency's install scripts unless it is listed under
-  `onlyBuiltDependencies` in `pnpm-workspace.yaml`, which Electron is.
+- **Electron's binary arrives the first time it is needed, not at install.**
+  The version pinned here has no install script: it fetches its platform
+  binary when the package is first required, so `pnpm install` downloads
+  nothing and the first `pnpm --filter @stillpoint/desktop run start` does.
+  This line used to say an install script did it, which was true of older
+  versions.

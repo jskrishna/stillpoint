@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
 import { ApiError, api } from '../../api';
-import { NO_EAR_REASON, guideVoiceFor, voicePreview } from '../../voice';
+import { NO_EAR_REASON, systemGuideVoice, voicePreview } from '../../voice';
 import { Button, Card } from '../../ui';
 import { useTheme } from '../../use-theme';
 import { describe } from '../../describe';
@@ -32,8 +32,9 @@ export default function VoiceSetup() {
   const preview = (id: GuideVoice['id']) => {
     const chosen = GUIDE_VOICES.find((v) => v.id === id);
     if (chosen === undefined) return;
-    const speaker = guideVoiceFor(id);
-    void speaker.say(voicePreview(chosen));
+    // A preview is asked for by pressing it, so it speaks whatever the talk
+    // mode will be: this is how somebody chooses before choosing silence.
+    void systemGuideVoice().say(voicePreview(chosen));
   };
 
   const go = async (talkMode: 'hold' | 'type') => {

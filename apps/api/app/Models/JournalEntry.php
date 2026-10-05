@@ -22,6 +22,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class JournalEntry extends Model
 {
+    /**
+     * What `duration_minutes` can hold: an unsigned small integer.
+     *
+     * A session carried on after forty-six days measures longer than that,
+     * and on MySQL in strict mode the row is then refused inside the
+     * transaction that ends the session, so its owner can no longer finish
+     * it, stop it, or start another. See `SessionDurationTest`.
+     */
+    public const MAX_DURATION_MINUTES = 65535;
+
     use HasFactory, HasUlids;
 
     protected $fillable = [
@@ -147,7 +157,7 @@ final class JournalEntry extends Model
             'memory' => $data->memory,
             'feelings' => array_map(fn (FeelingId $f) => $f->value, $data->feelings),
             'kind' => $session->kind,
-            'duration_minutes' => max(1, $durationMinutes),
+            'duration_minutes' => min(self::MAX_DURATION_MINUTES, max(1, $durationMinutes)),
             'reached_final_step' => $session->endReason === EndReason::Completed,
             'calmer_rating' => $data->calmerRating,
             'shared_with_coach' => $sharedWithCoach,

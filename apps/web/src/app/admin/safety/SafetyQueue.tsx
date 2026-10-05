@@ -109,8 +109,14 @@ export default function SafetyQueue() {
       // between presses is a React flush. `lib/presses.ts` has the rest.
       setReviewing(id);
       try {
+        const wasOpen = (flags ?? []).find((f) => f.id === id)?.status === 'open';
         const updated = await api.reviewSafetyFlag(id);
         setFlags((current) => (current ?? []).map((f) => (f.id === updated.id ? updated : f)));
+        // One fewer waiting. The row stays where it is, marked Reviewed, so
+        // the reviewer's place is kept; the count is the server's from when
+        // the page was read, so without this the line above went on saying
+        // "2 open" over a row that said it had been reviewed.
+        if (wasOpen && !showReviewed) setTotal((count) => Math.max(0, count - 1));
         setProblem(null);
       } catch (e: unknown) {
         setProblem(describe(e));
@@ -185,7 +191,7 @@ export default function SafetyQueue() {
                       </button>
                     </td>
                     <td className={styles.td}>{f.categoryLabel}</td>
-                    <td className={styles.td}>“{truncate(f.excerpt)}”</td>
+                    <td className={styles.td}>{said(truncate(f.excerpt))}</td>
                     {/*
                       The age, which the queue did not show at all. After its
                       severity it is the thing a reviewer most needs: a `high`
@@ -228,7 +234,7 @@ export default function SafetyQueue() {
               <span className={styles.statLabel}>WHO</span>
               <span className={styles.quote}>{selected.user}</span>
               <span className={styles.statLabel}>WHAT THE USER SAID</span>
-              <span className={styles.quote}>“{selected.excerpt}”</span>
+              <span className={styles.quote}>{said(selected.excerpt)}</span>
               <span className={styles.statLabel}>WHAT HAPPENED</span>
               <span className={styles.quote}>{selected.outcome}</span>
               <span className={styles.statLabel}>WHEN</span>
@@ -301,4 +307,16 @@ function levelClass(level: string): string {
 function truncate(text: string, max = 48): string {
   const cut = firstCharacters(text, max);
   return cut === text ? text : `${cut.trimEnd()}…`;
+}
+
+/**
+ * What the person said, in quotation marks, or that they said nothing.
+ *
+ * A flag raised by "Get help" has no excerpt: the person pressed a button and
+ * typed no words, and the server puts none in their mouth. Quoting an empty
+ * string drew `“”`, which reads as a disclosure that failed to load on the one
+ * screen where that would matter.
+ */
+function said(excerpt: string): string {
+  return excerpt === '' ? 'Nothing was typed' : `“${excerpt}”`;
 }

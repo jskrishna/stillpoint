@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Console\Commands\Preflight;
 use App\Domain\Role;
 use App\Models\ProtocolVersion;
 use App\Models\User;
+use Database\Seeders\DemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
@@ -110,6 +112,47 @@ final class PreflightSaysWhatIsUnfinishedTest extends TestCase
      * The one measured on the desktop shell, where the missing line made the
      * token come back null and the screen blame the connection.
      */
+    public function test_it_says_a_demo_account_is_on_a_real_deployment(): void
+    {
+        $this->healthy();
+        User::factory()->create(['email' => 'admin@stillpoint.test', 'role' => Role::Admin->value]);
+
+        // Only where it matters. In development these accounts are the point.
+        $this->artisan('stillpoint:preflight')->assertExitCode(0);
+
+        $this->app->detectEnvironment(fn () => 'production');
+
+        $this->artisan('stillpoint:preflight')
+            ->expectsOutputToContain('A demo account exists on this deployment')
+            ->assertExitCode(1);
+    }
+
+    public function test_it_says_the_risk_screen_has_no_intl(): void
+    {
+        $this->healthy();
+        Preflight::$intlIsLoaded = fn (): bool => false;
+
+        try {
+            $this->artisan('stillpoint:preflight')
+                ->expectsOutputToContain('The risk screen is running on a stand-in')
+                ->assertExitCode(1);
+        } finally {
+            Preflight::$intlIsLoaded = null;
+        }
+    }
+
+    public function test_the_demo_seeder_refuses_a_real_deployment(): void
+    {
+        $this->app->detectEnvironment(fn () => 'production');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('does not run in production');
+
+        // Called directly: `db:seed` asks "are you sure" in production, and
+        // `--force` is exactly how the deployment guide answered it.
+        $this->app->make(DemoSeeder::class)->run();
+    }
+
     public function test_it_says_the_web_app_cannot_call_the_api(): void
     {
         $this->healthy();

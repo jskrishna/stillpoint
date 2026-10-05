@@ -146,10 +146,10 @@ final readonly class ProtocolVersion
             $step = $this->step($id);
             $n = $id->ordinal();
 
-            if ($step->prompts->main === null || trim($step->prompts->main) === '') {
+            if ($step->prompts->main === null || Text::trim($step->prompts->main) === '') {
                 $problems[] = ['stepId' => $id, 'reason' => "Step {$n} has no main question."];
             }
-            if ($step->doneWhen === null || trim($step->doneWhen) === '') {
+            if ($step->doneWhen === null || Text::trim($step->doneWhen) === '') {
                 $problems[] = ['stepId' => $id, 'reason' => "Step {$n} does not say when it is done."];
             }
             if ($step->maxGuideTurns === null) {
@@ -159,7 +159,7 @@ final readonly class ProtocolVersion
             }
         }
 
-        if (trim($this->pauseTitle) === '' || trim($this->pauseBody) === '') {
+        if (Text::trim($this->pauseTitle) === '' || Text::trim($this->pauseBody) === '') {
             $problems[] = ['stepId' => null, 'reason' => 'The safety pause message is incomplete.'];
         }
 

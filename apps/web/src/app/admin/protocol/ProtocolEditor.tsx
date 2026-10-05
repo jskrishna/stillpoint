@@ -14,6 +14,34 @@ const SAVE_AFTER_MS = 600;
 /** What `PATCH /admin/protocol-versions/draft/safety` takes. */
 type SafetyEdit = { pauseTitle?: string; pauseBody?: string };
 
+/** The edits typed since `sent` went out: whatever no longer matches what was sent. */
+function typedSince(
+  now: Record<string, ApiStepEdit>,
+  sent: Record<string, ApiStepEdit>,
+): Record<string, ApiStepEdit> {
+  const left: Record<string, ApiStepEdit> = {};
+  for (const [stepId, edit] of Object.entries(now)) {
+    if (JSON.stringify(edit) !== JSON.stringify(sent[stepId])) left[stepId] = edit;
+  }
+  return left;
+}
+
+/** The server's draft with what is still unsent laid back over it. */
+function withUnsent(
+  version: ApiProtocolVersion,
+  steps: Record<string, ApiStepEdit>,
+  wording: SafetyEdit | null,
+): ApiProtocolVersion {
+  return {
+    ...version,
+    ...(wording ?? {}),
+    steps: version.steps.map((step) => {
+      const edit = steps[step.id];
+      return edit === undefined ? step : { ...step, ...edit };
+    }),
+  };
+}
+
 /**
  * The step-prompt editor.
  *
@@ -66,33 +94,67 @@ export default function ProtocolEditor() {
       });
   }, []);
 
+  /**
+   * Publish holds the timer below while it sends the edits itself. A ref, so
+   * the timer's callback reads it as it is and not as it was when scheduled.
+   */
+  const held = useRef(false);
+
+  /**
+   * Sends whatever has been typed and not yet sent, and throws if it cannot.
+   *
+   * One function for the timer and for Publish, because Publish needs it too:
+   * see `onPublish`.
+   *
+   * **What was typed while the save was in flight is kept.** The reply used
+   * to replace the draft and empty the queue outright, so a sentence typed
+   * during the round trip disappeared from its field when the save landed and
+   * was never sent. What is removed from the queue now is only what went out
+   * unchanged, and whatever is left is laid back over the server's reply.
+   */
+  const sendPending = useCallback(async (): Promise<void> => {
+    const sent = pendingRef.current;
+    const sentWording = pendingSafetyRef.current;
+    if (Object.keys(sent).length === 0 && sentWording === null) return;
+
+    setSaveState('saving');
+    let latest: ApiProtocolVersion | null = null;
+    for (const [stepId, edit] of Object.entries(sent)) {
+      latest = await api.editProtocolStep(stepId, edit);
+    }
+    // After the steps, so one timer and one status line cover both.
+    if (sentWording !== null) latest = await api.editProtocolSafety(sentWording);
+
+    const left = typedSince(pendingRef.current, sent);
+    const leftWording =
+      JSON.stringify(pendingSafetyRef.current) === JSON.stringify(sentWording)
+        ? null
+        : pendingSafetyRef.current;
+
+    if (latest !== null) setDraft(withUnsent(latest, left, leftWording));
+    setPending(left);
+    setPendingSafety(leftWording);
+    setProblem(null);
+    // "Saved" only when nothing is waiting: with more typed since, the timer
+    // starts again and the status is its to give.
+    setSaveState(Object.keys(left).length === 0 && leftWording === null ? 'saved' : 'idle');
+  }, []);
+
   // Sent after typing stops rather than on every keystroke, and from an effect
   // rather than a change handler: a save belongs where React decides when it
   // runs, not in a render that may happen twice.
   useEffect(() => {
-    const steps = Object.keys(pending);
-    if (steps.length === 0 && pendingSafety === null) return;
+    if (Object.keys(pending).length === 0 && pendingSafety === null) return;
 
     // Typing again means the last "saved" is about older text.
     setSaveState('idle');
     const timer = setTimeout(() => {
+      // Publish is sending these itself, in order, before it publishes.
+      if (held.current) return;
+
       void (async () => {
-        setSaveState('saving');
         try {
-          let latest: ApiProtocolVersion | null = null;
-          for (const stepId of steps) {
-            const edit = pendingRef.current[stepId];
-            if (edit === undefined) continue;
-            latest = await api.editProtocolStep(stepId, edit);
-          }
-          // After the steps, so one timer and one status line cover both.
-          const wording = pendingSafetyRef.current;
-          if (wording !== null) latest = await api.editProtocolSafety(wording);
-          if (latest !== null) setDraft(latest);
-          setPending({});
-          setPendingSafety(null);
-          setProblem(null);
-          setSaveState('saved');
+          await sendPending();
         } catch (e: unknown) {
           // The server's own sentence. This said "Check your connection" for
           // every failure including a 422 — so an admin pasting a step prompt
@@ -111,7 +173,7 @@ export default function ProtocolEditor() {
     return () => {
       clearTimeout(timer);
     };
-  }, [pending, pendingSafety]);
+  }, [pending, pendingSafety, sendPending]);
 
   const change = useCallback((stepId: string, edit: ApiStepEdit) => {
     // Applied locally at once so the field does not fight the typist, and
@@ -157,7 +219,19 @@ export default function ProtocolEditor() {
        * flush between presses and so sends one. `lib/presses.ts` has the rest.
        */
       setPublishing(true);
+      /*
+       * What has been typed is sent first, and the timer is held meanwhile.
+       *
+       * An edit waits 600ms after the last keystroke before it is sent, and
+       * Publish did not wait for it. Pressed inside that window, it published
+       * the version without the last edit; the timer then fired, and since an
+       * edit opens a draft when none is open, a new unpublished draft appeared
+       * holding the sentence the admin believed had just gone live. On the
+       * screen that sets what the product says to somebody who is upset.
+       */
+      held.current = true;
       try {
+        await sendPending();
         const published = await api.publishProtocolDraft();
         setLive(published);
         setDraft(null);
@@ -172,9 +246,17 @@ export default function ProtocolEditor() {
         const versions = await api.protocolVersions().catch(() => null);
         if (versions !== null) {
           setLive(versions.live);
-          setDraft(versions.draft);
+          // With whatever is still unsent laid back over it: if it was the
+          // save that failed, the words are still in the queue and should
+          // still be in their fields.
+          setDraft(
+            versions.draft === null
+              ? null
+              : withUnsent(versions.draft, pendingRef.current, pendingSafetyRef.current),
+          );
         }
       } finally {
+        held.current = false;
         setPublishing(false);
       }
     });

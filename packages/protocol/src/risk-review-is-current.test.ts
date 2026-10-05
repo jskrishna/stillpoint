@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -22,14 +23,23 @@ import { describe, expect, it } from 'vitest';
  * tree, and a check that repairs what it is checking cannot fail twice.
  */
 describe('the clinical review pack', () => {
-  const PACK = new URL('../../../docs/clinical-review/RISK-SCREEN-REVIEW.md', import.meta.url)
-    .pathname;
+  /*
+   * `fileURLToPath`, not `.pathname`. A URL's pathname is percent-encoded, so a
+   * checkout under a directory with a space in its name ("my data") gave git a
+   * `cwd` of `my%20data`, which does not exist, and this failed with
+   * `spawnSync git ENOENT`: a red `check` on a tree with nothing wrong in it,
+   * blaming a git that was installed. It had only ever run at a path with no
+   * space in it. `no-url-pathname-as-a-path.test.ts` covers the rest of the
+   * repository.
+   */
+  const at = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
+  const PACK = at('docs/clinical-review/RISK-SCREEN-REVIEW.md');
   const SCREEN = 'packages/protocol/src/risk.ts';
 
   const git = (...args: string[]): string =>
     execFileSync('git', args, {
       encoding: 'utf8',
-      cwd: new URL('../../../', import.meta.url).pathname,
+      cwd: at('.'),
     }).trim();
 
   it('names the commit that last changed the screen', () => {

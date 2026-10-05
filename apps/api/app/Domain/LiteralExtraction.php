@@ -61,7 +61,10 @@ final class LiteralExtraction
             return self::feelingsIn($utterance) !== [];
         }
 
-        return count(array_filter(preg_split('/\s+/', trim($utterance)) ?: [])) >= 3;
+        // `Text::words`, which is JavaScript's `\s`: the split used to be ASCII
+        // only, so three words with a no-break or ideographic space between
+        // them were one word here and three in the browser.
+        return count(Text::words($utterance)) >= 3;
     }
 
     /**
@@ -73,7 +76,7 @@ final class LiteralExtraction
      */
     public static function for(StepId $stepId, string $utterance): array
     {
-        $text = trim($utterance);
+        $text = Text::trim($utterance);
         if ($text === '') {
             return [];
         }
@@ -108,9 +111,9 @@ final class LiteralExtraction
         }
 
         // The belief is quoted wherever it is displayed; store it unquoted.
-        $trimmed = trim($belief);
-        $trimmed = trim((string) preg_replace('/^["“”\']+|["“”\']+$/u', '', $trimmed));
-        $trimmed = trim((string) preg_replace('/[.。]+$/u', '', $trimmed));
+        $trimmed = Text::trim($belief);
+        $trimmed = Text::trim((string) preg_replace('/^["“”\']+|["“”\']+$/u', '', $trimmed));
+        $trimmed = Text::trim((string) preg_replace('/[.。]+$/u', '', $trimmed));
 
         if ($trimmed === '') {
             return null;

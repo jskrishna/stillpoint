@@ -485,18 +485,19 @@ the POST died in a tunnel, three phone numbers appeared, and they were told
 screen became the pause, and they were told none of that either.
 
 It was the odd one out rather than an oversight nobody had thought about:
-fifteen files on the web and six on the phone mark an error as an alert, and
-the session screen was the one that did not. Those two counts are current and
-checkable rather than a measurement from the day this was written, which is the
-only kind of number worth putting in a file like this one:
+more than a dozen files on the web and several on the phone mark an error as an
+alert, and the session screen was the one that did not. There is no number in
+that sentence any more. It said "fifteen" and "six", called them "current and
+checkable", and was wrong about the phone by one the next time it was counted.
+The commands are the count:
 
     grep -rl 'role="alert"' apps/web/src --include=*.tsx
     grep -rlE 'accessibilityLiveRegion|accessibilityRole="alert"' apps/mobile/src --include=*.tsx
 
 The phone's command needs **both** attributes. Written with
-`accessibilityLiveRegion` alone it returns one file rather than six, which is
-how this paragraph was briefly wrong about the number it had just been
-corrected to — a command that does not reproduce the count is not a check.
+`accessibilityLiveRegion` alone it returns one file, which is how this paragraph
+was briefly wrong about the number it had just been corrected to. A command
+that does not reproduce the count is not a check.
 
 Four things, and the ordering of the last two is the part worth keeping:
 
@@ -709,7 +710,10 @@ and a tested function with a drifted twin is what it replaced.
   order, so the last applied is the last chosen. It does not stop on a failure
   — a later press is a newer intention whether or not an earlier one worked.
 
-Twelve call sites on the web and four on the phone. `admin.mjs`, `mobile.mjs`
+Twelve call sites on the web and four on the phone when this was written,
+and it said nothing of the web's own choices: its settings and its rating kept
+a bare `await` until the phone's fix was compared with it. `grep -rn 'inOrder\|inFlight'`
+is the count now. `admin.mjs`, `mobile.mjs`
 and the unit test together cover both rules, and the browser presses are
 same-frame now with the reason at the line — a check that puts a round trip
 between presses measures nothing. All five browser assertions go red by name
@@ -1836,6 +1840,173 @@ asking for "My note" matched nothing. Measured through Chromium's own
 accessibility tree, before and after: `name="Anything you want to remember."`
 became `name="My note"`. `axe` passes either way, because a placeholder is an
 accepted name source.
+
+## What the first clone outside the container found
+
+Every check in this repository had only ever run in one Linux container, at a
+path with no space in it, as root, with nothing else listening on its ports.
+The first run anywhere else was on a Mac, in a directory called `my data`, and
+`pnpm run check` was red before anything had been changed. That run, and four
+sweeps started from it, found what is below. Each item names the test that
+keeps it, and the pattern is the one this file keeps finding: a rule that was
+right in one place, or a sentence nothing had measured.
+
+### The machine
+
+- **A file's location is not its URL's pathname.** Four files turned
+  `import.meta.url` into a path with `.pathname`, which is percent-encoded, so
+  under `my data` they pointed at `my%20data`. One of them was a test, which
+  handed that to git as a `cwd`: `spawnSync git ENOENT`, about a git that was
+  installed. Twenty other call sites already used `fileURLToPath`.
+  `no-url-pathname-as-a-path.test.ts` reads every tracked script.
+- **`pnpm run e2e` could not run on macOS**, the platform a desktop app is for.
+  It asked for `xvfb-run` whenever `DISPLAY` was unset, and a missing binary
+  was an unhandled `error` event that ended the runner past its own shutdown.
+  Only Linux has a display to be missing.
+- **The runner said "stopped the API" and had not.** `php artisan serve` and
+  `pnpm exec next start` are not the processes holding the ports; their
+  children are, and a signal to the parent reaches the parent. Measured after
+  a run: eight PHP workers and the Next server still listening. Servers start
+  in their own process groups now and the group is what is signalled, and a
+  run refuses to start beside a server that is already there, because
+  `waitForServers` cannot ask whose answer it is getting.
+- **Port 4000 was written out**, and on that Mac something else had it. The
+  developer's own `.env` already had `:4001` added to the CORS list by hand,
+  which is half a workaround. `MOBILE_PORT` moves it, and the runner sets the
+  API's allowed origins itself for the reason it sets `CACHE_STORE`.
+- **`--lan` printed four addresses and three of them worked.** The mobile
+  export was built to call `localhost` and its own origin was not in the list.
+  "The export answers 200" was the measurement, and it says the files are
+  there.
+- **`ELECTRON_RUN_AS_NODE`**, which an editor built on Electron sets for what
+  it spawns, made the desktop check launch the app's Electron as plain Node.
+  And the check's "a missing binary is a sentence and a skip" sat directly
+  above the `require` that downloads it: Electron has no install script any
+  more. It fetches the binary on purpose now and fails, not skips, without one.
+
+### The safety screen
+
+- **"Get help" did nothing helpful, on both surfaces, and no test pressed
+  it.** It used to apply a `high` signal directly. When the web app was pointed
+  at the server it was changed to send the sentence "I need help, I do not feel
+  safe" as an ordinary turn, with a comment that the server would screen it.
+  The screen grades that sentence `none`. So the request was recorded as the
+  step's answer, at step 1 it became the journal entry's title, and no number
+  appeared. `git log -S` found the commit. It is `POST sessions/{id}/help` now:
+  a safety stop, a flag in its own category with an empty excerpt because no
+  words were typed, declared beside the turns route with no throttle. Both
+  screens put the numbers up before asking the network for anything.
+  `AskingForHelpTest`, and sections 7a and 5a of the browser checks.
+- **A listed phrase typed the way a phone types it was not found.** Measured
+  over the rules themselves: all twelve phrases containing an apostrophe came
+  back `none` with it left out, one of them `high`; all three Devanagari
+  phrases with a conjunct came back `none` with a joiner inside it, because the
+  normaliser turned a joiner into a space; 131 of 155 with a zero-width space
+  or soft hyphen inside a word; and all 135 Latin phrases in fullwidth letters,
+  with `unreadable: false`. The screen reads the text a second time now, more
+  forgivingly, and a match in either reading counts, so nothing that matched
+  before can stop matching. It adds no phrase and no language. The fixture
+  gained seventeen cases and lost none.
+- **The two languages disagreed about which letters are readable.** PCRE2 has
+  matched a script's name against Script_Extensions since 10.40, and
+  JavaScript's `Script=` is the narrower property. Compared over every code
+  point. The TypeScript side says `Script_Extensions` now.
+- **A turn into an ended session was refused before it was read**, in three
+  places. `POST /sessions` ends whatever is open, so a session left on a laptop
+  is ended from a phone and the laptop still shows a box. It is screened first
+  now, flagged, and a `high` answer carries the helplines on the 409.
+  `WordsSaidAfterTheEndAreStillReadTest`.
+- **Half a character got a turn refused.** A JavaScript string can hold half a
+  surrogate pair, `JSON.stringify` writes it as an escape, and `json_decode`
+  rejects the whole body: 422 "The utterance field is required." Repaired on
+  the turns route and at the source in `packages/client`.
+- **An unpublished draft was asked of people.** The baseline's label is "1.0",
+  the first draft is stored as (1, 0, draft), and `forSession()` looked a
+  version up by number alone. With a draft written and nothing published, a
+  session got the draft's questions and its pause title, and an edit in the
+  editor changed a running session. Every test published first.
+  `AnUnpublishedDraftReachesNobodyTest`.
+- **A step edit could un-publish a version.** The edit read the draft, a
+  publish landed, and the edit's write set the live row back to `draft`: no
+  live version at all. One transaction now.
+
+### Rules the server did not keep
+
+- The third full session of the week answered 201 and a **retry of that same
+  request answered 402**, with the session it had charged for sitting open and
+  unreachable.
+- **A session carried on after 46 days locked its owner out** on MySQL:
+  `duration_minutes` is an unsigned small integer and the journal row is
+  written inside the transaction that ends the session.
+- **The last admin could erase their own account.** The guard was on the role
+  route alone.
+- **Stopping a session whose entry had been deleted brought the entry back**,
+  empty, titled "Session".
+- **White space meant two things.** PHP's `trim()` and an unflagged `\s` are
+  ASCII, JavaScript's are Unicode: 57 of 300 answers differed across the two
+  languages, all of them this. `App\Domain\Text` is JavaScript's class
+  written out.
+- **`'serve' => true`** on the local disk registered `GET` and `PUT
+storage/{path}` with no middleware, on an origin that serves JSON only.
+
+### The surfaces
+
+- **Every built copy of the phone app called `localhost`.** Expo inlines the
+  exact expression `process.env.EXPO_PUBLIC_API_URL`; the app read it through
+  an alias. Measured by building with the variable set and looking for the
+  address: zero. `expo start` defines it at run time, so the one way anybody
+  had run the app hid it. And once it worked, Metro's cache kept the previous
+  build's address, which is why `build` clears it.
+- **The phone could not be made silent.** It went quiet for a voice setting of
+  `off`, which the server has never accepted, and ignored the talk mode that
+  "Keep it silent" and "Type instead" set.
+- **The phone's manifest asked for the microphone**, with two sentences about
+  listening, in a product that decided not to listen.
+- **A failed read was reported as an absence** on three more web screens, and a
+  failed "Load older" replaced the journal with a sentence. The phone's gate
+  sent a signed-in person to the sign-in form for any failure, and its
+  settings screen span for ever. On the web the crisis numbers in settings sat
+  behind three requests that all had to succeed.
+- **Signing in on the web put a saved voice back to Sage**, every time.
+- **"Start a quick session" on the allowance screen did nothing**, and a
+  reload part-way through a session ended it and charged for another. The
+  check for the first loaded the address itself, which is not what a person
+  presses.
+- **Publish did not wait for the last edit**, and text typed while a save was
+  in flight vanished when it landed.
+- **On macOS, closing the desktop window and coming back quit the app** with
+  an error about its own port.
+
+### The deployment
+
+- **The API image could not load `intl`.** Its build removed the ICU library
+  with the headers, so the risk screen ran on a polyfill the suite never
+  exercises, in the one place it runs for real. CI was green because that is a
+  warning.
+- **`APP_PREVIOUS_KEYS` never reached the containers**, so the documented key
+  rotation would have re-encrypted nothing, and the step after it is "drop the
+  old key".
+- **The quickstart seeded an admin with a public password** into production.
+- `.env.example` was MySQL while the README's steps made a sqlite file.
+
+- **A coach's notes about a client were stored as typed.** Free text about a
+  person, written by somebody else, and the one personal column the
+  `encrypted` cast had not reached. It is encrypted now, with a migration that
+  encrypts the notes already there. The reason it went unnoticed is the part
+  to keep: both checks meant to catch an encrypted column nobody accounted
+  for, the key rotation's refusal and the column-width test, looked at three
+  models **by name**. A fourth model was outside both, so a cast added to it
+  would have stayed on the old key through a rotation, in silence, and the
+  step after a rotation is to destroy the old key. Both read
+  `app/Models` now. `CoachNotesAreEncryptedTest`.
+
+### What was looked at and left
+
+- **Registration tells a caller whether an address has an account**, by its
+  `unique` rule, where sign-in and password recovery are careful not to. It is
+  a product decision as much as a defect.
+- The desktop shortcut starts a session without the home screen's warning
+  about what that ends.
 
 ## Stack
 
@@ -3154,8 +3325,8 @@ possible; rebuild it.
 ## Personal content is encrypted at rest
 
 The session data, the journal's title, what happened, belief, forgiveness,
-memory and note, and a safety flag's excerpt all use Laravel's `encrypted`
-casts. This is the most personal text the product holds, and a flag's excerpt
+memory and note, a safety flag's excerpt and a coach's notes about a client
+all use Laravel's `encrypted` casts. This is the most personal text the product holds, and a flag's excerpt
 is the single most sensitive column in the schema.
 
 **And the log is not a second copy of it.** Encrypting a column and then
@@ -4462,8 +4633,10 @@ of it.
   rewriting it and adding a consent flow under PIPEDA and Law 25 — and DPDP
   for the second market — which is a product and legal change rather than a
   refactor. `UserEar` stays the seam.
-- **Pricing stays unset** — the designs show `[PRICE]/mo` placeholders. What a
-  plan _allows_ is settled, though: see below.
+- **Pricing is set, in CAD**, in `apps/web/src/app/plans.ts`. This line said
+  "Pricing stays unset" for as long as the section "Do not invent product copy"
+  above it said the opposite. What nobody can do yet is pay: see
+  `DECISIONS.md`.
 
 - **Backend: Laravel 13 + MySQL**, owning the session, the protocol and safety.
   Chosen over a TypeScript backend so the safety rules exist exactly once;

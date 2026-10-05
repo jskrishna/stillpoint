@@ -226,8 +226,7 @@ final readonly class Insights
         // danda are two keys, and a belief that did come back does not look
         // like it did.
         $text = preg_replace('/[“”"\'’‘.,!?\x{0964}\x{0965}]/u', '', $text) ?? '';
-        $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 
-        return trim($text);
+        return Text::trim(Text::collapse($text));
     }
 }

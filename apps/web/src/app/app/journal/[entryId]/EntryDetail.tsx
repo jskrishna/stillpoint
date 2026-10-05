@@ -14,7 +14,7 @@ import {
   type CoachSharing,
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
-import { describe } from '../../../../lib/describe';
+import { describe, describeLoad } from '../../../../lib/describe';
 import { inFlight } from '../../../../lib/presses';
 import { SaveStatus, type SaveState } from '../../../../components/SaveStatus';
 import styles from '../../app.module.css';
@@ -34,6 +34,16 @@ const SAVE_AFTER_MS = 700;
  */
 export default function EntryDetail({ entryId }: { entryId: string }) {
   const [entry, setEntry] = useState<ApiJournalEntry | null | undefined>(undefined);
+  /**
+   * The read failed, which is not the entry being gone.
+   *
+   * `null` is this screen's word for "no such entry", and every failure used
+   * to be turned into it: a dropped request, a 500 or a 429 all drew "Not
+   * found. This entry is no longer in your journal." about an entry that was
+   * exactly where it had been. The phone's entry screen has always told the
+   * two apart. Only a 404 means gone.
+   */
+  const [unread, setUnread] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [now, setNow] = useState<Date | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -81,7 +91,11 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
           router.push('/welcome');
           return;
         }
-        setEntry(null);
+        if (e instanceof ApiError && e.status === 404) {
+          setEntry(null);
+          return;
+        }
+        setUnread(describeLoad('this entry', e));
       });
   }, [entryId, router]);
 
@@ -134,6 +148,19 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
    * a comment claiming it was above them all.
    */
   const once = useRef(inFlight()).current;
+
+  if (unread !== null) {
+    return (
+      <>
+        <p className={styles.empty} role="alert">
+          {unread}
+        </p>
+        <Link href="/app/journal" className={styles.cta}>
+          Back to journal
+        </Link>
+      </>
+    );
+  }
 
   if (entry === undefined) return <p className={styles.loading}>Loading…</p>;
 
@@ -190,6 +217,11 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
   const calmerLabel = calmerJournalLabel(entry.calmerRating);
 
   const rows = [
+    // The answer to step 1, which this screen did not show at all. The entry
+    // carried it and the phone has always put it first; here the only trace
+    // of the longest thing somebody wrote in a session was its first sixty
+    // characters, as the title.
+    { label: 'WHAT HAPPENED', value: entry.whatHappened },
     {
       label: 'WHAT YOU FELT',
       value: entry.feelings.map((id) => LABEL.get(id) ?? id).join(', '),

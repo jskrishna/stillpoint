@@ -19,7 +19,7 @@ import {
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
-import { inFlight } from '../../../lib/presses';
+import { inFlight, inOrder } from '../../../lib/presses';
 import HelplineLink from '../../../components/HelplineLink';
 import styles from '../app.module.css';
 
@@ -78,14 +78,30 @@ export default function Settings() {
       });
   }, [router]);
 
-  const save = async (changes: Parameters<typeof api.updateMe>[0]) => {
-    try {
-      setProfile(await api.updateMe(changes));
-      setFailed(null);
-    } catch (e: unknown) {
-      setFailed(describe(e));
-    }
-  };
+  /*
+   * In order, which the phone's settings have been and these were not.
+   *
+   * Each of the choices below is a `PATCH`, and a second choice is a newer
+   * intention rather than a duplicate press. Nothing ordered the two requests,
+   * so whichever *arrived* last decided what the server held. Measured on the
+   * phone with the first request held open: "Share every session", then a
+   * change of mind to "Never share", left the account sharing every session
+   * with the screen agreeing. The fix went into `lib/presses.ts` and onto the
+   * phone's four call sites, and this screen, which has the same control, kept
+   * a bare `await`: `grep inOrder` across this app matched the definition and
+   * nothing else.
+   */
+  const inTurn = useRef(inOrder()).current;
+
+  const save = (changes: Parameters<typeof api.updateMe>[0]) =>
+    inTurn(async () => {
+      try {
+        setProfile(await api.updateMe(changes));
+        setFailed(null);
+      } catch (e: unknown) {
+        setFailed(describe(e));
+      }
+    });
 
   /*
    * Four refusals, in closures rather than in React state.
@@ -202,8 +218,18 @@ export default function Settings() {
   };
 
   const signOut = async () => {
-    await api.logout();
-    router.push('/welcome');
+    // `finally`, as on the phone. `logout()` drops the token whether or not
+    // the request arrives and then rethrows a failure, so with no signal the
+    // push below never ran: the person was signed out and left looking at a
+    // settings screen with their address on it, with an unhandled rejection
+    // for an explanation.
+    try {
+      await api.logout();
+    } catch {
+      // Signed out on this device either way, which is what was asked for.
+    } finally {
+      router.push('/welcome');
+    }
   };
 
   if (profile === null) {
@@ -213,7 +239,28 @@ export default function Settings() {
         {failed === null ? (
           <p className={styles.loading}>Loading…</p>
         ) : (
-          <p className={styles.failure}>{failed}</p>
+          <>
+            <p className={styles.failure} role="alert">
+              {failed}
+            </p>
+            {/*
+              The crisis numbers, when nothing else on this screen could be
+              read. They were below three requests that all had to succeed, so
+              a journal count that failed to load took 9-8-8 and 911 off the
+              screen the desktop app's "If you need someone now" opens. The
+              account's country is one of the things that did not arrive, so
+              these are the default market's, which is the fallback the consent
+              screens and the landing page use for the same reason. Only once
+              the read has failed: while it is still loading, the account's own
+              list is about to replace them.
+            */}
+            <span className={styles.label}>IF YOU NEED SOMEONE NOW</span>
+            <div className={styles.helplines}>
+              {helplinesFor(DEFAULT_COUNTRY).map((h) => (
+                <HelplineLink key={h.number} helpline={h} />
+              ))}
+            </div>
+          </>
         )}
       </>
     );

@@ -224,4 +224,37 @@ final class RetriedStartTest extends TestCase
             ->assertJsonPath('usedThisWeek', 3);
         $this->assertSame(0, $this->left());
     }
+
+    /**
+     * The same retry, at the edge of the allowance, which is where it was
+     * still broken. The allowance was checked before `start()` was asked, so
+     * the third full session of the week answered 201 and a retry of that very
+     * request answered 402 "you have used 3", while the session it had just
+     * been charged for sat open and untouched. Both home screens show the
+     * plain "Start talking" branch for an untouched session, so that button
+     * led to the refusal and nothing led to the session.
+     */
+    public function test_a_retry_of_the_last_allowed_start_is_handed_the_same_session(): void
+    {
+        $this->consentedUser();
+
+        foreach ([1, 2] as $_) {
+            $id = (string) $this->postJson('/api/sessions')->assertCreated()->json('id');
+            $this->answer($id);
+        }
+        $this->assertSame(1, $this->left());
+
+        $third = (string) $this->postJson('/api/sessions')->assertCreated()->json('id');
+        $this->assertSame(0, $this->left());
+
+        // The reply was lost, or the tab reloaded, or the button was pressed
+        // again from the home screen.
+        $again = $this->postJson('/api/sessions')->assertCreated();
+        $this->assertSame($third, $again->json('id'));
+        $this->assertSame(0, $this->left());
+
+        // And the promise still holds once something has been said into it.
+        $this->answer($third);
+        $this->postJson('/api/sessions')->assertStatus(402);
+    }
 }

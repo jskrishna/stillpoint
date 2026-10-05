@@ -48,6 +48,30 @@ export interface Page<T> {
   readonly total: number;
 }
 
+/**
+ * A string with no half characters in it, as a `JSON.stringify` replacer.
+ *
+ * A JavaScript string can hold half of a surrogate pair: an emoji cut by a
+ * field's length limit, a paste, or a keyboard's backspace. `JSON.stringify`
+ * writes that half as an escape, and PHP's `json_decode` rejects the whole
+ * body for it. Laravel then sees a request with no fields, so a turn was
+ * answered 422 "The utterance field is required." and the risk screen never
+ * read it. The server repairs such a body on the turns route; this is the
+ * same repair at the source, for every route, so what is sent is something
+ * every decoder agrees about. U+FFFD is what the half would have been drawn
+ * as anyway.
+ *
+ * Without the `u` flag on purpose: the pattern has to see the two halves as
+ * two units to tell a pair from a stray one.
+ */
+const HALF_PAIRS = /[\ud800-\udbff][\udc00-\udfff]|[\ud800-\udfff]/g;
+
+function wholeCharacters(_key: string, value: unknown): unknown {
+  return typeof value === 'string'
+    ? value.replace(HALF_PAIRS, (found) => (found.length === 2 ? found : '\ufffd'))
+    : value;
+}
+
 export function pageQuery(limit?: number, cursor?: string | null): string {
   const parts: string[] = [];
   if (limit !== undefined) parts.push(`limit=${encodeURIComponent(String(limit))}`);
@@ -109,7 +133,7 @@ export function transportFor(config: ClientConfig): Transport {
     const response = await doFetch(`${baseUrl}${path}`, {
       method,
       headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { body: JSON.stringify(body, wholeCharacters) }),
     });
 
     if (response.status === 204) return undefined as T;

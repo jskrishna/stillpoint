@@ -30,6 +30,10 @@ final class CoachClient extends Pivot
             'status' => ClientStatus::class,
             'since' => 'datetime',
             'next_call_at' => 'datetime',
+            // Free text about a person, written by somebody else. It was
+            // stored as typed, the one personal column the cast had not
+            // reached. `RotateEncryptionKey::COLUMNS` has it too.
+            'coach_notes' => 'encrypted',
         ];
     }
 }
