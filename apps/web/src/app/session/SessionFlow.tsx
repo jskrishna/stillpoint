@@ -16,6 +16,7 @@ import {
   type FeelingId,
 } from '@stillpoint/protocol';
 import { FEELING_COLOR } from '@stillpoint/design-tokens';
+import HelplineLink from '../../components/HelplineLink';
 import { ApiError, api, hasToken, type ApiHelpline, type ApiSession } from '../../lib/api';
 import { describe } from '../../lib/describe';
 import { browserVoiceLoop, type VoiceLoop } from '../../lib/voice';
@@ -698,38 +699,5 @@ function TickIcon() {
     >
       <path d="M5 12l5 5 9-10" />
     </svg>
-  );
-}
-
-/**
- * One crisis number, dialable.
- *
- * Shared by the safety pause and by the failure path above, because two
- * renderings of a phone number on one screen is two places for one of them to
- * stop being a `tel:` link.
- */
-function HelplineLink({
-  helpline,
-}: {
-  helpline: {
-    readonly name: string;
-    readonly number: string;
-    readonly detail: string;
-    readonly kind: string;
-  };
-}) {
-  return (
-    <a
-      href={`tel:${helpline.number}`}
-      className={`${styles.helpline} ${
-        helpline.kind === 'emergency' ? styles.helplineEmergency : styles.helplineMain
-      }`}
-    >
-      <span className={styles.helplineText}>
-        <span className={styles.helplineName}>{helpline.name}</span>
-        <span className={styles.helplineDetail}>{helpline.detail}</span>
-      </span>
-      <span className={styles.helplineNumber}>{helpline.number}</span>
-    </a>
   );
 }

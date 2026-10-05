@@ -336,3 +336,18 @@
   color: var(--sp-color-muted);
   text-align: center;
 }
+
+/*
+ * The crisis numbers on the settings screen, which had none.
+ *
+ * A column with the same gap the session screen's `.safety` block uses, since
+ * the links themselves are the shared `HelplineLink` and carry their own
+ * colour and padding. The phone's settings screen has had this section all
+ * along; this is the web catching up, and the desktop app's "If you need
+ * someone now" menu item navigates here.
+ */
+.helplines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-md);
+}

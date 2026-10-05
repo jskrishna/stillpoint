@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   COACH_SHARINGS,
+  DEFAULT_COUNTRY,
+  helplinesFor,
   COACH_SHARING_LABEL,
   GUIDE_VOICES,
   TALK_MODES,
@@ -15,6 +17,7 @@ import {
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import HelplineLink from '../../../components/HelplineLink';
 import styles from '../app.module.css';
 
 /**
@@ -193,6 +196,11 @@ export default function Settings() {
     );
   }
 
+  // The account's own country, with `DEFAULT_COUNTRY` as the fallback rather
+  // than a literal — the rule the consent screens were fixed to follow after
+  // `helplinesFor('IN')` told a Canadian to call 112.
+  const helplines = helplinesFor(profile.country === '' ? DEFAULT_COUNTRY : profile.country);
+
   return (
     <>
       <h1 className={styles.title}>Settings</h1>
@@ -363,6 +371,34 @@ export default function Settings() {
           </div>
         </div>
       ) : null}
+
+      {/*
+        The crisis numbers, which this screen did not have and the phone's has
+        had all along.
+        **A parity gap on the one thing that must not drift between surfaces.**
+        `apps/mobile`'s settings screen renders `helplinesFor(profile.country)`
+        under a group headed "If you need someone now"; this one rendered
+        nothing, so a person looking for a number in the web app or the desktop
+        shell had nowhere to find one outside a session. The desktop app's Help
+        menu has an item with that exact label which navigates **here** — so on
+        that surface, "If you need someone now" landed on a page whose contents
+        are voice preferences, coach sharing and two delete buttons.
+        The country is the account's own, falling back to `DEFAULT_COUNTRY`
+        rather than to a literal, which is the rule the consent screens were
+        fixed to follow. An unserved country gets an empty list and this
+        section is not drawn: a wrong crisis number is worse than none, and so
+        is a heading with nothing under it.
+      */}
+      {helplines.length === 0 ? null : (
+        <>
+          <span className={styles.label}>IF YOU NEED SOMEONE NOW</span>
+          <div className={styles.helplines}>
+            {helplines.map((h) => (
+              <HelplineLink key={h.number} helpline={h} />
+            ))}
+          </div>
+        </>
+      )}
 
       <button
         type="button"

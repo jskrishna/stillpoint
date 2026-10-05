@@ -731,6 +731,33 @@ await page.waitForTimeout(1500);
 const set = await text();
 if (set.includes(email)) ok('settings show the signed-in account');
 else bad('settings show the signed-in account', set.slice(0, 300));
+
+/*
+ * The crisis numbers, which this screen did not have.
+ *
+ * The phone's settings screen has rendered `helplinesFor(profile.country)`
+ * under "If you need someone now" all along and the web's rendered nothing, so
+ * a person looking for a number outside a session had nowhere on this surface
+ * to find one. And `apps/desktop`'s Help menu has an item with that exact
+ * label which navigates **here** — so on the desktop, "If you need someone
+ * now" landed on a page of voice preferences and two delete buttons.
+ *
+ * Asserted with the country's own numbers and against the other market's, the
+ * way the consent gate is, because the failure this guards is not an absent
+ * section but a section with somebody else's numbers in it.
+ */
+if (/9-8-8|988/.test(set) && /\b911\b/.test(set))
+  ok('and the crisis numbers, with this account’s own country');
+else bad('and the crisis numbers, with this account’s own country', set.slice(-600));
+if (!/14416|Tele-MANAS/.test(set)) ok('and not another market’s');
+else bad('and not another market’s', set.slice(-600));
+
+// A `tel:` link rather than text, which is the whole point of the shared
+// `HelplineLink`: the desktop shell passes `tel:` to the OS on purpose, and a
+// number nobody can press is a number on a poster.
+const dialable = await page.locator('a[href^="tel:"]').count();
+if (dialable >= 2) ok(`and each one is dialable (${String(dialable)} tel: links)`);
+else bad('and each one is dialable', `${String(dialable)} tel: links`);
 await page.locator('select').nth(2).selectOption('never');
 await page.waitForTimeout(1000);
 await page.reload({ waitUntil: 'networkidle' });

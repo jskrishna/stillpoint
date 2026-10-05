@@ -1,0 +1,57 @@
+/*
+ * Moved out of `session/session.module.css`.
+ *
+ * `CLAUDE.md`'s rule is **one rendering of a phone number per surface**, "because
+ * two renderings is two places for one of them to stop being a `tel:` link" —
+ * and it was one rendering inside one file, which is not the same promise. It
+ * is a shared component now, so the safety pause, the unsent-crisis block and
+ * the settings screen are all the same `tel:` link.
+ */
+.helpline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-md);
+  padding: var(--sp-space-lg);
+  border-radius: var(--sp-radius-card);
+  color: var(--sp-color-accent-ink);
+  text-decoration: none;
+}
+
+.helplineMain {
+  background: var(--sp-color-positive);
+}
+
+.helplineEmergency {
+  background: var(--sp-color-danger);
+}
+
+.helplineText {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.helplineName {
+  font-size: var(--sp-text-body);
+  font-weight: var(--sp-weight-bold);
+}
+
+/*
+ * No `opacity` here, deliberately.
+ *
+ * It was `0.9`, which blends `accentInk` white down to `#eaf2ef` and takes
+ * this line from 5.0:1 to **4.39:1** on `positive` — measured by axe on the
+ * pause screen, which `a11y.mjs` had never audited because that screen only
+ * exists after a safety stop. The smaller font size is the de-emphasis; on
+ * the screen whose job is to get somebody to a phone number, legibility is
+ * not something to trade for a shade of hierarchy. The token test asserts the
+ * unblended pair, so an opacity here is outside what it can promise.
+ */
+.helplineDetail {
+  font-size: var(--sp-text-caption);
+}
+
+.helplineNumber {
+  font-size: var(--sp-text-subheading);
+  font-weight: var(--sp-weight-bold);
+}

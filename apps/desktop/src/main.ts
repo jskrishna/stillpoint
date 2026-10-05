@@ -186,8 +186,21 @@ function buildMenu(): void {
         role: 'help' as const,
         submenu: [
           {
-            // The only thing in this menu worth a person's time when they are
-            // upset, and it goes to the app's own screen rather than a website.
+            /*
+             * The only thing in this menu worth a person's time when they are
+             * upset, and it goes to the app's own screen rather than a website.
+             *
+             * **That screen had nothing on it until recently**, which made this
+             * item the worst kind of promise: `/app/settings` listed voice
+             * preferences, coach sharing and two delete buttons, and no crisis
+             * number anywhere. The phone's settings screen has had a section
+             * headed exactly "If you need someone now" all along; the web's
+             * had not, so this label was written against a screen that only
+             * existed on the other surface. `apps/web` renders
+             * `helplinesFor(profile.country)` there now, as `tel:` links —
+             * which is why `tel:` is one of the four schemes `openExternal`
+             * passes through.
+             */
             label: 'If you need someone now',
             click: () => {
               show();

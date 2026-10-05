@@ -367,6 +367,43 @@ with the account's own country, assert the session is **not** treated as
 stopped, and then let the retry through and assert the server does the real
 thing. Both were checked by reverting the screens and rebuilding.
 
+### And outside a session there was nowhere on the web to find a number
+
+The phone's settings screen renders `helplinesFor(profile.country)` under a
+group headed **"If you need someone now"**, and has since it was written. The
+web's settings screen rendered nothing — grepped, the only matches for
+"danger" on it were the colour token on its two delete buttons. So on the web
+and in the desktop shell the crisis numbers existed on exactly two screens: the
+consent gate, before anybody starts, and the safety pause, after the server has
+stopped a session. A person who wanted a number at any other moment had
+nowhere to look.
+
+**The desktop app made that worse than a gap.** Its Help menu has one item,
+labelled with that same phrase — "If you need someone now" — and it navigates
+to `/app/settings`. So somebody who clicked it arrived at voice preferences,
+coach sharing, "Delete my journal" and "Delete my account". The label was
+written against the phone's section; the screen it points at is the web's,
+which did not have one.
+
+The web's settings screen has it now, same heading, same
+`helplinesFor(profile.country)` with `DEFAULT_COUNTRY` as the fallback rather
+than a literal — the rule the consent screens were fixed to follow. An unserved
+country gets the empty list and the section is not drawn, because a heading
+with nothing under it is the same mistake as a wrong number.
+
+**`HelplineLink` is a shared component now, which the rule already said it
+was.** "One rendering of a phone number per surface" was true of one _file_:
+the component lived inside `session/SessionFlow.tsx` with its CSS in that
+screen's module, so the settings screen could not have used it even if somebody
+had wanted to. It is in `apps/web/src/components/` with its own module, and the
+pause, the unsent-crisis block and settings are the same `tel:` link — three of
+them on a Canadian account, which is what `flow.mjs` counts.
+
+Note what the phone does differently and is left alone: its settings section
+renders the numbers as **text**, not as a pressable. That is a real difference
+and not this change's to make — `apps/mobile/README.md` already lists `tel:`
+links among the things only a device can prove.
+
 ### A number on the screen is only an offer to whoever can see the screen
 
 The session screen had **no live region at all** and moved focus nowhere, which
