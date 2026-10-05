@@ -158,15 +158,39 @@ final class CoachInviteController extends Controller
         }
 
         DB::transaction(function () use ($invite, $user): void {
-            $coach = $invite->coach;
-
-            // Idempotent: accepting twice is one pairing, not two.
-            if (! $coach->clients()->where('users.id', $user->id)->exists()) {
-                $coach->clients()->attach($user->id, [
-                    'status' => 'active',
-                    'since' => now(),
-                ]);
-            }
+            /*
+             * One statement, so "accepting twice is one pairing" is the
+             * database's rule rather than a check with a gap after it.
+             *
+             * It was `exists()` and then `attach()`, which is read-then-insert
+             * — the shape `openDraft()` was fixed for, on a route that grants
+             * somebody the ability to read another person's shared sessions.
+             * `coach_client` is unique on (coach_id, client_id), so two
+             * accepts arriving together could never have made two pairings;
+             * what the loser got was a constraint violation and a **500**,
+             * from a method whose own comment said it was idempotent, on the
+             * one screen an invitee uses and from which they have no other way
+             * in.
+             *
+             * `insertOrIgnore` has no gap to lose in, and deleting the check
+             * is what makes the existing "accepting twice leaves one pairing"
+             * test exercise the duplicate insert rather than skip past it.
+             * Not a lock, because there is nothing to serialise: the row is
+             * either there or it is not, and either answer is the one the
+             * caller asked for.
+             *
+             * `status` is written explicitly rather than left to the column
+             * default, which is still `invited` on purpose — see
+             * `ClientStatus`.
+             */
+            DB::table('coach_client')->insertOrIgnore([
+                'coach_id' => $invite->coach_id,
+                'client_id' => $user->id,
+                'status' => 'active',
+                'since' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
             $invite->status = 'accepted';
             $invite->accepted_at = now();

@@ -2625,6 +2625,37 @@ offers and lets the product route, with no `goto` in that block at all; the
 is the same shape as the plan trail's paging test: a check that walks a path
 the user cannot.
 
+**And accepting pairs with one statement**, which it did not. It was
+`exists()` and then `attach()` — read-then-insert, the shape `openDraft()` was
+fixed for, on the route that grants somebody the ability to read another
+person's shared sessions. `coach_client` is unique on (coach_id, client_id), so
+two accepts arriving together could never have made two pairings; what the
+loser got was a constraint violation and a **500**, from a method whose own
+comment said it was idempotent, on the one screen an invitee uses and from
+which they have no other way in. `insertOrIgnore` has no gap to lose in, and
+deleting the check is what makes "one pairing" the database's rule rather than
+a check with a gap after it — the same sentence as
+`journal_entries.guided_session_id` being unique.
+
+Not a lock, because there is nothing to serialise: the row is either there or
+it is not, and either answer is the one the caller asked for.
+
+Three things about verifying it. The existing "accepting twice is one pairing"
+test does **not** reach the insert — the second accept is refused with a 409 by
+`isUsable()`, so it stops well short — which is why a new case was needed. That
+case asserts the **statement**, since two simultaneous accepts cannot be driven
+from one process on sqlite any more than `lockForUpdate()` can, and it accepts
+both grammars because sqlite writes `insert or ignore into` where MySQL writes
+`insert ignore into`. And it also asserts that nothing selects from
+`coach_client` first, which is the gap itself rather than its consequence.
+
+**What was checked and found clean in the same pass:** a triple-tapped Accept
+in a real browser sends **one** request. The handler sets `busy` without
+refusing on it, which is the exact shape five other controls were fixed for —
+but `disabled={… || busy}` is applied before the next click lands, measured, so
+this one was never reachable from the screen. The server-side race was the real
+half.
+
 Ending a pairing does **not** unshare the entries: `shared_with_coach` is a
 separate decision and stays where the user put it. What ends is anyone being
 able to read them, because reading goes through the pairing.

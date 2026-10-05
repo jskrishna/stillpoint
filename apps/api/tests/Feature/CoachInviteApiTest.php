@@ -10,6 +10,7 @@ use App\Models\CoachInvite;
 use App\Models\JournalEntry;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -141,6 +142,64 @@ final class CoachInviteApiTest extends TestCase
         $this->postJson("/api/invites/{$invite->token}/accept")->assertOk();
         // The second is refused rather than silently doubling anything.
         $this->postJson("/api/invites/{$invite->token}/accept")->assertConflict();
+
+        $this->assertSame(1, $coach->clients()->count());
+    }
+
+    /**
+     * The pairing is one statement, so two accepts cannot both insert.
+     *
+     * The test above does not reach this: the second accept is refused with a
+     * 409 by `isUsable()`, because the invite is already accepted, so it never
+     * gets near the insert. The case that does is two requests arriving
+     * **together**, both finding the invite usable — and that cannot be driven
+     * from one process on sqlite, exactly as `lockForUpdate()` cannot be.
+     *
+     * What can be asserted is the statement, which is what makes the outcome
+     * impossible rather than improbable. It was `exists()` and then `attach()`,
+     * read-then-insert, and `coach_client` is unique on (coach_id, client_id) —
+     * so two accepts together could never have made two pairings, and the
+     * loser got a constraint violation and a **500** from a method whose own
+     * comment said it was idempotent, on the one screen an invitee uses and
+     * from which they have no other way in. `insertOrIgnore` has no gap to
+     * lose in.
+     *
+     * Both spellings, because the grammars differ: sqlite writes
+     * `insert or ignore into`, MySQL writes `insert ignore into`, and this
+     * suite only ever sees the first.
+     */
+    public function test_accepting_pairs_with_one_statement_that_cannot_duplicate(): void
+    {
+        $coach = User::factory()->coach()->create();
+        $client = User::factory()->create(['email' => 'asha@example.com']);
+        $invite = CoachInvite::open($coach, 'asha@example.com');
+
+        $statements = [];
+        DB::listen(function ($query) use (&$statements): void {
+            $statements[] = $query->sql;
+        });
+
+        Sanctum::actingAs($client);
+        $this->postJson("/api/invites/{$invite->token}/accept")->assertOk();
+
+        $inserts = array_values(array_filter(
+            $statements,
+            static fn (string $sql) => str_contains($sql, 'coach_client')
+                && str_starts_with($sql, 'insert'),
+        ));
+
+        $this->assertCount(1, $inserts, 'the pairing should be written once: '.implode(' | ', $inserts));
+        $this->assertTrue(
+            str_contains($inserts[0], 'insert or ignore') || str_contains($inserts[0], 'insert ignore'),
+            "the pairing insert can duplicate under two concurrent accepts: {$inserts[0]}",
+        );
+
+        // And nothing reads the pairing first, which is the gap that was there.
+        foreach ($statements as $sql) {
+            if (str_starts_with($sql, 'select') && str_contains($sql, 'coach_client')) {
+                $this->fail("accepting still reads the pairing before writing it: {$sql}");
+            }
+        }
 
         $this->assertSame(1, $coach->clients()->count());
     }
