@@ -403,14 +403,82 @@ for (const { route, as } of ROUTES) {
       await page.waitForTimeout(900);
 
       if (size.reflowOnly === true) {
-        const dragged = await page.evaluate(
-          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        );
+        /*
+         * Two measurements, because the obvious one is not enough.
+         *
+         * The document's own overflow is what SC 1.4.10 is about, and it is
+         * what this did. It missed a real failure for as long as it existed:
+         * on `/welcome/invite/<token>` the invited address rendered **290.2px**
+         * wide inside a **280px** paragraph, overflowing its own container by
+         * 10.2px — and the document read **0**, because the content column's
+         * 20px right gutter absorbed it. CI found it only because that
+         * runner's glyphs are marginally wider: the run passed ~300px, ate the
+         * gutter too, and the document dragged by **2px**.
+         *
+         * So the local check was passing by exactly zero, which is not
+         * passing — it is coinciding, and two pixels of font-metric difference
+         * between two Chromium builds decided it. A check that depends on
+         * which runner it is on is not a check.
+         *
+         * The second measurement is the mechanism rather than the symptom:
+         * **no unbreakable text run wider than the block it sits in.** That is
+         * deterministic, it does not care about the gutter, and it is the
+         * thing `overflow-wrap: anywhere` fixes. It measures each
+         * whitespace-separated run with a `Range`, because a run is not an
+         * element and `scrollWidth` rounds to an integer.
+         *
+         * 2px of tolerance, for the sub-pixel rounding a `Range` and a
+         * `getBoundingClientRect` disagree about on a wrapped line.
+         */
+        const measured = await page.evaluate(() => {
+          const d = document.documentElement;
+          const dragged = d.scrollWidth - d.clientWidth;
+
+          const overflowing = [];
+          for (const el of document.querySelectorAll(
+            'body p, body h1, body h2, body h3, body li, body td, body th, body span, body strong, body a, body button, body label',
+          )) {
+            const box = el.getBoundingClientRect().width;
+            if (box === 0) continue;
+            const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walk.nextNode()) !== null) {
+              const text = node.textContent ?? '';
+              let at = 0;
+              for (const run of text.split(/(\s+)/)) {
+                if (run.trim() !== '') {
+                  const range = document.createRange();
+                  range.setStart(node, at);
+                  range.setEnd(node, at + run.length);
+                  const width = range.getBoundingClientRect().width;
+                  if (width > box + 2) {
+                    overflowing.push({
+                      tag: el.tagName.toLowerCase(),
+                      run: run.slice(0, 44),
+                      width: Math.round(width * 10) / 10,
+                      box: Math.round(box * 10) / 10,
+                    });
+                  }
+                }
+                at += run.length;
+              }
+            }
+          }
+          return { dragged, overflowing };
+        });
+
         reflowChecked += 1;
-        if (dragged > 1) {
+        if (measured.dragged > 1) {
           bad(
-            `${route} · ${size.name} — the page scrolls sideways by ${String(dragged)}px`,
+            `${route} · ${size.name} — the page scrolls sideways by ${String(measured.dragged)}px`,
             'WCAG 2.1 SC 1.4.10 Reflow asks for no two-dimensional scrolling at this width',
+          );
+          failingCombinations += 1;
+        } else if (measured.overflowing.length > 0) {
+          const worst = measured.overflowing.sort((a, b) => b.width - b.box - (a.width - a.box))[0];
+          bad(
+            `${route} · ${size.name} — "${worst.run}" is ${String(worst.width)}px in a ${String(worst.box)}px <${worst.tag}>`,
+            `${String(measured.overflowing.length)} unbreakable run(s) wider than the block holding them. The document does not scroll yet, which is a gutter absorbing it rather than a layout that fits — see the note above. \`overflow-wrap: anywhere\` is usually the answer.`,
           );
           failingCombinations += 1;
         } else {

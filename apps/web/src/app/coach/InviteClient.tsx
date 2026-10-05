@@ -122,7 +122,7 @@ export default function InviteClient({ onAccepted }: { onAccepted?: () => void }
           {open.map((i) => (
             <div key={i.id}>
               <p className={styles.inviteNote}>
-                <strong>{i.email}</strong> · expires{' '}
+                <strong className="sp-address">{i.email}</strong> · expires{' '}
                 {new Date(i.expiresAt).toLocaleDateString(LOCALE, {
                   day: 'numeric',
                   month: 'short',

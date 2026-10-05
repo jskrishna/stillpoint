@@ -99,7 +99,9 @@ export default function ResetPassword({ token }: { token: string }) {
     <div className={styles.screen}>
       <div className={styles.mark} aria-hidden="true" />
       <h1 className={styles.title}>Choose a new password</h1>
-      <p className={styles.lead}>For {email}.</p>
+      <p className={styles.lead}>
+        For <span className="sp-address">{email}</span>.
+      </p>
 
       <form
         onSubmit={(e) => {

@@ -1729,6 +1729,52 @@ is, because a pass that quietly stopped running reports nothing and reads
 exactly like sixteen clean routes. That is this script's own history: it once
 printed six FAIL lines, then "CLEAN", and exited 0.
 
+**And the 320 pass measured the wrong thing, which CI proved by two
+pixels.** It read `documentElement.scrollWidth - clientWidth`, which is what
+SC 1.4.10 is about — and for as long as it existed it missed a real failure.
+On `/welcome/invite/<token>` the invited address rendered **290.2px** wide
+inside a **280px** paragraph, so it was overflowing its own container by
+10.2px, and the document read **0**: the content column's 20px right gutter
+absorbed it.
+
+The first CI run after the billing hold cleared found it, and only because
+that runner's glyphs are marginally wider — the run passed ~300px, ate the
+gutter too, and the document dragged by **2px**. So the local check was
+passing by exactly zero, which is not passing but coinciding, and two pixels
+of font-metric difference between two Chromium builds decided it. **A check
+whose answer depends on which runner it is on is not a check.**
+
+So the pass measures the mechanism beside the symptom: **no unbreakable text
+run wider than the block it sits in**, each run measured with a `Range`
+because a run is not an element and `scrollWidth` rounds to an integer. That
+is deterministic, it does not care about the gutter, and it is the thing
+`overflow-wrap: anywhere` fixes. Clean across all 20 routes, so it does not
+flood; red locally with the fix reverted, naming the numbers —
+`"a11y-invite+…@example.com" is 290.2px in a 280px <p>` — which the old
+measurement could not do at all.
+
+`.sp-address` in `globals.css` is the rule, global rather than copied into
+three CSS modules because it is one rule: the invite screen, the reset screen
+and the coach's pending-invitation list all print an address in prose. The
+console's accounts table is the fourth and is left alone — it is inside
+`TableScroll`, which scrolls its own region by design. Measured after, with
+the viewport narrowed to force it: the address box shrinks 276 → 257 → 240 →
+198 → 155 across 320/300/280/240/200 with the document never overflowing, so
+it reflows rather than fitting by luck.
+
+**And the job's own failure log was unreadable, which is how this was
+found.** `The logs, if anything failed` printed `tail -n 200` of
+`laravel.log`, and `MAIL_MAILER=log` writes every rendered notification
+there — so it was 200 lines of Laravel's HTML mail template, twice, and the
+failing assertion was found through the check run's **annotations** instead.
+Measured on the real log: a plain `tail -n 200` carries **7** lines holding a
+reset token or an address; the filtered version carries **0** and keeps the
+stack trace. Since this repository went public that is also a reset token in
+a world-readable log — nothing real leaks, since they are throwaway accounts
+on a database the job destroys, and `NoPersonalTextInLogsTest` already keeps a
+user's own words out of that file, but neither of those is a reason to print
+it. A diagnostic that buries the diagnosis is not one.
+
 **"Every route" was a claim about this file, checked against this file.** The
 four route lists at the top of `a11y.mjs` are hand-written and the summary
 prints "N routes" from their length, so for as long as that script existed its

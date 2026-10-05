@@ -83,6 +83,9 @@ export default tseslint.config(
         setTimeout: 'readonly',
         // `e2e/run.mjs` polls the three servers with a bounded fetch.
         AbortSignal: 'readonly',
+        // `e2e/a11y.mjs`'s 320 pass measures each text run with a `Range`,
+        // which needs a `TreeWalker` to reach the text nodes.
+        NodeFilter: 'readonly',
       },
     },
   },

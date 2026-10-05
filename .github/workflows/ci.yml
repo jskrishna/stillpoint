@@ -419,9 +419,34 @@ jobs:
           echo "=== the API server's own output ==="
           tail -n 60 /tmp/api.log || echo "(no /tmp/api.log)"
           echo
-          echo "=== Laravel's log ==="
+          echo "=== Laravel's log, errors only ==="
+          # Errors only, and the reason is both halves of one problem.
+          #
+          # `MAIL_MAILER=log` writes every rendered notification here, so a
+          # plain `tail -n 200` was 200 lines of Laravel's HTML mail template
+          # — including the password-reset links and the addresses they went
+          # to. That was always noise; since this repository went public it is
+          # also a reset token in a world-readable log. Nothing real leaks
+          # (throwaway accounts on a database the job destroys) and
+          # `NoPersonalTextInLogsTest` already keeps a user's own words out of
+          # this file, but neither of those is a reason to print it.
+          #
+          # And the noise had a measured cost: looking for a failing
+          # assertion in this job's log, what came back was the mail
+          # template, twice, and the failure was found through the check
+          # run's annotations instead. A diagnostic that buries the
+          # diagnosis is not one.
+          #
+          # `local.ERROR`/`WARNING` lines and whatever Laravel's formatter
+          # wrapped after them, which is the stack trace. The grep runs over
+          # the last 2000 lines so a trace is not cut off at the window edge,
+          # and prints nothing rather than everything when there is no error.
           if [ -f apps/api/storage/logs/laravel.log ]; then
-            tail -n 200 apps/api/storage/logs/laravel.log
+            tail -n 2000 apps/api/storage/logs/laravel.log \
+              | grep -E '^\[|^#[0-9]+ |^Next |Stack trace' \
+              | grep -vE 'local\.(DEBUG|INFO)' \
+              | tail -n 120 \
+              || echo "(no error lines — the failure did not reach PHP, or PHP did not log it)"
           else
             echo "(no laravel.log — nothing reached PHP and threw; look at the"
             echo " server output above and at the connection, not at the app)"

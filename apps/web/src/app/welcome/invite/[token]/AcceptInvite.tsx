@@ -200,9 +200,9 @@ export default function AcceptInvite({ token }: { token: string }) {
       <div className={styles.mark} aria-hidden="true" />
       <h1 className={styles.title}>{invitation.coachName} would like to be your coach</h1>
       <p className={styles.lead}>
-        Sent to {invitation.email}. A coach sees a session <strong>only</strong> when you choose to
-        share it — never your whole journal, and never a session that ended because you were not
-        safe. You can end it at any time.
+        Sent to <span className="sp-address">{invitation.email}</span>. A coach sees a session{' '}
+        <strong>only</strong> when you choose to share it — never your whole journal, and never a
+        session that ended because you were not safe. You can end it at any time.
       </p>
 
       {invitation.usable ? null : <p className={styles.unavailableNote}>{invitation.reason}</p>}

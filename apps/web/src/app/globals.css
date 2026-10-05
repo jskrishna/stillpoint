@@ -58,3 +58,33 @@ svg {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * An address printed in running text, which has nowhere to break.
+ *
+ * Measured on `/welcome/invite/<token>` at 320 CSS pixels:
+ * `a11y-invite+1791214841968@example.com` renders **290.2px** wide inside a
+ * **280px** paragraph — so it was already overflowing its own container by
+ * 10.2px here, and `documentElement.scrollWidth - clientWidth` read **0**,
+ * because the content column's 20px right gutter absorbed it. CI found it
+ * only because that runner's glyphs are marginally wider: the run passed
+ * ~300px, ate the gutter too, and the document scrolled sideways by **2px**.
+ *
+ * So the local check was passing by exactly zero, which is not passing — it
+ * is coinciding, and two pixels of font-metric difference between two
+ * Chromium builds decided it. The lesson is the measure rather than the fix:
+ * a reflow check on the document cannot see an element overflowing its own
+ * container while a gutter is wide enough to hide it.
+ *
+ * `anywhere` rather than `break-word`, because an address has no space to
+ * break at and `break-word` only helps where there is one — the same pair of
+ * reasons `.settingValue` in `app.module.css` carries, which is where this
+ * rule was first needed. It is global rather than copied into three CSS
+ * modules because it is one rule: the invite screen, the reset screen and the
+ * coach's pending-invitation list all print an address in prose, and the
+ * fourth place (the console's accounts table) is inside `TableScroll`, which
+ * scrolls its own region by design.
+ */
+.sp-address {
+  overflow-wrap: anywhere;
+}
