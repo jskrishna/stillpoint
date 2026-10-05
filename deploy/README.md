@@ -85,6 +85,35 @@ front of real people:
   into the container's log instead of sending them, which means that in this
   configuration nobody can actually reset a password. It is the one thing here
   that is deliberately not finished, and it needs a provider decision.
+
+  There is **no code to write** for it: Laravel ships `smtp`, `resend`,
+  `postmark` and `ses` transports, so choosing one is `MAIL_MAILER` plus that
+  provider's credentials and `MAIL_FROM_ADDRESS` on a domain you may send for.
+  What was missing is that nothing said so — see the command below.
+
+**`php artisan stillpoint:preflight` says what this deployment cannot do.**
+Run it against the thing you just deployed. Everything it reports leaves the
+stack looking healthy: `deploy/smoke.mjs` ends with "This deployment serves a
+session, and stops one", and it is right — it registers, consents, takes two
+turns, trips the safety stop and erases the account. None of that touches
+mail, or asks whether the guide has words at step 3, or whether anybody can
+read the safety queue. So a deployment can pass every check in this repository
+and still be unable to reset a password.
+
+It separates the two kinds of finding, because they are not the same decision:
+**blocked** is somebody using the product hitting a wall (a locked-out account
+with no way back, a guide with nothing to say, a crisis disclosure nobody can
+read), and **note** is a real cost that falls on the operator or that depends
+on a topology the command cannot see. Exit 1 for the first, 0 for the second,
+so a deploy script can gate on it.
+
+It deliberately does **not** refuse to boot on any of this. `MAIL_MAILER=log`
+is unfinished on purpose and `LAUNCH.md` item 2 is where that decision lives;
+the failure was never that the product booted, it was that nothing told
+anybody. And it prints what it did not look at on every run, including a clean
+one — TLS, backups, billing, a clinician's sign-off, anything on a phone —
+because a green check silent about its own scope reads as "ready".
+
 - **There is no queue.** Nothing in the product needs one yet; `php artisan
 queue:work` has nothing to do. There _is_ a scheduler now — the `scheduler`
   service, running the same image as the API — with two tasks:

@@ -106,6 +106,21 @@ environment, set `MAIL_MAILER`. Then
 `CoachInviteController::forCoach()` should stop returning the invitation token
 to the coach, since the invitee will receive it directly.
 
+**There is no code to write.** Laravel ships `smtp`, `resend`, `postmark` and
+`ses` transports, so this is `MAIL_MAILER`, that provider's credentials, and
+`MAIL_FROM_ADDRESS` on a domain you may send for. Nothing in `apps/api`
+changes.
+
+**What was missing is that nothing said so.** A deployment with
+`MAIL_MAILER=log` passes every check in this repository —
+`deploy/smoke.mjs` ends with "This deployment serves a session, and stops
+one", and it is right, because none of what it walks touches mail. The reset
+route answers 200 either way, deliberately, so an unauthenticated caller
+cannot learn who has an account; which means the person is told a link is on
+its way and none arrives, and no screen can know. `php artisan
+stillpoint:preflight` is what says it now, against the thing you just
+deployed, and it exits 1 while this is true.
+
 **Cost.** An account and a DNS record. Roughly two hours of work once the
 account exists.
 
@@ -272,8 +287,25 @@ safety screen — which is the one that matters, because that screen's whole job
 is to place a call — the splash screen, and safe-area insets on a notched
 device.
 
-**What to do.** Open `apps/mobile` in Expo Go on your own phone and walk the
-journey once. The `tel:` links are the thing to check deliberately: tap a
+**What to do.** `pnpm run demo --lan`, then the three lines it prints. That
+flag exists because the documented path did not work: `pnpm run demo` ran
+`php artisan serve --port=8000 --no-reload`, which binds loopback, while
+`apps/mobile/.env.example` said to serve on all interfaces — measured,
+`127.0.0.1:8000/api/me` answered 401 and this machine's own LAN address was
+**refused**. `--lan` binds all three servers to `0.0.0.0`, rebuilds the web
+app for this machine's address (`NEXT_PUBLIC_API_URL` is baked in at build
+time), widens CORS to the LAN origin, and prints the exact
+`EXPO_PUBLIC_API_URL` line. Verified on the LAN address with
+`deploy/smoke.mjs`: a whole session, including the safety stop returning 988,
+Québec's line and 911.
+
+Every dependency in `apps/mobile/package.json` is in Expo Go's own bundled
+set, so scanning the QR is the whole install — no development build, no EAS
+account. That is read off the dependency list rather than run, because
+nothing in the container can run Expo Go.
+
+Then walk the journey once. The `tel:` links are the thing to check
+deliberately: tap a
 crisis number on the pause screen and confirm the dialler opens with the right
 number.
 

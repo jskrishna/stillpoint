@@ -3019,6 +3019,57 @@ been chosen, so the reset link is written to the log instead of sent. It is the
 one thing in the deployment that is deliberately unfinished, and it needs a
 decision rather than a configuration change.
 
+**And nothing said so, which is the half that was a defect.** A deployment in
+that state passes every check here: `deploy/smoke.mjs` ends with "This
+deployment serves a session, and stops one", and it is right — it registers,
+consents, takes two turns, trips the safety stop and erases the account, and
+none of that touches mail. The reset route answers 200 either way,
+deliberately, so an unauthenticated caller cannot learn who has an account —
+which means the person is told a link is on its way, none arrives, and no
+screen can know. That is a promise the server does not keep, with the promise
+in the deployment rather than in the code.
+
+`php artisan stillpoint:preflight` is what says it. Seven checks, each one a
+state that leaves the stack **looking healthy**: mail that cannot send and a
+`from` address nobody owns; no live protocol version, so the guide has nothing
+to say at three of six steps; no admin, so a crisis disclosure is recorded and
+read by nobody; `APP_FRONTEND_URL`'s origin missing from
+`CORS_ALLOWED_ORIGINS`, which is the measured desktop failure where the token
+comes back null and the screen blames the connection; `APP_DEBUG` on in
+production; `CACHE_STORE=database` on sqlite, which is the 33-of-60 `database
+is locked` finding; and no trusted proxy, which is right at the edge and wrong
+behind one.
+
+Two things about its shape. It separates **blocked** (somebody using the
+product hits a wall; exit 1) from **note** (a cost the operator weighs, or a
+topology this cannot see; exit 0), because a command that graded them the same
+would be one nobody could gate a deploy on. And it deliberately does **not**
+refuse to boot: `MAIL_MAILER=log` is unfinished on purpose, `LAUNCH.md` item 2
+is where that decision lives, and the failure was never that the product
+booted. It also prints what it did not look at on **every** run, including a
+clean one — TLS, backups, billing, a clinician's sign-off, anything on a phone
+— because a green check silent about its own scope reads as "ready" rather
+than "nothing I looked at", which is how several claims in this file went
+stale.
+
+`PreflightSaysWhatIsUnfinishedTest` drives every check in both directions,
+which is the only thing that stops this being a command that reports
+everything or one whose checks quietly stopped matching. Checked by neutering
+two of them: three cases go red by name.
+
+**One case is named rather than asserted, and the reason is the method.** The
+sqlite-cache check fires on sqlite **and** a database cache, and only the
+cache side is drivable here: pointing `database.default` elsewhere sends the
+command's own queries — the live version and the admin count — somewhere
+else. Both attempts failed on the fixture rather than the assertion, first
+`[2002] Connection refused` against a MySQL that is not running, then `no such
+table` once it was aliased to sqlite, because `:memory:` is a fresh database
+per connection — and that second one also left `RefreshDatabase` unable to
+roll back and took two other tests with it. So it is written down, which is
+what `check:mysql` is for and the same limit `ConcurrentTurnTest` states about
+`lockForUpdate()`. An aliased connection would have been a fixture that passes
+while measuring a database the command never queried.
+
 **And it is given the web origin, which is what makes it see CORS.** Plain
 `fetch` with no `Origin` header is not a browser and is never subject to CORS
 or to a content policy, so everything that script checks can pass against a
