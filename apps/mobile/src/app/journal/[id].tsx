@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
 import {
+  SESSION_KIND_LABEL,
   coachSharingFromStored,
   duration,
   mayShareEntry,
@@ -200,7 +201,7 @@ export default function Entry() {
       <Text style={s.title}>{entry.title}</Text>
       <Text style={s.caption}>
         {relativeDay(new Date(entry.occurredAt), now)} · {duration(entry.durationMinutes)}
-        {entry.kind === 'quick' ? ' · Quick session' : ''}
+        {entry.kind === 'quick' ? ` · ${SESSION_KIND_LABEL.quick} session` : ''}
       </Text>
 
       <View style={{ flexDirection: 'row', gap: SPACE.sm, flexWrap: 'wrap' }}>

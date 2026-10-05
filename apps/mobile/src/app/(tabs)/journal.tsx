@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
-import { duration, relativeDay } from '@stillpoint/protocol';
+import { SESSION_KIND_LABEL, duration, relativeDay } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../api';
 import { Button, Card, Tag } from '../../ui';
 import { useTheme } from '../../use-theme';
@@ -120,7 +120,7 @@ export default function Journal() {
               <Text style={s.quote}>{entry.title}</Text>
               <Text style={s.caption}>
                 {relativeDay(new Date(entry.occurredAt), now)} · {duration(entry.durationMinutes)}
-                {entry.kind === 'quick' ? ' · Quick' : ''}
+                {entry.kind === 'quick' ? ` · ${SESSION_KIND_LABEL.quick}` : ''}
               </Text>
               {entry.summary === '' ? null : (
                 <Text style={s.small} numberOfLines={2}>

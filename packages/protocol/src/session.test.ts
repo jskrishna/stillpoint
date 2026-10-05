@@ -5,7 +5,10 @@ import {
   currentOrdinal,
   isUntouched,
   isOutOfGuideTurns,
+  isSessionKind,
   startSession,
+  SESSION_KINDS,
+  SESSION_KIND_LABEL,
   type SessionEvent,
 } from './session.js';
 import { STEP_ORDER } from './steps.js';
@@ -362,5 +365,38 @@ describe('the furthest step a session reached', () => {
       seen = now;
     }
     expect(session.furthestStepId).toBe('remember');
+  });
+});
+
+/**
+ * The words a surface is allowed to use for a session's kind.
+ *
+ * The console invented a fifth one. It printed "Deep" for a `full` session —
+ * a word that appears nowhere else in this product, while the pricing page
+ * sells "3 full sessions a week", the home screen warns that starting
+ * something new "uses another full session", and the session screen refuses
+ * with "That is this week's full sessions".
+ *
+ * So the rule asserted here is not that the map is non-empty: it is that each
+ * label is the product's own word for that kind. "Deep" goes red.
+ */
+describe('a session kind has one word', () => {
+  it('names every kind', () => {
+    for (const kind of SESSION_KINDS) {
+      expect(SESSION_KIND_LABEL[kind], kind).not.toBe('');
+    }
+    expect(Object.keys(SESSION_KIND_LABEL).sort()).toEqual([...SESSION_KINDS].sort());
+  });
+
+  it("uses the kind's own name and invents nothing", () => {
+    for (const kind of SESSION_KINDS) {
+      expect(SESSION_KIND_LABEL[kind].toLowerCase(), kind).toBe(kind);
+    }
+  });
+
+  it('recognises the kinds the API sends, and nothing else', () => {
+    expect(SESSION_KINDS.every((k) => isSessionKind(k))).toBe(true);
+    expect(isSessionKind('deep')).toBe(false);
+    expect(isSessionKind('Full')).toBe(false);
   });
 });

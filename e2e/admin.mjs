@@ -121,6 +121,21 @@ if (!signedIn) {
   if (!overview.includes('burden')) ok('the overview carries no session text');
   else bad('the overview carries no session text');
 
+  // The kind each session was, in the product's own word. The row read
+  // "Deep · 1 min" for a `full` session — a word that appears nowhere else
+  // here, while the API's enum is `full`, the pricing page sells "3 full
+  // sessions a week" and the session screen refuses with "That is this week's
+  // full sessions". An admin reading this screen to answer a question about
+  // somebody's allowance had a fifth word for it.
+  //
+  // Asserted on the word rather than only on its absence: a row has to name a
+  // kind, so a missing label and a wrong one must both be red.
+  if (/\bFull · \d+ min/.test(overview) || /\bQuick · \d+ min/.test(overview))
+    ok('recent sessions name their kind in the product’s own word');
+  else bad('recent sessions name their kind in the product’s own word', overview.slice(-400));
+  if (!/\bDeep\b/.test(overview)) ok('and not a word the rest of the product never uses');
+  else bad('and not a word the rest of the product never uses', overview.slice(-400));
+
   await admin.goto(`${WEB}/admin/safety`, { waitUntil: 'networkidle' });
   await admin.waitForTimeout(1800);
   const queue = await admin.locator('body').innerText();

@@ -626,6 +626,53 @@ if (paging.error !== undefined) {
   else bad('a nonsense page size falls back to the default', String(paging.defaultedPage));
 }
 
+// ------------------------------------------------- 4b2. which sessions were quick
+//
+// The journal is the only record of what the weekly allowance was spent on:
+// Free gets three full sessions a week and unlimited quick ones, and when they
+// run out the screen says "No full sessions left this week". This screen is
+// where somebody would go to see which three. The phone's journal labelled a
+// quick session on both the list and the entry; the web's labelled neither, on
+// either. The designs label a quick one and leave a full one as the ordinary
+// case, which is why this asserts both directions rather than only the label.
+//
+// By this point the account holds exactly one full session — section 3's, run
+// through the screens — and the quick ones this section just seeded, so the
+// oldest row is the full one and every other row is quick.
+console.log('\n4b2. The journal says which sessions were quick');
+
+await page.goto(`${WEB}/app/journal`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+
+const captions = await page.locator('a[href^="/app/journal/"]').allInnerTexts();
+const labelled = captions.filter((c) => /·\s*Quick/.test(c)).length;
+
+if (captions.length < 2)
+  bad('the journal has both kinds of session on screen', String(captions.length));
+else if (labelled === captions.length - 1)
+  ok(
+    `every quick session is labelled, and the full one is not (${String(labelled)} of ${String(captions.length)})`,
+  );
+else
+  bad(
+    'every quick session is labelled, and the full one is not',
+    `${String(labelled)} of ${String(captions.length)} labelled`,
+  );
+
+// The oldest row is section 3's full session. Asserted by position rather than
+// by counting again, so a label applied to every kind goes red here too.
+const oldest = captions.at(-1) ?? '';
+if (!/·\s*Quick/.test(oldest)) ok('the full session carries no kind label');
+else bad('the full session carries no kind label', oldest);
+
+// And the entry screen, which had the same omission.
+const quickRow = page.locator('a[href^="/app/journal/"]').first();
+await quickRow.click();
+await page.waitForTimeout(1500);
+const quickEntry = await text();
+if (/QUICK SESSION/.test(quickEntry)) ok('the entry screen names a quick session');
+else bad('the entry screen names a quick session', quickEntry.slice(0, 300));
+
 // The pricing page promises "3 full sessions a week" on Free, and that quick
 // sessions are unlimited. A promise the server does not keep is the same
 // problem in either direction.

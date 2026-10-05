@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   FEELINGS,
+  SESSION_KIND_LABEL,
   coachSharingFromStored,
   duration,
   mayShareEntry,
@@ -178,6 +179,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
       <span className={styles.label} style={{ marginTop: 10 }}>
         {now === null ? '' : relativeDay(new Date(entry.occurredAt), now).toUpperCase()} ·{' '}
         {duration(entry.durationMinutes).toUpperCase()}
+        {entry.kind === 'quick' ? ` · ${SESSION_KIND_LABEL.quick.toUpperCase()} SESSION` : ''}
         {entry.calmerRating === 'yes' ? ' · FELT CALMER' : ''}
       </span>
       <h1 className={styles.title}>{entry.title}</h1>

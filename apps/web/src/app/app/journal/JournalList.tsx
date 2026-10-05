@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ApiError, api, type ApiJournalEntry } from '../../../lib/api';
 import { describeLoad } from '../../../lib/describe';
 import styles from '../app.module.css';
-import { duration, relativeDay } from '@stillpoint/protocol';
+import { SESSION_KIND_LABEL, duration, relativeDay } from '@stillpoint/protocol';
 
 /**
  * The journal, as the server keeps it.
@@ -141,6 +141,7 @@ export default function JournalList() {
               <span className={styles.cardMeta}>
                 {now === null ? '' : relativeDay(new Date(entry.occurredAt), now)} ·{' '}
                 {duration(entry.durationMinutes)}
+                {entry.kind === 'quick' ? ` · ${SESSION_KIND_LABEL.quick}` : ''}
               </span>
               <span className={styles.rowBelief}>{entry.summary}</span>
             </span>

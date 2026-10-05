@@ -1063,6 +1063,39 @@ links to the marketing page, which is `LAUNCH.md` item 7's territory and a
 product decision rather than a wrong statement about the account. The wrong
 statement was the value, and that is what changed.
 
+**The same lens over the session's kind found two more, and one of them is the
+journal.** `SessionKind` is two-valued, so a two-branch ternary cannot be wrong
+about a value — what it can be wrong about is the word. The console's overview
+printed **"Deep · 1 min"** for a `full` session, measured in a browser, and
+"Deep" appears nowhere else in this repository: the API's enum is `full`, the
+pricing page sells "3 full sessions a week", the home screen warns that
+starting something new "uses another full session", and the session screen
+refuses with "That is this week's full sessions". An admin reading the overview
+to answer a question about somebody's allowance had a fifth word for the thing
+the allowance is counted in.
+
+And the web's journal labelled **neither** kind, on the list or the entry,
+while the phone's labelled quick on both. That is the surface that matters:
+Free gets three full sessions a week, the session screen says "No full sessions
+left this week" when they run out, and the journal is the only record of what
+they were spent on — so the one screen that could answer "which three" did not
+say. The designs label a quick session and leave a full one as the ordinary
+case, which is the phone's behaviour and now the web's.
+
+`SESSION_KIND_LABEL` is in `packages/protocol/src/session.ts` beside the type,
+and the protocol test asserts something narrower than "every kind has a label":
+each label, lowercased, **is** the kind's own name. That is the rule the
+console broke, stated as a rule, and it goes red on exactly the word — checked.
+The journals compose from `SESSION_KIND_LABEL.quick` rather than indexing by
+the entry's kind, because labelling only one of the two is deliberate there.
+
+`flow.mjs` asserts it in both directions, which is the half worth copying: that
+every quick row is labelled **and** that the full one is not. The second
+assertion stays green when the label is missing altogether — correctly, since
+that is the other check's job — and goes red when a label is applied to every
+kind. Both were checked by breaking them one at a time; without the second, a
+label on everything would have passed.
+
 `plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
 Note what that is and is not worth: both routes that take a body from the
 person it is about build their own array from validated fields, so naming a

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { LOCALE, STEP_LIST } from '@stillpoint/protocol';
+import { LOCALE, SESSION_KIND_LABEL, STEP_LIST, isSessionKind } from '@stillpoint/protocol';
 import { describeAge } from '../../lib/ago';
 import { ApiError, api, type ApiAdminOverview } from '../../lib/api';
 import { describe } from '../../lib/describe';
@@ -123,7 +123,7 @@ export default function Overview() {
                 <tr key={`${s.user}-${String(i)}`}>
                   <td className={styles.td}>{s.user}</td>
                   <td className={styles.td}>
-                    {s.kind === 'quick' ? 'Quick' : 'Deep'} · {s.minutes} min
+                    {isSessionKind(s.kind) ? SESSION_KIND_LABEL[s.kind] : s.kind} · {s.minutes} min
                   </td>
                   <td className={styles.td}>Step {s.reachedStep}</td>
                   <td className={styles.td}>

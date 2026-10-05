@@ -36,6 +36,37 @@ export type CalmerRating = 'yes' | 'a_little' | 'no';
  */
 export type SessionKind = 'full' | 'quick';
 
+export const SESSION_KINDS = ['full', 'quick'] as const;
+
+/**
+ * What a surface calls each kind.
+ *
+ * Here for the reason `PLAN_LABEL` is: the console's overview invented its own
+ * word. It printed "Deep" for a `full` session — measured, and "Deep" appears
+ * nowhere else in this product. The API's enum is `full`, the pricing page
+ * sells "3 full sessions a week", the home screen warns that starting
+ * something new "uses another full session", and the session screen refuses
+ * with "That is this week's full sessions". So an admin reading the overview
+ * had a word for this kind that nobody else in the product uses, on the screen
+ * they would look at to answer a question about somebody's allowance.
+ *
+ * No copy is invented here: both words are the product's own. What is removed
+ * is the fifth one.
+ *
+ * The journals deliberately label only `quick` — a full session is the
+ * ordinary case and the designs give it no tag — so they compose from
+ * `SESSION_KIND_LABEL.quick` rather than indexing by the entry's kind. The one
+ * place both appear is the console, where they sit beside each other.
+ */
+export const SESSION_KIND_LABEL: Readonly<Record<SessionKind, string>> = {
+  full: 'Full',
+  quick: 'Quick',
+};
+
+export function isSessionKind(value: string): value is SessionKind {
+  return (SESSION_KINDS as readonly string[]).includes(value);
+}
+
 /** The childhood memory captured at step 4. */
 export interface Memory {
   readonly description: string;
