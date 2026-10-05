@@ -177,6 +177,29 @@ final class PhraseRiskScreen implements RiskScreen
         ],
     ];
 
+    /**
+     * Characters that belong to no one script, taken out before a script is
+     * asked about.
+     *
+     * **`\p{Latin}` does not mean one thing.** PCRE2 matches a script's name
+     * against Script_Extensions from 10.40 and against Script before it, and
+     * which one this PHP has is a fact about how it was built. So the same
+     * line of this file called an English sentence typed with U+02BC readable
+     * on one machine and unreadable on another. That character is the
+     * modifier apostrophe some keyboards type: Common script, used with
+     * Latin, which is the difference between the two properties. The suite
+     * passed on a Mac and the parity fixture went red in CI, on this class
+     * and nothing else.
+     *
+     * So every character the two properties disagree about for Latin or
+     * Devanagari is removed before either is consulted: the modifier letters,
+     * the Vedic signs, one combining mark and the North Indic number forms.
+     * Compared over every code point, with these gone the two agree. None of
+     * them is evidence of a language. `SCRIPTLESS` in
+     * `packages/protocol/src/risk.ts` is the same class.
+     */
+    private const SCRIPTLESS = '/[\x{02b0}-\x{02ff}\x{0951}\x{0952}\x{1cd0}-\x{1cff}\x{20f0}\x{a830}-\x{a839}]/u';
+
     public function assess(string $utterance): RiskAssessment
     {
         // From the utterance as it was said, not from the normalised text:
@@ -239,15 +262,13 @@ final class PhraseRiskScreen implements RiskScreen
      * The port of `readsEverything` in `packages/protocol/src/risk.ts`; the
      * parity fixture covers it.
      *
-     * `\p{Latin}` here is Script_Extensions, not Script: PCRE2 has matched a
-     * script's name that way since 10.40. So a letter that is Common script
-     * and used with Latin, such as the modifier apostrophe some keyboards
-     * type, counts as readable. The TypeScript side said `Script=` and
-     * disagreed about exactly those letters until it was changed to match.
+     * `SCRIPTLESS` comes out first, and that is what makes the line below
+     * mean one thing on every server.
      */
     private static function readsEverything(string $utterance): bool
     {
-        $letters = preg_replace('/[^\p{L}]+/u', '', $utterance) ?? '';
+        $letters = preg_replace(self::SCRIPTLESS, '', $utterance) ?? '';
+        $letters = preg_replace('/[^\p{L}]+/u', '', $letters) ?? '';
 
         return (preg_replace('/[\p{Latin}\p{Devanagari}]+/u', '', $letters) ?? '') === '';
     }
@@ -292,6 +313,9 @@ final class PhraseRiskScreen implements RiskScreen
         // Danda, double danda, and the zero-width joiners a mobile keyboard
         // leaves inside a conjunct.
         $text = preg_replace('/[\x{0964}\x{0965}\x{200c}\x{200d}]/u', ' ', $text) ?? '';
+        // Before the script is asked about: whether these count as
+        // Devanagari depends on which PCRE2 this PHP has. See `SCRIPTLESS`.
+        $text = preg_replace(self::SCRIPTLESS, ' ', $text) ?? '';
         // `\p{Devanagari}` rather than the code-point range: it says what it
         // means and covers the extended block too.
         $text = preg_replace("/[^a-z'\p{Devanagari} ]+/u", ' ', $text) ?? '';
@@ -341,6 +365,7 @@ final class PhraseRiskScreen implements RiskScreen
         $text = preg_replace('/[\x{200b}\x{200c}\x{200d}\x{2060}\x{feff}\x{00ad}]/u', '', $text) ?? '';
         $text = str_replace("'", '', $text);
         $text = preg_replace('/[\x{0964}\x{0965}]/u', ' ', $text) ?? '';
+        $text = preg_replace(self::SCRIPTLESS, ' ', $text) ?? '';
         $text = preg_replace('/[^a-z\p{Devanagari} ]+/u', ' ', $text) ?? '';
         $text = preg_replace('/\s+/u', ' ', $text) ?? '';
 

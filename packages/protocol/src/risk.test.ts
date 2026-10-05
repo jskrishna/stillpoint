@@ -472,19 +472,22 @@ describe('the same phrase, the way a phone types it', () => {
     }
   });
 
-  it('agrees with the server about which letters it can read', () => {
-    // PCRE2 has matched a script name against Script_Extensions since 10.40,
-    // and JavaScript's `Script=` is the narrower property. So the two
-    // languages disagreed about a letter that is Common script and used with
-    // Latin: the modifier apostrophe, which some keyboards type for an
-    // ordinary one. The browser said it could not read "don\u02bct" and the
-    // server said it could, and the server is the one that counts those turns.
+  it('answers the same about a letter that belongs to no one script', () => {
+    // A script's name is not one property. PCRE2 matched it against Script
+    // before 10.40 and against Script_Extensions from it, so PHP's
+    // `\p{Latin}` called a sentence typed with the modifier apostrophe
+    // readable on one server and unreadable on another, and the fixture this
+    // file's twin asserts went red in CI having been generated on a Mac. Both
+    // languages take those characters out before asking about a script, so
+    // neither property is ever consulted about them.
     for (const said of [
       'I don\u02bct know',
       'c\u02c7est',
-      '\u092e\u0948\u0902 \u0920\u0940\u0915',
+      '\u092e\u0948\u0902 \u0920\u0940\u0915 \u1ce9',
     ]) {
       expect(assess(said).unreadable, said).toBe(false);
     }
+    // And a script the screen has no phrases for is still one it cannot read.
+    expect(assess('\u0986\u09ae\u09bf \u02bc').unreadable).toBe(true);
   });
 });

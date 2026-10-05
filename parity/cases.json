@@ -463,6 +463,38 @@
       "unreadable": false
     },
     {
+      "utterance": "cˇest la vie",
+      "why": "a modifier letter (U+02C7) in a Latin sentence: readable",
+      "level": "none",
+      "category": null,
+      "matched": null,
+      "unreadable": false
+    },
+    {
+      "utterance": "मुझे मरना है ᳩ",
+      "why": "a Vedic sign (U+1CE9) after a Hindi statement of intent",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "मुझे मरना है",
+      "unreadable": false
+    },
+    {
+      "utterance": "मुझे॑ मरना है",
+      "why": "a Vedic tone mark (U+0951) on a word of it",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "मुझे मरना है",
+      "unreadable": false
+    },
+    {
+      "utterance": "i want to die ꠰",
+      "why": "a North Indic number form (U+A830) beside English",
+      "level": "high",
+      "category": "self_harm",
+      "matched": "want to die",
+      "unreadable": false
+    },
+    {
       "utterance": "आत्‍महत्‍या",
       "why": "a zero-width joiner inside a conjunct",
       "level": "high",

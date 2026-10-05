@@ -1907,10 +1907,23 @@ right in one place, or a sentence nothing had measured.
   forgivingly, and a match in either reading counts, so nothing that matched
   before can stop matching. It adds no phrase and no language. The fixture
   gained seventeen cases and lost none.
-- **The two languages disagreed about which letters are readable.** PCRE2 has
-  matched a script's name against Script_Extensions since 10.40, and
-  JavaScript's `Script=` is the narrower property. Compared over every code
-  point. The TypeScript side says `Script_Extensions` now.
+- **A script's name is not one property, and matching one engine was not the
+  fix.** PHP's `\p{Latin}` is PCRE2's, which matched a script's name against
+  Script before 10.40 and against Script_Extensions from it. The two differ on
+  sixty code points for Latin and Devanagari, and one is U+02BC, the modifier
+  apostrophe some keyboards type. On the Mac PHP called a sentence typed with
+  it readable and TypeScript, which said `Script=`, did not; TypeScript was
+  changed to match, the fixture was regenerated, everything was green, and it
+  was pushed. **CI went red on exactly those cases**: the same PHP source, on
+  a different PCRE2, said unreadable. So the server's own answer had depended
+  on how its PHP was built all along, and the first fix had moved one language
+  to agree with one machine. Both languages now remove those sixty characters
+  before asking about a script (`SCRIPTLESS`), so neither property is ever
+  consulted about them. Verified by running the PHP screen under both
+  meanings over every code point: 60 disagreements before, 0 after. What to
+  keep: a parity fixture generated on one machine is that machine's answer,
+  and "the two languages agree here" is a weaker sentence than it sounds when
+  one of them is two engines.
 - **A turn into an ended session was refused before it was read**, in three
   places. `POST /sessions` ends whatever is open, so a session left on a laptop
   is ended from a phone and the laptop still shows a box. It is screened first

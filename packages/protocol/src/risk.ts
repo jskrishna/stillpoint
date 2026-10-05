@@ -85,18 +85,41 @@ export interface RiskAssessment {
  * Adding a script here without adding phrases for it would be the wrong fix:
  * it would make `unreadable` say no about text that still nobody reads.
  *
- * `Script_Extensions`, not `Script`, and the reason is the other language.
- * PCRE2 has matched a script's name against Script_Extensions since 10.40, so
- * `\p{Latin}` in `App\Domain\PhraseRiskScreen` has always meant this wider
- * property while `Script=Latin` here meant the narrower one. They differ on a
- * letter that is Common script and used with Latin, and one of those is the
- * modifier apostrophe (U+02BC) some keyboards type for an ordinary one: the
- * browser called "don\u02bct" unreadable and the server called it read.
- * Measured over every code point, the two classes are identical with this
- * spelling. The server is the one that counts unreadable turns, so this side
- * moved.
+ * See `SCRIPTLESS` for why this is safe to compare with the server's
+ * `\p{Latin}`, which is not always the same property.
  */
-const READABLE_SCRIPTS = /[\p{Script_Extensions=Latin}\p{Script_Extensions=Devanagari}]+/gu;
+const READABLE_SCRIPTS = /[\p{Script=Latin}\p{Script=Devanagari}]+/gu;
+
+/**
+ * Characters that belong to no one script, taken out before a script is asked
+ * about.
+ *
+ * **A script's name does not mean one thing in PHP.** `\p{Latin}` is matched
+ * by PCRE2, and from 10.40 that library matches a script's name against
+ * Script_Extensions where before it matched Script. Which one a server has is
+ * a fact about how its PHP was built. So the same line of
+ * `App\Domain\PhraseRiskScreen` called an English sentence typed with U+02BC
+ * readable on one machine and unreadable on another. That character is the
+ * modifier apostrophe some keyboards type for an ordinary one: Common script,
+ * used with Latin, which is exactly the difference between the two
+ * properties.
+ *
+ * It was found twice. First on a Mac, where PHP said readable and this file,
+ * which said `Script=`, said not; this side was changed to match. Then in CI,
+ * where the same PHP source said unreadable, and the fixture generated on the
+ * Mac went red. Matching one engine was never the fix. The fix is that the
+ * answer must not depend on the engine, so every character the two
+ * properties disagree about is removed before either is consulted: the
+ * modifier letters (U+02B0 to U+02FF), the Vedic signs (U+0951, U+0952 and
+ * U+1CD0 to U+1CFF), one combining mark (U+20F0) and the North Indic number
+ * forms (U+A830 to U+A839). Compared over every code point, with those gone
+ * the two properties agree for Latin and for Devanagari.
+ *
+ * None of them is evidence of a language, which is what `unreadable` is about,
+ * and in the text that is matched they become spaces, as any other mark does.
+ * `PhraseRiskScreen::SCRIPTLESS` is the same class.
+ */
+const SCRIPTLESS = /[\u02b0-\u02ff]|[\u0951\u0952]|[\u1cd0-\u1cff]|\u20f0|[\ua830-\ua839]/gu;
 
 /**
  * Whether every letter in the utterance is in a script the screen can read.
@@ -111,7 +134,7 @@ const READABLE_SCRIPTS = /[\p{Script_Extensions=Latin}\p{Script_Extensions=Devan
  * an unreadable letter in its own right.
  */
 function readsEverything(utterance: string): boolean {
-  const letters = utterance.replace(/[^\p{Letter}]+/gu, '');
+  const letters = utterance.replace(SCRIPTLESS, '').replace(/[^\p{Letter}]+/gu, '');
 
   return letters.replace(READABLE_SCRIPTS, '') === '';
 }
@@ -433,13 +456,14 @@ function normalise(utterance: string): string {
       // Danda, double danda, and the zero-width joiners that a mobile keyboard
       // leaves inside a conjunct.
       .replace(/[\u0964\u0965\u200c\u200d]/gu, ' ')
+      // Before the script is asked about, for the reason `SCRIPTLESS` gives:
+      // whether these count as Devanagari depends on the regex engine.
+      .replace(SCRIPTLESS, ' ')
       // The script's own property rather than the code-point range: it says
       // what it means, it covers the extended block as well, and a
       // hand-written range that includes combining marks is the thing
       // `no-misleading-character-class` is right to object to.
-      // `Script_Extensions` for the reason `READABLE_SCRIPTS` gives: it is the
-      // class PCRE2's `\p{Devanagari}` has always been.
-      .replace(/[^a-z'\p{Script_Extensions=Devanagari} ]+/gu, ' ')
+      .replace(/[^a-z'\p{Script=Devanagari} ]+/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim()
   );
@@ -517,7 +541,8 @@ function normaliseForgivingly(utterance: string): string {
     .replace(INVISIBLE, '')
     .replace(/'/g, '')
     .replace(/[\u0964\u0965]/gu, ' ')
-    .replace(/[^a-z\p{Script_Extensions=Devanagari} ]+/gu, ' ')
+    .replace(SCRIPTLESS, ' ')
+    .replace(/[^a-z\p{Script=Devanagari} ]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

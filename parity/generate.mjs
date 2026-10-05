@@ -164,6 +164,23 @@ const UTTERANCES = [
   ['mettre \ufb01n a mes jours', 'a ligature for "fi"'],
   ["it's been a long week and i'm tired of the meetings", 'ordinary, with apostrophes'],
   ['its been a long week and im tired of the meetings', 'and without them'],
+  // Characters a script's name covers on one regex engine and not on another.
+  // PHP's `\p{Latin}` is PCRE2's, which matched Script before 10.40 and
+  // Script_Extensions from it, so the server's own answer about these depended
+  // on how its PHP was built: this fixture, generated on a Mac, went red in CI
+  // on the first of them. Both languages take them out before asking about a
+  // script now, and these are here so that a server on either engine has to
+  // agree with the same file.
+  ['c\u02c7est la vie', 'a modifier letter (U+02C7) in a Latin sentence: readable'],
+  [
+    '\u092e\u0941\u091d\u0947 \u092e\u0930\u0928\u093e \u0939\u0948 \u1ce9',
+    'a Vedic sign (U+1CE9) after a Hindi statement of intent',
+  ],
+  [
+    '\u092e\u0941\u091d\u0947\u0951 \u092e\u0930\u0928\u093e \u0939\u0948',
+    'a Vedic tone mark (U+0951) on a word of it',
+  ],
+  ['i want to die \ua830', 'a North Indic number form (U+A830) beside English'],
   ...FORGIVING,
 ];
 
