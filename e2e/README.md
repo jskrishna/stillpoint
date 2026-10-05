@@ -165,6 +165,20 @@ it start disagreeing — and it is in `LAUNCH.md` because the first thing on tha
 list is asking a clinician to read the risk screen, which is easier if you can
 hand them the console.
 
+**And a check run after a demo empties it, with the servers still up.** Every
+script above starts from `migrate:fresh --seed --seeder=DemoSeeder`, which is
+the four accounts and the pairing and nothing else — so `pnpm run demo` and
+then `pnpm run e2e`, in that order against one database, leaves the demo
+answering on all three ports with an empty journal, empty insights, a console
+overview of zeros and **nothing in the safety queue**. Measured: 0 flags, where
+the demo seeds one.
+
+That matters because of who the demo is for. `LAUNCH.md` item 1 is asking a
+clinician to read the risk screen, "including the console's safety queue, where
+they can see what a reviewer would actually read" — and the stack would still
+be up, still look fine, and have had that screen emptied under it. Re-run
+`pnpm run demo` after any check; it reseeds both halves.
+
 **`--demo` seeds content that the checks never see**, and the two halves are
 separate seeders on purpose. `DemoSeeder` makes the four accounts and the
 pairing and nothing else, because a fixture that already contains what a test
