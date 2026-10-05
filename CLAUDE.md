@@ -2056,6 +2056,29 @@ across two requests. Red without it, checked. Ids are ULIDs, which sort
 lexicographically in creation order, so descending by string is the database's
 `id DESC`.
 
+**And then the third one, which is what makes the pattern legible.** `byNewest`
+in `packages/protocol/src/journal.ts` sorted on `occurredAt` alone, where
+`JournalEntry::scopeNewestFirst()` orders `occurred_at DESC, id DESC` — and
+`JournalApiTest::test_paging_is_stable_when_entries_share_a_timestamp` is the
+PHP half, so the rule was already pinned on the side that runs. Same fix, same
+case passing the list in both orders, red without it, checked.
+
+Counted, because "two of two" is the kind of sentence this file keeps catching:
+`grep '\.sort(' packages/protocol/src` returns **three** call sites, and the
+split across them is the finding. The two exported list-ordering functions,
+`byUrgency` and `byNewest`, are the two that had drifted — nothing calls either.
+The third is inside `insights()`, orders feelings by count and then by label,
+**has** its tiebreaker, and is one of the rules `parity/cases.json` compares
+against the PHP. So of the orderings here, the compared one was right and both
+uncompared ones were wrong.
+
+That is worth more than the three fixes. The sweep was looking for unconsumed
+exports and found a property instead: the half nothing calls is the half nothing
+corrects, so a rule written down there decays in one direction while reading as
+authoritative the whole time — and the paging section of this file is at length
+about exactly the key both of them were missing. Prefer the PHP, or the fixture,
+over this package when they disagree about a rule nothing consumes.
+
 Both sides count characters now — `firstCharacters()` in
 `packages/protocol/src/utterance.ts`, which `recordable()` also uses, against
 `mb_substr` — and the fixture has the astral cases. Note what catching it looks

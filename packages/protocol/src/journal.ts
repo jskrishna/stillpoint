@@ -131,9 +131,33 @@ export function withSharing(entry: JournalEntry, shared: boolean): JournalEntry 
   return { ...entry, sharedWithCoach: shared };
 }
 
-/** Entries newest first, as the journal lists them. */
+/**
+ * Entries newest first, then by id — as the journal lists them.
+ *
+ * The second key was missing here, exactly as it was in `byUrgency`, and those
+ * two are this package's only exported orderings — the third `sort` in it, over
+ * feelings in `insights()`, has its tiebreaker and is parity-compared.
+ * `scopeNewestFirst()` orders
+ * `occurred_at DESC, id DESC`, and `occurred_at` is not unique: the journal is
+ * cursor-paged, a cursor is built from the ordering columns, and a tie with no
+ * tiebreaker makes a page repeat a row or skip one.
+ * `JournalApiTest::test_paging_is_stable_when_entries_share_a_timestamp` is
+ * the PHP half, and there was no TypeScript half.
+ *
+ * Nothing calls this — the journal is paged by the server and both surfaces
+ * render the order they are given — so it was never a live defect, and that is
+ * the point rather than the excuse. Two of two orderings in the unconsumed
+ * half of this package had drifted the same way, which is a class and not two
+ * slips: a rule written down here is read as the rule, and these two were
+ * written down wrong.
+ *
+ * Ids are ULIDs, which sort lexicographically in creation order, so comparing
+ * them as strings descending is the database's `id DESC`.
+ */
 export function byNewest(entries: readonly JournalEntry[]): readonly JournalEntry[] {
-  return [...entries].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+  return [...entries].sort(
+    (a, b) => b.occurredAt.getTime() - a.occurredAt.getTime() || b.id.localeCompare(a.id),
+  );
 }
 
 /** Total steps in the protocol, for surfaces reporting "reached step 6". */

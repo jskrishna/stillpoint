@@ -197,4 +197,28 @@ describe('byNewest', () => {
     expect(byNewest(list).map((e) => e.id)).toEqual(['b', 'c', 'a']);
     expect(list.map((e) => e.id)).toEqual(['a', 'b', 'c']);
   });
+
+  /*
+   * The second key, which this had no case for and the function had no code
+   * for — the same omission as `byUrgency`, and those two are the only
+   * orderings in this package.
+   *
+   * `scopeNewestFirst()` ends in `id DESC` because the journal is cursor-paged
+   * and `occurred_at` is not unique. Passed both ways round on purpose:
+   * `Array.prototype.sort` is stable, so without a tiebreaker the answer was
+   * whatever order the caller happened to pass, which is not a settled order
+   * across two requests.
+   */
+  it('breaks a same-timestamp tie by id, as the query does', () => {
+    const same = '2026-10-02T10:00:00Z';
+    const mk = (id: string) => ({
+      ...entryFrom(completed(), CTX)!,
+      id,
+      occurredAt: new Date(same),
+    });
+    const list = [mk('01m45a'), mk('01m45c'), mk('01m45b')];
+
+    expect(byNewest(list).map((e) => e.id)).toEqual(['01m45c', '01m45b', '01m45a']);
+    expect(byNewest([...list].reverse()).map((e) => e.id)).toEqual(['01m45c', '01m45b', '01m45a']);
+  });
 });
