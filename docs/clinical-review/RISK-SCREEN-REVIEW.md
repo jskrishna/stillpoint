@@ -1,6 +1,6 @@
 # Stillpoint — risk screen, for clinical review
 
-Generated from `packages/protocol/src/risk.ts` at commit `01378ab`.
+Generated from `packages/protocol/src/risk.ts` at commit `b69df1f`.
 Regenerate with `pnpm run clinical:review` after any change to the screen.
 
 ## What we are asking for
