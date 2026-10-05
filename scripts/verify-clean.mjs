@@ -191,9 +191,13 @@ async function main() {
   );
   // Say what this does and does not cover, because a green here is the thing
   // somebody is about to treat as permission to push.
-  console.log('\n\x1b[2mNot covered: the end-to-end checks (pnpm run e2e, three servers), the');
-  console.log('MySQL migration run and the Docker images, which only CI has a MySQL and a');
-  console.log('daemon for. So read the run this push starts \u2014 and read it, rather than its');
+  console.log('\n\x1b[2mNot covered: the end-to-end checks (pnpm run e2e, three servers) and');
+  console.log('the Docker images, which only CI has a daemon for. MySQL is no longer on');
+  console.log('that list: pnpm run check:mysql runs the migrations and the PHP suite');
+  console.log('against a real MySQL-family server here, which this note said only CI');
+  console.log('could do. It is MariaDB where CI is MySQL 8.4, so it is more than sqlite');
+  console.log('tells you and less than CI does. So read the run this push starts \u2014');
+  console.log('and read it, rather than its');
   console.log('colour: a job that fails in seconds with no logs did not run at all, and the');
   console.log('reason is in its annotations, not its output. Twenty-six consecutive runs');
   console.log('failed that way on a billing hold while everything here was green.\x1b[0m\n');
