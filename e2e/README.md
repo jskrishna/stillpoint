@@ -112,6 +112,46 @@ sharing rule and a failure in the safety stop are different lines in the log
 rather than one red job. This is the local convenience; the workflow is the
 contract.
 
+### It can run against MySQL here, though
+
+The API takes its connection from the environment and `run.mjs` passes the
+environment through, so the whole suite can be pointed at a real
+MySQL-family server rather than sqlite:
+
+```bash
+# A server, if one is not already up — `pnpm run check:mysql` explains this
+# container's apt line and starts one for you.
+mysql -e "CREATE DATABASE IF NOT EXISTS stillpoint_e2e CHARACTER SET utf8mb4;
+          GRANT ALL ON stillpoint_e2e.* TO 'stillpoint'@'localhost';"
+
+DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3306 DB_DATABASE=stillpoint_e2e DB_USERNAME=stillpoint DB_PASSWORD=stillpoint DB_URL= pnpm run e2e
+```
+
+**Why it is worth doing**: `lockForUpdate()` is a **no-op on sqlite**, so the
+locks in `SessionService`, the id-ordered pair in `openDraft()` and
+`publishDraft()`, and the gap lock on opening an invitation are all simply not
+taken when the suite runs locally. `ConcurrentTurnTest` says as much about
+itself — it asserts the logic the lock protects and cannot assert the lock.
+Measured: **7 of 7, 462 assertions, 0 failures** on MariaDB 10.11.
+
+Be exact about what that shows, because it is easy to overstate. It shows the
+locks are **issued against a server that honours them** and that nothing in
+seven browser scripts breaks when they are — which is strictly more than a
+sqlite run, where those statements do nothing. The suite is not a concurrency
+harness, but it is not wholly sequential either: `admin.mjs` triple-clicks
+Publish and "Mark as reviewed", and the journal delete sends one request per
+entry, so there are genuinely parallel writes. What it does **not** reproduce
+is the pair the locks exist for — a safety stop and an ordinary turn arriving
+together — which no single browser can drive.
+
+And **check that it really used MySQL**, because a connection that silently
+fell back would produce an identical green run. The way to tell is the rows:
+after the run above, `stillpoint_e2e` held 18 tables, 15 users, 14 guided
+sessions, 6 journal entries and 2 safety flags, while
+`apps/api/database/database.sqlite` had an mtime from before the run started.
+A suite that passed having measured nothing is this directory's most repeated
+finding.
+
 ## Or just show somebody
 
 ```bash

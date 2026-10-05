@@ -991,6 +991,30 @@ The `e2e` job runs against a MySQL service for this reason among others, so the
 lock itself is exercised somewhere by a real browser against a real server; see
 `e2e/README.md`.
 
+**And that can be done here now, which matters while CI is held.** The API
+takes its connection from the environment and `e2e/run.mjs` passes the
+environment through, so the whole suite points at MySQL with env vars alone —
+`e2e/README.md` has the command. Measured: **7 of 7, 462 assertions, 0
+failures** on MariaDB 10.11, with the locks actually taken rather than
+silently skipped.
+
+Two things about reading that result, and the second is the one to copy.
+
+It shows the locks are **issued against a server that honours them** and that
+nothing in seven browser scripts breaks when they are, which is strictly more
+than a sqlite run where those statements do nothing. The suite is not a
+concurrency harness — though it is not wholly sequential either, since
+`admin.mjs` triple-clicks Publish and the journal delete sends one request per
+entry — and it does not reproduce the pair the locks exist for, a safety stop
+and an ordinary turn arriving together. No single browser can drive that.
+
+And **a connection that silently fell back to sqlite would produce an
+identical green run**, so the rows are the measurement: afterwards
+`stillpoint_e2e` held 18 tables, 15 users, 14 guided sessions, 6 journal
+entries and 2 safety flags, while `database.sqlite`'s mtime was from before
+the run started. Checking that the run used the thing it names is the same
+habit as asserting axe considered `target-size` at all.
+
 ## One session at a time, and it survives the tab closing
 
 `GET /sessions/current` is the first thing a client asks. Closing a tab used to
