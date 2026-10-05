@@ -64,8 +64,10 @@ It is also the phone's **accessibility audit**, because there could not be a
 separate one: those screens cannot be reached by URL (the export is a plain
 file server with no client-side routing, so a direct URL gets a 404 or
 expo-router's "Unmatched Route" — and both of those pass an audit having
-measured nothing). So axe runs at nine screens here, in both palettes, as this
-script walks them. `document-title` is the one rule turned off, and why is in
+measured nothing). So axe runs at every screen this script walks, in both
+palettes — `grep -c 'await audit(' mobile.mjs` is the count, and it is ten.
+A command rather than a number because this one has already gone stale once,
+within an hour of being written, when the forgotten-password screen was added. `document-title` is the one rule turned off, and why is in
 the comment beside it: the export serves one `index.html` and `headerShown` is
 false on every stack, so there are no titles to find and a phone has no
 document to title.

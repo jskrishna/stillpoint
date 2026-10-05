@@ -1745,7 +1745,7 @@ swap them. Checked by putting `'password'` back: red by name, not by timeout.
 worst findings in this file's accessibility sections were sitting.**
 `a11y.mjs` covers the web's twenty routes in both palettes; the phone's eleven
 screens were in nothing, because they cannot be reached by URL — the paragraph
-above is why. `mobile.mjs` runs axe at nine of them now, in both palettes,
+above is why. `mobile.mjs` runs axe at ten of them now, in both palettes,
 since it is the only thing that walks the app.
 
 Two findings, and the first is on the screen this product exists for.
@@ -1796,8 +1796,8 @@ ARIA on that role and a violation of its own.
 reason is that it is not about the app: the export serves one `index.html`
 whose `<title>` Expo fills from a screen's `options.title`, and there are none
 here because `headerShown` is false on every stack. A phone has no document to
-title. Leaving the rule on would have meant a known violation on all nine
-screens, which is the state in which nobody reads the tenth.
+title. Leaving the rule on would have meant a known violation on every one of
+them, which is the state in which nobody reads the next one.
 `flow.mjs` is the web app's: register, consent, a full session, a reply lost on
 the way back, journal, insights, settings, the safety stop, sign-out and a
 forgotten password reset. It

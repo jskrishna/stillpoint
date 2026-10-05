@@ -93,8 +93,9 @@ of unproven as the `tel:` link beside it, and on the same screen.
 Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 
-**What the browser can check, it now does: axe runs at nine screens in both
-palettes**, inside `e2e/mobile.mjs`, because these screens cannot be reached
+**What the browser can check, it now does: axe runs at every screen that
+check walks, in both palettes** — `grep -c 'await audit(' ../../e2e/mobile.mjs`
+says how many, and it is ten — inside `e2e/mobile.mjs`, because these screens cannot be reached
 by URL and so could not have an audit of their own. It found the two things
 worth knowing about here.
 

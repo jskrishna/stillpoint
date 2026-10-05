@@ -325,7 +325,7 @@ honest about both halves:
   palettes, and axe-core clean across 20 routes at two widths in both — at
   **2.2** AA, which matters for one criterion: 2.5.8 Target Size, the one a
   phone-first product should be measured against. The focus ring is held to
-  1.4.11 against every surface too. And the phone's nine walked screens are
+  1.4.11 against every surface too. And the phone's ten walked screens are
   audited in both palettes by `mobile.mjs`, which is the only thing that can
   reach them.
 - The session screen announced rather than only drawn: the crisis numbers on an
