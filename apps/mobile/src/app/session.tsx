@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { AccessibilityInfo, Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FEELING_COLOR, RADIUS, SPACE, TEXT } from '@stillpoint/design-tokens';
@@ -21,7 +21,7 @@ import { ApiError, api, type ApiHelpline, type ApiSession } from '../api';
 import { describe } from '../describe';
 import { FAMILY, leading } from '../theme';
 import { guideVoiceFor, silentGuide, type GuideVoice } from '../voice';
-import { Button, Card, Field, Tag } from '../ui';
+import { Button, Card, Field, HelplineButton, Tag } from '../ui';
 import { useTheme } from '../use-theme';
 
 // One copy of the three answers, from the domain. Both session screens held
@@ -704,90 +704,5 @@ function SafetyPause({ safety }: { safety: NonNullable<ApiSession['safety']> }) 
         }}
       />
     </ScrollView>
-  );
-}
-
-/**
- * One crisis number, dialable.
- *
- * Shared by the safety pause and by the failure path in the session screen,
- * because two renderings of a phone number is two places for one of them to
- * stop making the call.
- *
- * **The ink is `accentInk`, not `'#FFFFFF'`, and that was the bug.** White is
- * right in the light palette, and `accentInk` is white there — in the dark one
- * it is `#1D1714`, because `positive` lightens to `#5FA883` and white on that
- * is **2.83:1**. Measured on this screen in dark: the helpline's name, its
- * detail and **the number itself** were all under AA, on the screen whose only
- * job is to get somebody to dial one. `apps/web` has used `accent-ink` here
- * since it was written, so the two surfaces disagreed about one colour and the
- * phone held the wrong one.
- *
- * There is no `opacity` on the detail line, for the same reason as the web's:
- * 0.9 blends it to 4.39:1 even in light. The smaller font size is the
- * de-emphasis.
- */
-function HelplineButton({
-  helpline,
-}: {
-  helpline: {
-    readonly name: string;
-    readonly number: string;
-    readonly detail: string;
-    readonly kind: string;
-  };
-}) {
-  const { c } = useTheme();
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Call ${helpline.name} on ${helpline.number}`}
-      // A phone can actually make the call, which is the whole point of
-      // this screen being on a phone.
-      onPress={() => {
-        void Linking.openURL(`tel:${helpline.number}`);
-      }}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: SPACE.md,
-        padding: SPACE.lg,
-        borderRadius: RADIUS.card,
-        backgroundColor: helpline.kind === 'emergency' ? c.danger : c.positive,
-        opacity: pressed ? 0.85 : 1,
-      })}
-    >
-      <View style={{ flex: 1, gap: SPACE.xs }}>
-        <Text
-          style={{
-            fontFamily: FAMILY.uiSemibold,
-            fontSize: TEXT.body,
-            color: helpline.kind === 'emergency' ? c.dangerInk : c.accentInk,
-          }}
-        >
-          {helpline.name}
-        </Text>
-        <Text
-          style={{
-            fontFamily: FAMILY.ui,
-            fontSize: TEXT.caption,
-            color: helpline.kind === 'emergency' ? c.dangerInk : c.accentInk,
-          }}
-        >
-          {helpline.detail}
-        </Text>
-      </View>
-      <Text
-        style={{
-          fontFamily: FAMILY.uiSemibold,
-          fontSize: TEXT.subheading,
-          color: helpline.kind === 'emergency' ? c.dangerInk : c.accentInk,
-        }}
-      >
-        {helpline.number}
-      </Text>
-    </Pressable>
   );
 }

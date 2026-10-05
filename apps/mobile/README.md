@@ -76,7 +76,8 @@ which `e2e/coach.mjs` does assert on the invitation screen.
 **Nothing here has run on a phone**, though, and that is still the sentence
 that matters. What a browser cannot stand in for: the keychain
 (`expo-secure-store` — `localStorage` on web), text-to-speech
-(`expo-speech`), `tel:` links on the safety screen, writing the export and
+(`expo-speech`), `tel:` links on the safety screen **and now on settings**,
+writing the export and
 handing it to the share sheet (`expo-file-system`, `expo-sharing`), the splash
 screen, safe-area insets on a notched device, and how any of it behaves when
 the app is backgrounded mid-session.
@@ -90,6 +91,14 @@ with nothing announcing them. `e2e/mobile.mjs` checks the live region, which
 React Native for web renders as `aria-live`, so the markup is verified. The
 announcement call is not: there is no screen reader here. It is the same kind
 of unproven as the `tel:` link beside it, and on the same screen.
+**And the settings screen's numbers are pressable now, which they were not.**
+They were plain `Text` while the pause one screen over had a `HelplineButton`
+all along — `HelplineButton` lived inside `app/session.tsx`, so settings could
+not have used it, which is exactly the finding `apps/web` had before
+`HelplineLink` moved into `components/`. It is in `src/ui.tsx` now and all
+three places share it. `e2e/mobile.mjs` asserts the three controls and their
+accessible names; whether tapping one opens the dialler is on the list above.
+
 Treat the first run on hardware as a test pass that has not happened yet, not
 as a formality.
 

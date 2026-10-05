@@ -947,6 +947,46 @@ if (/Nobody\. A coach can only read a session/.test(settings))
   ok('with the request answering, the screen says nobody can');
 else bad('with the request answering, the screen says nobody can', settings.slice(-500));
 
+/*
+ * The crisis numbers here are dialable, which they were not.
+ *
+ * This screen rendered them as plain `Text` while the safety pause one screen
+ * over had a `HelplineButton` all along — and this is the only place in the
+ * app somebody finds a number *outside* a session, which is most of the time.
+ * A number you cannot tap is one you have to retype. The web had the identical
+ * asymmetry for the identical reason: the component lived inside the session
+ * screen's own file, so settings could not have used it.
+ *
+ * What this can assert is the control and its accessible name: React Native
+ * Web renders `accessibilityRole="button"` as `role="button"` and
+ * `accessibilityLabel` as `aria-label`, so the export shows what the native
+ * platforms are handed. What it **cannot** assert is that a call is placed —
+ * `Linking.openURL('tel:…')` hands the dialler to the system, and that is on
+ * `apps/mobile/README.md`'s list with the keychain and text-to-speech. Say
+ * that rather than implying the export proved it.
+ */
+const dialable = await page.evaluate(() =>
+  [...document.querySelectorAll('[role="button"]')]
+    .map((el) => el.getAttribute('aria-label') ?? '')
+    .filter((label) => label.startsWith('Call ')),
+);
+if (dialable.length === 3)
+  ok(`the crisis numbers are pressable, not text (${String(dialable.length)})`);
+else
+  bad(
+    'the crisis numbers are pressable, not text (3)',
+    `found ${String(dialable.length)}: ${dialable.join(' | ') || 'none'}`,
+  );
+// Named, and this account's own market. A pressable that says "Call" and
+// nothing else is a button a screen reader cannot tell from the next one.
+if (dialable.some((l) => l.endsWith('on 988')) && dialable.some((l) => l.endsWith('on 911')))
+  ok('and each names the line and the number, 988 and 911 rather than another market\u2019s');
+else
+  bad(
+    'and each names the line and the number, 988 and 911 rather than another market\u2019s',
+    dialable.join(' | ') || 'no labelled call button',
+  );
+
 await audit('settings', '(tabs)/settings.tsx');
 
 // This is the screen that answers "who can read my sessions", and it set the

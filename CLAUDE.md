@@ -437,10 +437,37 @@ had wanted to. It is in `apps/web/src/components/` with its own module, and the
 pause, the unsent-crisis block and settings are the same `tel:` link — three of
 them on a Canadian account, which is what `flow.mjs` counts.
 
-Note what the phone does differently and is left alone: its settings section
-renders the numbers as **text**, not as a pressable. That is a real difference
-and not this change's to make — `apps/mobile/README.md` already lists `tel:`
-links among the things only a device can prove.
+**And the phone had the same bug, written down as a decision.** This paragraph
+said its settings section "renders the numbers as **text**, not as a pressable.
+That is a real difference and not this change's to make" — which is a deferral
+by scope wearing a decision's clothes. The phone's `HelplineButton` lived
+inside `app/session.tsx`, exactly where the web's lived before it was moved, so
+settings could not have used it either. One file, two surfaces, the same
+finding twice.
+
+It is in `apps/mobile/src/ui.tsx` now (the phone has no `components/`
+directory; `ui.tsx` is where `Button`, `Card`, `Field` and `Waiting` live), and
+the pause, the unsent-crisis block and settings are one `Pressable` calling
+`Linking.openURL('tel:…')`. On a phone a number you cannot tap is one you have
+to retype, on the one screen somebody reaches _outside_ a session — which is
+most of the time, and which is why the desktop app's Help menu points at the
+equivalent screen.
+
+Its prop is the structural shape rather than `Helpline` or `ApiHelpline`, so
+`ui.tsx` still imports neither the protocol nor the API client: the pause
+renders what the **server** sent and the unsent-crisis block renders the
+protocol's own list, and both have to go through one rendering.
+
+`e2e/mobile.mjs` asserts three `role="button"` controls whose `aria-label`
+starts with "Call ", and that they name 988 and 911 rather than another
+market's — React Native Web renders `accessibilityRole` and
+`accessibilityLabel` as those attributes, so the export shows what the native
+platforms are handed. Both go red on revert, by name. What it cannot assert is
+that a call is placed: `Linking.openURL` hands the dialler to the system, and
+that stays on `apps/mobile/README.md`'s list with the keychain and
+text-to-speech. Note what stayed **green** on the reverted build — `settings
+passes axe` in both palettes, because a screen with no tappable number is a
+valid page, the same way a screen with no live region is.
 
 ### A number on the screen is only an offer to whoever can see the screen
 

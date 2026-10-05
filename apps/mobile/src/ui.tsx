@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -318,5 +319,87 @@ export function Problem({
       <Text style={s.lead}>{detail}</Text>
       {action === undefined ? null : <Button label={action.label} onPress={action.onPress} />}
     </View>
+  );
+}
+
+/**
+ * One crisis number, dialable.
+ *
+ * Shared by the safety pause, by the failure path in the session screen, and
+ * by the settings screen — because two renderings of a phone number is two
+ * places for one of them to stop making the call.
+ *
+ * **It lived inside `app/session.tsx` until it did not, which is the same
+ * finding the web had.** "One rendering of a phone number per surface" was
+ * true of one *file*: settings could not have used this even if somebody had
+ * wanted to, so it rendered the numbers as plain `Text` instead — and on a
+ * phone a number you cannot tap is one you have to retype, on the screen
+ * somebody reaches when they are *not* in a session. The web resolved exactly
+ * this by moving `HelplineLink` into `components/`; this is the phone
+ * catching up.
+ *
+ * **The ink is `accentInk`, not `'#FFFFFF'`, and that was the bug.** White is
+ * right in the light palette, and `accentInk` is white there — in the dark one
+ * it is `#1D1714`, because `positive` lightens to `#5FA883` and white on that
+ * is **2.83:1**. Measured on the pause screen in dark: the helpline's name,
+ * its detail and **the number itself** were all under AA, on the screen whose
+ * only job is to get somebody to dial one. `apps/web` has used `accent-ink`
+ * here since it was written, so the two surfaces disagreed about one colour
+ * and the phone held the wrong one.
+ *
+ * There is no `opacity` on the detail line, for the same reason as the web's:
+ * 0.9 blends it to 4.39:1 even in light. The smaller font size is the
+ * de-emphasis.
+ *
+ * The prop is the structural shape rather than `Helpline` or `ApiHelpline`, so
+ * this module keeps importing neither the protocol nor the API client: the
+ * pause renders what the *server* sent and the unsent-crisis block renders the
+ * protocol's own list, and both have to go through one rendering.
+ */
+export function HelplineButton({
+  helpline,
+}: {
+  helpline: {
+    readonly name: string;
+    readonly number: string;
+    readonly detail: string;
+    readonly kind: string;
+  };
+}) {
+  const { c } = useTheme();
+  const ink = helpline.kind === 'emergency' ? c.dangerInk : c.accentInk;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Call ${helpline.name} on ${helpline.number}`}
+      // A phone can actually make the call, which is the whole point of
+      // this being on a phone.
+      onPress={() => {
+        void Linking.openURL(`tel:${helpline.number}`);
+      }}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: SPACE.md,
+        padding: SPACE.lg,
+        borderRadius: RADIUS.card,
+        backgroundColor: helpline.kind === 'emergency' ? c.danger : c.positive,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <View style={{ flex: 1, gap: SPACE.xs }}>
+        <Text style={{ fontFamily: FAMILY.uiSemibold, fontSize: TEXT.body, color: ink }}>
+          {helpline.name}
+        </Text>
+        <Text style={{ fontFamily: FAMILY.ui, fontSize: TEXT.caption, color: ink }}>
+          {helpline.detail}
+        </Text>
+      </View>
+      <Text style={{ fontFamily: FAMILY.uiSemibold, fontSize: TEXT.subheading, color: ink }}>
+        {helpline.number}
+      </Text>
+    </Pressable>
   );
 }

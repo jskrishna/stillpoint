@@ -19,7 +19,7 @@ import { ApiError, api, type ApiMyCoach, type Profile } from '../../api';
 import { describe } from '../../describe';
 import { exportFile } from '../../exports';
 import { NO_EAR_REASON } from '../../voice';
-import { Button, Card, Field, Tag, Waiting } from '../../ui';
+import { Button, Card, Field, HelplineButton, Tag, Waiting } from '../../ui';
 import { useTheme } from '../../use-theme';
 
 /**
@@ -325,13 +325,15 @@ export default function Settings() {
 
       {helplines.length === 0 ? null : (
         <Group label="If you need someone now">
+          {/*
+           * Dialable, which these were not. They were plain `Text` while the
+           * safety pause one screen over had a pressable all along — so the
+           * one place somebody looks for a number *outside* a session was
+           * the one place they had to retype it. `HelplineButton` is shared
+           * now, the way the web's `HelplineLink` is.
+           */}
           {helplines.map((h) => (
-            <View key={h.number} style={{ gap: SPACE.xs }}>
-              <Text style={s.body}>
-                {h.name} · {h.number}
-              </Text>
-              <Text style={s.caption}>{h.detail}</Text>
-            </View>
+            <HelplineButton key={h.number} helpline={h} />
           ))}
         </Group>
       )}
