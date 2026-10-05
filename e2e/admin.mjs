@@ -19,7 +19,29 @@ import { reporter } from './report.mjs';
  */
 
 /** Distinctive enough that finding it in a response is unambiguous. */
-const FLAGGED = 'I feel like a burden to everyone and I cannot go on';
+// Emoji-led on purpose, and the emoji are the assertion rather than
+// decoration. The queue's row preview cut the excerpt with `slice`, which
+// counts UTF-16 code units, so an excerpt whose 48th unit fell inside a
+// surrogate pair ended in half a character — measured on this screen as
+// `…\ud83d…`, which a browser draws as a replacement glyph. Twenty-four of
+// them puts the cut inside the 24th pair.
+//
+// The screen still grades it `medium` and still reports `unreadable: false`:
+// `normalise()` drops anything outside Latin and Devanagari, so the emoji are
+// deleted before matching and the phrase that follows is what it reads.
+// Checked against the screen itself rather than assumed.
+const CRYING = '\u{1F622}';
+//
+// The single `I` before the emoji run is load-bearing: it makes the 48th code
+// unit fall *inside* the 24th surrogate pair. Written without it — an even
+// number of units before the run — `slice(0, 48)` cuts cleanly between two
+// emoji, and the three assertions about a broken character pass against the
+// bug. Checked: they did, and only the fourth went red. A fixture that does
+// not reproduce the hazard is not a fixture.
+const FLAGGED = `I${CRYING.repeat(24)} feel like a burden to everyone and I cannot go on`;
+// An ASCII slice of it, for the places a check needs a substring: slicing the
+// utterance itself is the bug this section is about, in the check.
+const FLAGGED_WORDS = 'feel like a burden to everyone';
 
 const { ok, bad, finish, watchForThrows } = reporter('the admin console');
 watchForThrows();
@@ -194,15 +216,56 @@ if (!signedIn) {
   // Open this run's own flag and review it, rather than whatever happens to be
   // first: the queue may already hold flags from an earlier run.
   const openBefore = Number(/(\d+) open/.exec(queue)?.[1] ?? '0');
-  const row = admin.locator('tbody tr', { hasText: 'burden' }).first();
+  // Keyed on the emoji rather than on a word, because a word is what the bug
+  // below removed: with the excerpt cut at 48 code units the preview held
+  // twenty-four emoji and half a character and no readable text at all, so a
+  // locator looking for "burden" stopped resolving and the section failed on
+  // the wrong line. The emoji are in the preview either way.
+  const row = admin.locator('tbody tr', { hasText: CRYING }).first();
   if ((await row.count()) === 0) {
     bad('this run’s flag is in the queue');
   } else {
     await row.locator('button').first().click();
     await admin.waitForTimeout(400);
     const detail = await admin.locator('body').innerText();
-    if (detail.includes(FLAGGED.slice(0, 30))) ok('the detail pane shows the full excerpt');
+    if (detail.includes(FLAGGED_WORDS)) ok('the detail pane shows the full excerpt');
     else bad('the detail pane shows the full excerpt', detail.slice(-300));
+
+    // And the row's preview, cut to characters rather than code units. A lone
+    // surrogate is what `slice` left behind, and `innerText` hands it over
+    // unpaired, so the measurement is to iterate by code point: the string
+    // iterator yields an unpaired surrogate as a one-unit string, where a
+    // valid pair comes back as two units. A replacement glyph is checked
+    // beside it, since that is what the reviewer actually sees.
+    //
+    // Written first as "strip the valid pairs, then look for a leftover" with
+    // a `/gu` regex, which **cannot work**: in unicode mode a character class
+    // will not match half a code point, so the replace matched nothing and
+    // every preview read as broken. It failed loudly against the fix rather
+    // than passing against the bug, which is the better of the two ways for a
+    // check to be wrong.
+    const preview = await row.innerText();
+    const orphaned = Array.from(preview).some(
+      (ch) => ch.length === 1 && ch.charCodeAt(0) >= 0xd800 && ch.charCodeAt(0) <= 0xdfff,
+    );
+    if (!orphaned) ok('the row preview cuts the excerpt on a whole character');
+    else bad('the row preview cuts the excerpt on a whole character', JSON.stringify(preview));
+    // There is deliberately no check for U+FFFD beside that one. The
+    // replacement glyph is how Chromium *draws* a lone surrogate; `innerText`
+    // hands the unpaired unit over as it is, so a glyph assertion stays green
+    // against the bug — written and measured, it did. The surrogate is the
+    // measurement and the glyph would have been a check that cannot fail.
+    //
+    // This next one is a control rather than a finding: a cut that returned
+    // nothing at all would pass the assertion above and show a reviewer no
+    // excerpt, so it stays green against the bug on purpose.
+    if (preview.includes(CRYING)) ok('and still previews what was said');
+    else bad('and still previews what was said', JSON.stringify(preview));
+    // The other symptom of the same bug, and the one a reviewer would notice:
+    // 48 code units is twenty-four emoji, so the preview held no words. 48
+    // characters reaches the sentence.
+    if (/burden/.test(preview)) ok('and reaches the words, not only the emoji');
+    else bad('and reaches the words, not only the emoji', JSON.stringify(preview));
 
     // Focus, which the press used to take away: `disabled` leaves the tab
     // order, so `document.activeElement` became `<body>` the moment the

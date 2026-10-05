@@ -1149,6 +1149,52 @@ green sweep would otherwise mean just as much if they had been deleted as if
 they had been consumed. Checked by declaring one more in the console: red,
 naming the file and the constant.
 
+### The last `slice` on a person's own words was on the safety queue
+
+`parity/cases.json` records that a journal title cut with `slice` ended in half
+a character — `slice` counts UTF-16 code units — and `firstCharacters()` in
+`packages/protocol/src/utterance.ts` is the fix, used by `recordable()` and the
+title. **The console's queue was still doing it.** Its row preview was
+`text.slice(0, 48)`, and that is the screen where somebody reads what a person
+said at the moment they said they were not safe.
+
+Measured in a browser, with a flag raised on an emoji-led utterance: the row
+read `“I😢…😢\ud83d…”` — a lone high surrogate, which a browser draws as a
+replacement glyph. And the second symptom is the one a reviewer would actually
+notice: 48 code units is twenty-four emoji, so the preview held **no words at
+all**. A reviewer's first read of a disclosure is that preview.
+
+It was the only one left. Swept both surfaces: every other cut on a person's
+text is `firstCharacters()` or, on the PHP side, `mb_substr` — the one other
+`slice` is `level.slice(1)` capitalising an enum value.
+
+Three things about the check, and the second is the lesson:
+
+- **The fixture's single leading `I` is load-bearing.** It is what puts the
+  48th code unit inside the 24th surrogate pair. Written without it, an even
+  number of units precedes the emoji run, `slice` cuts cleanly between two of
+  them, and the broken-character assertions pass against the bug — checked,
+  they did, and only the "reaches the words" one went red.
+- **There is no assertion about U+FFFD**, and there was one. The replacement
+  glyph is how Chromium _draws_ a lone surrogate; `innerText` hands the
+  unpaired unit over as it is, so a glyph assertion stays green against the
+  bug. The surrogate is the measurement; the glyph would have been a check
+  that cannot fail.
+- **"Still previews what was said" is a control**, green against the bug on
+  purpose: a cut returning nothing would pass the surrogate assertion and show
+  a reviewer no excerpt at all.
+
+Writing the detector went wrong first in a way worth keeping: "strip the valid
+pairs, then look for a leftover" with a `/gu` regex **cannot work**, because in
+unicode mode a character class will not match half a code point, so the replace
+matched nothing and every preview read as broken. It failed loudly against the
+fix rather than passing against the bug, which is the better of the two ways
+for a check to be wrong. It iterates by code point now — the string iterator
+yields an unpaired surrogate as a one-unit string.
+
+The preview also means 48 **characters** now, so an excerpt full of emoji shows
+as much text as one without, which is what the number always meant.
+
 `plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
 Note what that is and is not worth: both routes that take a body from the
 person it is about build their own array from validated fields, so naming a

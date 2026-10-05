@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { firstCharacters } from '@stillpoint/protocol';
 import { ApiError, api, type ApiSafetyFlag } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
 import { useStaleGuard } from '../../../lib/stale';
@@ -269,6 +270,25 @@ function levelClass(level: string): string {
   return '';
 }
 
+/**
+ * The preview in the row, cut to characters rather than to code units.
+ *
+ * It was `text.slice(0, max)`, and `slice` counts UTF-16 code units — so an
+ * excerpt whose 48th unit fell inside a surrogate pair ended in **half of a
+ * character**. Measured on this screen with a flag raised on an emoji-led
+ * utterance: the row read `…😢\ud83d…`, a lone high surrogate, which a browser
+ * draws as a replacement glyph. On the one screen where somebody reads what a
+ * person said at the moment they said they were not safe.
+ *
+ * `firstCharacters()` is the fix and already existed: it is what
+ * `recordable()` and the journal title use, written after exactly this bug cut
+ * a title mid-character. This was the last `slice` on a person's own text in
+ * either surface — the PHP side has used `mb_substr` throughout.
+ *
+ * It also means 48 *characters*, so an excerpt full of emoji now previews as
+ * much text as one without, which is what the number was always meant to say.
+ */
 function truncate(text: string, max = 48): string {
-  return text.length <= max ? text : `${text.slice(0, max).trimEnd()}…`;
+  const cut = firstCharacters(text, max);
+  return cut === text ? text : `${cut.trimEnd()}…`;
 }

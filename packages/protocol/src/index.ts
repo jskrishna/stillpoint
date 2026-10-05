@@ -211,6 +211,6 @@ export {
   type TurnDeps,
 } from './conversation.js';
 
-export { RECORDED_UTTERANCE_LIMIT, recordable } from './utterance.js';
+export { RECORDED_UTTERANCE_LIMIT, firstCharacters, recordable } from './utterance.js';
 
 export { LOCALE, duration, greeting, partOfDay, relativeDay, type PartOfDay } from './display.js';
