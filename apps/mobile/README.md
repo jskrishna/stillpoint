@@ -22,6 +22,40 @@ reach and a real device cannot: copy `.env.example` to `.env` and point
 API with `--host=0.0.0.0`. The API's `CORS_ALLOWED_ORIGINS` already lists
 Expo's `:8081` and a static export's `:4000` for development.
 
+**On a real phone, the one command is `pnpm run demo --lan`.** It binds all
+three servers to `0.0.0.0`, rebuilds the web app for this machine's address —
+`NEXT_PUBLIC_API_URL` is baked in at build time, so a `.next` left from a
+localhost run serves a phone a bundle calling a host it cannot reach — widens
+`CORS_ALLOWED_ORIGINS` to the LAN origin, and prints the exact
+`EXPO_PUBLIC_API_URL` line to write into `.env` before `expo start`.
+
+It exists because the two documents disagreed. This file and `.env.example`
+both said to serve the API on all interfaces, and `pnpm run demo` — the only
+command the README gives — ran `php artisan serve --port=8000 --no-reload`,
+which binds loopback. Measured: `127.0.0.1:8000/api/me` answered **401** and
+the same request to this machine's own LAN address was **refused**. So the
+documented path to a device test was the one command that could not get you
+there.
+
+Measured after, on the LAN address: all three servers bound `0.0.0.0`, the API
+401, the web app 200, the export 200; the built bundle carries the LAN API URL
+in 13 chunks and `localhost:8000` in **zero**; the served policy's
+`connect-src` names the same origin, because both come from one variable. And
+`deploy/smoke.mjs` run against that address walks a whole session — register,
+consent, two turns with the guide speaking, the safety stop returning 988,
+Québec's line and 911, a 409 on the next turn, no journal row, and the account
+erased again.
+
+Every dependency in `package.json` is in **Expo Go**'s own bundled set, so
+scanning the QR is the whole install — no development build, no EAS account.
+That is read off the dependency list rather than proved here: nothing in this
+container can run Expo Go, which is the same sentence this file makes about the
+keychain and `tel:` links.
+
+Be plain about the cost: `--lan` puts three development servers and a demo
+database on the local network. That is why it is a flag rather than the
+default, and the banner says so where somebody will read it.
+
 ## What is verified, and what is not
 
 `pnpm run typecheck` and `expo export --platform web` both run in CI's image

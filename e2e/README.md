@@ -79,6 +79,7 @@ pnpm run e2e                 # build what is missing, seed, all seven, tear down
 pnpm run e2e flow admin      # just those two
 pnpm run e2e --no-build      # servers and scripts only, nothing rebuilt
 pnpm run e2e --keep          # leave the servers up afterwards
+pnpm run demo --lan          # the demo, reachable from a phone on this network
 ```
 
 `e2e/run.mjs` does what the six steps below do: builds the packages, the web

@@ -2748,6 +2748,48 @@ because a fixture that already contains what a test is about is a test that
 passes whether or not the code works. Every check above runs against exactly
 that, and `flow.mjs` registers its own account anyway.
 
+**And `pnpm run demo --lan` is the same machinery pointed at a phone**, which
+is what nothing here could do. Measured before it existed: `php artisan serve
+--port=8000 --no-reload` — what `run.mjs` starts — listens on `127.0.0.1:8000`
+only, so loopback answered 401 and the same request to this machine's own LAN
+address was **refused**. And `apps/mobile/.env.example` said to "serve the API
+on all interfaces", so this repository's two documents disagreed about the only
+path to a device test, and the one command the README gives was the one that
+could not get you there.
+
+`--lan` binds all three servers to `0.0.0.0`, and the part that is not a flag
+on a command is why it rebuilds: `NEXT_PUBLIC_API_URL` is baked into the web
+bundle at **build** time, so a `.next` left from a localhost run serves a phone
+a bundle calling a host it cannot reach — the stale-build class, with the
+staleness in a string rather than a missing file. It widens
+`CORS_ALLOWED_ORIGINS` to the LAN origin (the native app sends no `Origin` and
+is never subject to CORS; a phone _browser_ is), moves `APP_FRONTEND_URL` so a
+reset link is followable, and prints the exact `EXPO_PUBLIC_API_URL` line —
+because the one value that has to be right is this machine's address and only
+that process knows it.
+
+Measured after, on the LAN address: three servers bound `0.0.0.0`, the API 401,
+the web app 200, the export 200; the bundle carries the LAN API URL in 13
+chunks and `localhost:8000` in **zero**; the served policy's `connect-src`
+names the same origin, because both come from one variable. And
+`deploy/smoke.mjs` against that address walks a whole session — register,
+consent, two turns with the guide speaking, the safety stop returning 988,
+Québec's line and 911, a 409 on the next turn, no journal row, the account
+erased. Note the invocation that went wrong first: the base has to include
+`/api`, and without it the script answered 404 on everything, correctly, about
+a stack that was working.
+
+`--lan` with no network address **exits 1 and says so**, rather than quietly
+behaving like an ordinary run — which is the silent-skip failure this suite has
+had twice. And it is a flag rather than the default because it puts three
+development servers and a demo database on the local network; the banner says
+that where somebody will read it.
+
+What it does not prove is the app on a phone. Every dependency in
+`apps/mobile/package.json` is in Expo Go's own bundled set, so scanning the QR
+is the whole install with no development build and no EAS account — read off
+the list rather than run, because nothing in this container can run Expo Go.
+
 `pnpm run demo` is the same machinery pointed at a person rather than a check,
 and it inherited that emptiness — which `LAUNCH.md` item 1 had already promised
 away. That item is asking a clinician to read the risk screen and says the way

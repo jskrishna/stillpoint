@@ -42,6 +42,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { networkInterfaces } from 'node:os';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -134,6 +135,43 @@ async function waitForServers(servers, seconds = 120) {
 }
 
 const api = join(root, 'apps/api');
+
+/**
+ * This machine's address on the local network, or null if it has none.
+ *
+ * `--lan` is for the one thing a phone cannot do, which is reach your
+ * laptop's loopback. Measured before this existed: `php artisan serve
+ * --port=8000 --no-reload` — what the line below starts — listens on
+ * `127.0.0.1:8000` only, so loopback answered 401 and the same request to
+ * this machine's own LAN address was **refused**. Meanwhile
+ * `apps/mobile/.env.example` says to "serve the API on all interfaces", so
+ * the two documents disagreed about the only path to a device test, and the
+ * command the README gives was the one that could not get you there.
+ */
+function lanAddress() {
+  for (const addresses of Object.values(networkInterfaces())) {
+    for (const a of addresses ?? []) {
+      if (a.family === 'IPv4' && !a.internal) return a.address;
+    }
+  }
+
+  return null;
+}
+
+const lan = flags.has('--lan') ? lanAddress() : null;
+
+if (flags.has('--lan') && lan === null) {
+  // Loudly, because the alternative is `--lan` quietly behaving like an
+  // ordinary run: every server on loopback, the phone refused, and nothing
+  // in the output saying which of the two you got. That is the silent-skip
+  // failure this suite has had twice.
+  console.error('[e2e] --lan found no network address on this machine.');
+  console.error('      Every interface is loopback or down, so there is no');
+  console.error('      address a phone could reach. Check the network, or drop');
+  console.error('      --lan to run on localhost.');
+  process.exit(1);
+}
+
 const env = {
   ...process.env,
   // See the note at the top. Not negotiable on sqlite.
@@ -141,6 +179,30 @@ const env = {
   // Several workers, because PHP's built-in server answers one connection at a
   // time and a browser holds several open on keep-alive.
   PHP_CLI_SERVER_WORKERS: '8',
+  /*
+   * Under `--lan`, three values stop being localhost.
+   *
+   * `NEXT_PUBLIC_API_URL` is baked into the web bundle at **build** time —
+   * the browser is what calls the API — so a `.next` built for localhost
+   * serves a phone browser a bundle that calls a host it cannot reach.
+   * That is why `--lan` rebuilds the web app rather than trusting what is
+   * there, and why it is passed to the build and not only to the server.
+   *
+   * `CORS_ALLOWED_ORIGINS` has to name the LAN origin too, or the phone's
+   * browser is refused by the rule that list exists for. The native app is
+   * unaffected — it sends no `Origin` and is never subject to CORS — which
+   * is exactly the asymmetry `deploy/smoke.mjs` is given an origin to catch.
+   *
+   * `APP_FRONTEND_URL` is where a password-reset link points, and a link to
+   * localhost is one nobody can follow from a phone.
+   */
+  ...(lan === null
+    ? {}
+    : {
+        NEXT_PUBLIC_API_URL: `http://${lan}:8000/api`,
+        CORS_ALLOWED_ORIGINS: `http://${lan}:3000,http://localhost:3000,http://127.0.0.1:3000`,
+        APP_FRONTEND_URL: `http://${lan}:3000`,
+      }),
 };
 
 async function build() {
@@ -148,9 +210,15 @@ async function build() {
   if ((await run('pnpm', ['run', 'build:packages'])) !== 0) return false;
 
   const webBuilt = existsSync(join(root, 'apps/web/.next/BUILD_ID'));
-  if (!webBuilt || !flags.has('--no-build')) {
-    log('building the web app');
-    if ((await run('pnpm', ['--filter', '@stillpoint/web', 'run', 'build'])) !== 0) return false;
+  // `--lan` always rebuilds: `NEXT_PUBLIC_API_URL` is baked in, so a build
+  // left over from a localhost run serves a phone a bundle calling a host it
+  // cannot reach — and nothing about that build looks wrong. It is the stale
+  // build directory this repository keeps being bitten by, with the staleness
+  // in a string rather than in a missing file.
+  if (!webBuilt || !flags.has('--no-build') || lan !== null) {
+    log(lan === null ? 'building the web app' : `building the web app for ${lan}`);
+    if ((await run('pnpm', ['--filter', '@stillpoint/web', 'run', 'build'], { env })) !== 0)
+      return false;
   }
 
   const mobileBuilt = existsSync(join(root, 'apps/mobile/dist/index.html'));
@@ -232,21 +300,29 @@ async function main() {
     log('--no-build: using whatever is already built and seeded');
   }
 
-  const apiServer = start('the API', 'php', ['artisan', 'serve', '--port=8000', '--no-reload'], {
-    cwd: api,
-    env,
-  });
+  const apiServer = start(
+    'the API',
+    'php',
+    ['artisan', 'serve', '--port=8000', '--no-reload', ...(lan === null ? [] : ['--host=0.0.0.0'])],
+    { cwd: api, env },
+  );
   started.push(apiServer);
 
-  const web = start('the web app', 'pnpm', [
-    '--filter',
-    '@stillpoint/web',
-    'exec',
-    'next',
-    'start',
-    '--port',
-    '3000',
-  ]);
+  const web = start(
+    'the web app',
+    'pnpm',
+    [
+      '--filter',
+      '@stillpoint/web',
+      'exec',
+      'next',
+      'start',
+      '--port',
+      '3000',
+      ...(lan === null ? [] : ['--hostname', '0.0.0.0']),
+    ],
+    { env },
+  );
   started.push(web);
 
   const servers = [
@@ -260,7 +336,7 @@ async function main() {
       'http.server',
       '4000',
       '--bind',
-      '127.0.0.1',
+      lan === null ? '127.0.0.1' : '0.0.0.0',
       '--directory',
       join(root, 'apps/mobile/dist'),
     ]);
@@ -283,12 +359,45 @@ async function main() {
     console.log('');
     console.log('  \x1b[1mStillpoint is up.\x1b[0m');
     console.log('');
-    console.log('    the app and the marketing site   http://localhost:3000');
-    console.log('    the admin console                http://localhost:3000/admin');
-    console.log('    the coach portal                 http://localhost:3000/coach');
-    console.log('    the phone app, at phone width    http://localhost:4000');
-    console.log('    the API                          http://localhost:8000/api');
+    const host = lan ?? 'localhost';
+    console.log(`    the app and the marketing site   http://${host}:3000`);
+    console.log(`    the admin console                http://${host}:3000/admin`);
+    console.log(`    the coach portal                 http://${host}:3000/coach`);
+    console.log(`    the phone app, at phone width    http://${host}:4000`);
+    console.log(`    the API                          http://${host}:8000/api`);
     console.log('');
+
+    if (lan !== null) {
+      /*
+       * The real-device path, printed rather than documented, because the one
+       * value that has to be right is this machine's address and only this
+       * process knows it.
+       *
+       * Every dependency in `apps/mobile/package.json` is in Expo Go's own
+       * bundled set, so there is no custom dev client and no EAS account in
+       * the way — scanning the QR is the whole install. That is read off the
+       * list rather than proved here: nothing in this container can run Expo
+       * Go, which is the same sentence `apps/mobile/README.md` makes about
+       * the keychain and `tel:` links.
+       */
+      console.log('  \x1b[1mOn a real phone\x1b[0m, on this same network:');
+      console.log('');
+      console.log(`    1. echo 'EXPO_PUBLIC_API_URL=http://${lan}:8000/api' > apps/mobile/.env`);
+      console.log('    2. pnpm --filter @stillpoint/mobile run start');
+      console.log('    3. scan the QR with Expo Go (iOS: the Camera app)');
+      console.log('');
+      console.log('  \x1b[2mThe phone app reads that URL at `expo start`, so step 1 has to');
+      console.log('  come first. A phone browser can use the addresses above as they');
+      console.log('  are — the web app was just rebuilt for this one.\x1b[0m');
+      console.log('');
+      console.log('  \x1b[2mAnd be plain about what --lan did: three dev servers and a demo');
+      console.log('  database are now reachable by anything on this network, which is');
+      console.log('  why it is a flag and not the default. Ctrl-C ends that.\x1b[0m');
+      console.log('');
+    } else {
+      console.log('  \x1b[2mTo reach this from a real phone: pnpm run demo --lan\x1b[0m');
+      console.log('');
+    }
     console.log(`  Four accounts, all with the password \x1b[1m${password}\x1b[0m:`);
     console.log('');
     console.log('    you@stillpoint.test      an ordinary account, with a journal');
