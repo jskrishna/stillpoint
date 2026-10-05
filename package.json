@@ -24,6 +24,7 @@
     "demo": "node e2e/run.mjs --demo",
     "check": "pnpm run build:packages && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "verify:clean": "node scripts/verify-clean.mjs",
+    "check:mysql": "node scripts/check-mysql.mjs",
     "build:packages": "pnpm --filter './packages/*' run build",
     "parity:generate": "pnpm run build:packages && node parity/generate.mjs",
     "clinical:review": "pnpm run build:packages && node docs/clinical-review/generate.mjs && prettier --write docs/clinical-review/RISK-SCREEN-REVIEW.md"

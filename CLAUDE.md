@@ -701,6 +701,78 @@ the three files and rebuilding; all five go red, by name rather than by
 timeout — the region is counted before it is read, because a throw out of
 `innerText` is a red run that names a timeout instead of the thing that broke.
 
+### And the same question again, about what is _selected_ rather than what changed
+
+The section above is "a press changed the screen and nobody said so". Its
+sibling is "a press chose something and nobody said which", and sweeping the web surface for it — every control whose class changes with its
+own state — turned up **seven**. Counted with
+`grep -rn 'styles\.\w*On\b\|isActive\|aria-current' apps/web/src --include=*.tsx`,
+which is nine lines across six files and seven distinct controls, because two
+of those files carry both halves of one. Four were already right and three were
+not:
+
+- **The calmer rating, on the session summary.** Measured through Chromium's
+  accessibility tree before and after pressing "A little": three buttons,
+  `pressed` absent on all three in both snapshots. The chosen rating was a
+  background colour and nothing else, so somebody on a screen reader answered
+  the one question this screen asks and was told nothing about their own
+  answer. It was a **drift**, not a decision nobody made, which is what made it
+  findable: the feeling chips one step earlier carry `aria-pressed`, and the
+  phone's rating carries `accessibilityState={{ selected }}` — so the two
+  surfaces agreed about the chips and disagreed about this, with the web holding
+  the wrong half. The same shape as the phone's hardcoded `'#FFFFFF'` and its
+  Android-only autofill hint, with the surfaces swapped.
+- **The protocol editor's six step tabs.** No `pressed`, `checked`, `selected`
+  or `current` on any of them, so an admin editing the product's voice with a
+  screen reader could not tell which of the six they were in.
+- **The coach portal's sidebar link**, which is styled as the current item and
+  said nothing, where the console's nav answers `page`. One link, so this is
+  consistency rather than a defect anybody hit.
+
+The four already right, and worth knowing why: `AdminNav` and `BottomNav` both
+carry `aria-current="page"`, the session screen's feeling chips carry
+`aria-pressed`, and voice setup's choices are **real `<input type="radio">`**
+inside their labels — so that last one's checked state is the platform's rather
+than an attribute somebody had to remember, which is the only one of the seven
+that could not have had this bug.
+
+Two decisions:
+
+- **`aria-pressed` on the rating, not a `radiogroup`.** A radio group would say
+  more — that the three are exclusive — and ARIA's own pattern for one asks for
+  roving tabindex and arrow-key navigation, which is more surface than the bug,
+  and it would make this control a different shape from the chips beside it and
+  from the phone's. One rule per surface, as with `HelplineLink`.
+- **`aria-current` on the step tabs, not `aria-pressed`.** They are not
+  toggles; they select one of a set, which is the thing the two navs here
+  already say. A `tablist` of `tab`s would be the fuller answer and brings the
+  same keyboard obligations as the radio group — plus a `tabpanel` to point at,
+  and `role="tab"` without one announces "tab 1 of 6" and then no panel, which
+  is worse than the plain button.
+
+  Be honest about the weak part of that choice: `aria-current` is announced
+  most reliably on a **link**, which is where the two navs use it, and support
+  on a `<button>` varies by screen reader. `aria-pressed` would reach more of
+  them and would say these are independent toggles, which they are not. The
+  judgement is that a precise state some readers skip beats a wrong state they
+  all announce — the opposite of the risk screen's "grade an ambiguous phrase
+  up", because here a false signal is the harm and there a missed one is.
+
+**And `aria-current` cannot be checked through the accessibility tree**, which
+is the measurement worth keeping. Chromium's
+`Accessibility.getFullAXTree` does not report it at all — measured: absent from
+the property dump for these buttons **and** for the console's own nav link,
+which has carried `aria-current="page"` since it was written. So an AX-tree
+assertion here could not tell the fix from the bug. It is asserted on the DOM
+attribute instead, which is what the browser hands its accessibility layer and
+the same reason `mobile.mjs` reads `autoComplete` off the DOM.
+
+`flow.mjs`, `admin.mjs` and `coach.mjs` assert the three, and two of them
+assert both halves rather than one: all three rating buttons, because a check
+on the pressed one alone would pass against a version that marked every button
+pressed; and exactly one step tab carrying `aria-current`, following the
+selection, for the same reason. Checked by reverting each.
+
 **`admin.mjs` publishes now, and it does it first.** Nothing in the suite
 asserted a _successful_ publish — the editor section proved the 422 for an
 incomplete draft and stopped there. It runs before the checks that edit copy,
@@ -2143,6 +2215,9 @@ pnpm run verify:clean  # all of that from nothing built — before a push
 # API (from apps/api)
 ./vendor/bin/phpunit     # the domain tests
 ./vendor/bin/pint --test # formatting, as CI runs it
+
+pnpm run check:mysql  # the migrations and the PHP suite on a real MySQL-family
+                      # server rather than sqlite — needs one, so not in `check`
 ```
 
 `e2e/` holds seven checks against a running API — `pnpm run e2e` runs all of
@@ -2434,19 +2509,57 @@ tell is the shape: seconds, no logs, and a reason that lives in the run's
 _annotations_ rather than its output. And what that window leaves unverified is
 exactly the two things only CI can do — the **MySQL** migration run up and back
 down, and the **Docker** images plus `deploy/smoke.mjs` through nginx. Neither
-can be closed in the development container: there is no MySQL and apt cannot
-install one, `migrate --pretend` needs a live connection so it cannot even
-render the MySQL grammar, and the Docker CLI is present with no daemon behind
-it. So for every commit in that window, sqlite passing still proves nothing
-about MySQL, and that is the rule this file already states rather than a new
-one. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
+could be closed in the development container, and **one of the two now can**:
+`apt-get install mariadb-server` works here, which the paragraph below was
+wrong about for as long as it was written down. Docker still cannot — the CLI
+is present with no daemon behind it. So for every commit in that window
+sqlite passing proved nothing about MySQL, which was the rule at the time; what
+is different now is that it did not have to stay that way. PHP here is 8.3; Laravel 13 needs ^8.3, and Pest 5 needs
 8.4, so the API uses PHPUnit — which is what the skeleton ships anyway.
 
-**There is no MySQL server in the development container**, and apt cannot
-install one. The suite runs on in-memory sqlite, so locally the schema is only
-verified against sqlite's grammar. CI closes that gap with a MySQL 8.4 service
-that runs the migrations up and back down. If you change a migration, assume
-sqlite passing proves nothing about MySQL until CI says so.
+**The suite runs on in-memory sqlite, and `pnpm run check:mysql` runs it on a
+real MySQL-family server instead.** The container has no MySQL _running_, and
+this file said for a long time that "apt cannot install one" — which was simply
+false. `apt-get update && apt-get install -y mariadb-server mariadb-client`
+works; the update is not optional, because without it one package 404s on a
+stale index, which is probably how the original claim was made. There is no
+systemd here, so `mysqld_safe --user=mysql &` starts it, and the script does
+both of those for you if nothing is answering.
+
+What it runs: the migrations up, back down, up again, and then the whole PHP
+suite against that database. **645 of 647 passed first time**, and both
+failures were tests written against sqlite's grammar rather than anything about
+the product — see the two notes below.
+
+**Be exact about what that buys**, because overclaiming it is worse than not
+having it. apt offers **MariaDB 10.11** and CI runs **MySQL 8.4**: MariaDB
+stores `json` as `longtext` with a constraint where MySQL 8 has a native type,
+and the default collations differ (`utf8mb4_unicode_ci` against
+`utf8mb4_0900_ai_ci`) — both case-insensitive, which is the property the email
+rule leans on, but not the same rules. So a green `check:mysql` means the
+grammar, the column widths and the collation _behaviour_ hold on a real
+MySQL-family server. It is strictly more than sqlite told you and strictly less
+than CI does, and if you change a migration it is the first thing to run and
+not the last word. It is deliberately not part of `check` or `verify:clean`,
+for the reason `e2e` is not: it needs a server.
+
+**The two that failed there are worth knowing, because neither was a bug.**
+`InsightsReadsOnlyWhatItNeedsTest` asserts the ordering on the SQL — the only
+way to see that rule at all, since the response is identical either way — and
+it asserted `order by "occurred_at" desc, "id" desc`, which is **sqlite's**
+identifier quoting. MySQL writes backticks, so the assertion read as a failure
+while the ordering it is about was character-for-character the same. It strips
+the quote characters now, because which one a test sees is a fact about where
+the suite is pointed rather than about the query.
+
+And `OneSpellingForAnAddressTest::test_the_migration_leaves_a_case_collision_alone`
+**cannot run there at all**, which is the thing it exists to say. It needs two
+rows differing only in case, and MySQL's unique index refuses the second one —
+measured, `1062 Duplicate entry 'aarav@example.com'`, thrown by the fixture
+before the migration under test was reached. So it skips when the driver is not
+sqlite, with that as the reason. Skipped rather than deleted: the collision is
+real where this is developed, and a migration that breaks a development
+database is still a broken migration.
 
 **Collation is the second thing sqlite will not tell you**, after column
 widths, and it was costing somebody their account. `users.email` was written

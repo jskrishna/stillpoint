@@ -53,3 +53,6 @@ screens/
 # The standalone build, which has its own output directory so it cannot
 # overwrite the one `next start` serves.
 .next-standalone/
+
+# Written by `pnpm run check:mysql` and removed when it finishes.
+apps/api/.phpunit-mysql.xml

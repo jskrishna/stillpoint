@@ -26,11 +26,15 @@ PHPUnit, not Pest: Pest 5 needs PHP 8.4 and this is 8.3. Laravel 13 needs ^8.3.
 
 ## The database
 
-There is **no MySQL server in the development container**, and apt cannot
-install one. The suite runs on in-memory sqlite, so locally a migration is only
-verified against sqlite's grammar. CI closes the gap with a MySQL 8.4 service
-that runs the migrations up and back down. If you change a migration, assume
-sqlite passing proves nothing about MySQL until CI says so.
+The suite runs on in-memory sqlite, so by default a migration is only verified
+against sqlite's grammar. **`pnpm run check:mysql` (from the repository root)
+runs the migrations up, back down, up again, and then this whole suite against
+a real MySQL-family server** — installing and starting one if nothing is
+answering. This file used to say apt could not install one, which was false.
+
+It is MariaDB 10.11 where CI is MySQL 8.4, so it is more than sqlite tells you
+and less than CI does; `scripts/check-mysql.mjs` has the differences that
+matter. Run it when you change a migration, and still wait for CI.
 
 `database/database.sqlite` is for running the app by hand (`php artisan serve`),
 not for the tests.

@@ -170,9 +170,28 @@ final class OneSpellingForAnAddressTest extends TestCase
      * blind `LOWER(email)` would violate the unique index and break the
      * migration for whoever had one. Merging two accounts is not a migration's
      * decision: each has its own journal.
+     *
+     * **It can only run on sqlite, and that is the point rather than a
+     * limitation.** The two rows this needs are the ones MySQL's unique index
+     * refuses — measured by `pnpm run check:mysql`, which answered
+     * `1062 Duplicate entry 'aarav@example.com'` on the second `create()`,
+     * before the migration under test was reached. So the fixture cannot exist
+     * on the engine where the collision cannot happen, and skipping says so
+     * rather than reporting a failure about a state that server makes
+     * impossible.
+     *
+     * Skipped rather than deleted because the collision is real where this is
+     * developed, and a migration that broke a development database is still a
+     * broken migration.
      */
     public function test_the_migration_leaves_a_case_collision_alone(): void
     {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            $this->markTestSkipped(
+                'Two rows differing only in case are unstorable here, which is the fact this test is about.',
+            );
+        }
+
         $a = User::factory()->create(['email' => self::TYPED]);
         $b = User::factory()->create(['email' => self::LOWER]);
         $alone = User::factory()->create(['email' => 'Meera@Example.com']);

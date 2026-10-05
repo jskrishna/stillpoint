@@ -193,7 +193,21 @@ final class InsightsReadsOnlyWhatItNeedsTest extends TestCase
             // Newest first, and `id` after `occurred_at`: that column is not
             // unique, and a tie with no tiebreaker makes which rows survive
             // the cut a property of the storage engine.
-            $this->assertStringContainsString('order by "occurred_at" desc, "id" desc', $sql, $sql);
+            //
+            // The identifier quotes are stripped first, because they are the
+            // grammar's and not the application's: sqlite writes
+            // `order by "occurred_at" desc` and MySQL writes
+            // `order by `occurred_at` desc`, so this assertion read as a
+            // failure on a real MySQL-family server while the ordering it is
+            // about was identical. Found by `pnpm run check:mysql`, which is
+            // what that command is for — and it is the same class as this
+            // file's own note that an assertion on SQL is the only way to see
+            // this rule at all.
+            $this->assertStringContainsString(
+                'order by occurred_at desc, id desc',
+                self::withoutIdentifierQuotes($sql),
+                $sql,
+            );
         }
     }
 
@@ -240,5 +254,18 @@ final class InsightsReadsOnlyWhatItNeedsTest extends TestCase
 
         $this->assertFalse($read->partial, 'two entries under a ceiling of two is everything');
         $this->assertSame(2, $read->insights->sessions);
+    }
+
+    /**
+     * The same SQL with the engine's identifier quoting taken out.
+     *
+     * sqlite quotes with `"` and MySQL with a backtick, and which one a test
+     * sees is a fact about where the suite is pointed rather than about the
+     * query. Only the quote characters go: a value containing one would have
+     * been bound as a parameter and so is not in this string.
+     */
+    private static function withoutIdentifierQuotes(string $sql): string
+    {
+        return str_replace(['"', '`'], '', strtolower($sql));
     }
 }
