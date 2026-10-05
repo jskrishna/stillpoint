@@ -5,7 +5,12 @@ import {
   currentOrdinal,
   isUntouched,
   isOutOfGuideTurns,
+  isCalmerRating,
   isSessionKind,
+  calmerJournalLabel,
+  CALMER_ANSWER_LABEL,
+  CALMER_JOURNAL_LABEL,
+  CALMER_RATINGS,
   startSession,
   SESSION_KINDS,
   SESSION_KIND_LABEL,
@@ -398,5 +403,60 @@ describe('a session kind has one word', () => {
     expect(SESSION_KINDS.every((k) => isSessionKind(k))).toBe(true);
     expect(isSessionKind('deep')).toBe(false);
     expect(isSessionKind('Full')).toBe(false);
+  });
+});
+
+/**
+ * The two vocabularies for one rating.
+ *
+ * Both session screens held their own identical `RATINGS` array, and both
+ * journal entry screens had a branch per rating — the web's had only the `yes`
+ * one, so a session rated "a little" said nothing there while the phone said
+ * "A little calmer" about the same row.
+ */
+describe('a calmer rating has a word for the question and a word for the journal', () => {
+  it('offers all three answers, in the order the screens asked them', () => {
+    expect(CALMER_RATINGS).toEqual(['yes', 'a_little', 'no']);
+    for (const rating of CALMER_RATINGS) {
+      expect(CALMER_ANSWER_LABEL[rating], rating).not.toBe('');
+    }
+    expect(Object.keys(CALMER_ANSWER_LABEL).sort()).toEqual([...CALMER_RATINGS].sort());
+  });
+
+  /*
+   * Two of the three have a sentence and one deliberately does not. Asserted
+   * as a rule because the tempting fix for the web's missing branch is to add
+   * a third sentence, and "Did not feel calmer" is a judgement on somebody's
+   * own journal that the designs do not make.
+   */
+  it('says something about the two that helped and nothing about the one that did not', () => {
+    expect(CALMER_JOURNAL_LABEL.yes).toBe('Felt calmer');
+    expect(CALMER_JOURNAL_LABEL.a_little).toBe('A little calmer');
+    expect(CALMER_JOURNAL_LABEL.no).toBeNull();
+    expect(Object.keys(CALMER_JOURNAL_LABEL).sort()).toEqual([...CALMER_RATINGS].sort());
+  });
+
+  /*
+   * The two vocabularies must not collapse into one. An answer to "Do you feel
+   * a bit calmer?" is not a statement about a session read back weeks later,
+   * and a screen reaching for whichever map it imported first is how they
+   * would.
+   */
+  it('does not use an answer as a journal sentence', () => {
+    for (const rating of CALMER_RATINGS) {
+      expect(CALMER_JOURNAL_LABEL[rating], rating).not.toBe(CALMER_ANSWER_LABEL[rating]);
+    }
+  });
+
+  it('reads an unrecognised rating as nothing to say, not as an invented word', () => {
+    expect(calmerJournalLabel(null)).toBeNull();
+    expect(calmerJournalLabel('')).toBeNull();
+    expect(calmerJournalLabel('much_better')).toBeNull();
+    expect(calmerJournalLabel('Yes')).toBeNull();
+    expect(calmerJournalLabel('yes')).toBe('Felt calmer');
+    expect(calmerJournalLabel('a_little')).toBe('A little calmer');
+    expect(calmerJournalLabel('no')).toBeNull();
+    expect(isCalmerRating('a_little')).toBe(true);
+    expect(isCalmerRating('a little')).toBe(false);
   });
 });

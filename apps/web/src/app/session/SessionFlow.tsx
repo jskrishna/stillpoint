@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
+  CALMER_ANSWER_LABEL,
+  CALMER_RATINGS,
   DEFAULT_COUNTRY,
   FEELINGS,
   MAX_FEELINGS,
@@ -22,11 +24,10 @@ import { describe } from '../../lib/describe';
 import { browserVoiceLoop, type VoiceLoop } from '../../lib/voice';
 import styles from './session.module.css';
 
-const RATINGS = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'a_little', label: 'A little' },
-  { value: 'no', label: 'No' },
-] as const;
+// One copy of the three answers, from the domain. Both session screens held
+// their own identical array of these, which is how the plan labels and the
+// console's word for a full session came to disagree.
+const RATINGS = CALMER_RATINGS.map((value) => ({ value, label: CALMER_ANSWER_LABEL[value] }));
 
 const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
 

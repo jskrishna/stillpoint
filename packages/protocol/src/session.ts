@@ -27,6 +27,58 @@ export type InputMode = 'voice' | 'text';
 /** How the user rated their state on the summary screen. */
 export type CalmerRating = 'yes' | 'a_little' | 'no';
 
+export const CALMER_RATINGS = ['yes', 'a_little', 'no'] as const;
+
+/**
+ * The three answers, as the summary screen offers them.
+ *
+ * It asks "Do you feel a bit calmer?", so these are answers to that question
+ * and not statements about the session. Both session screens had their own
+ * identical copy of this array — the shape that produced the plan labels and
+ * the console's "Deep", caught here before the two had drifted rather than
+ * after.
+ */
+export const CALMER_ANSWER_LABEL: Readonly<Record<CalmerRating, string>> = {
+  yes: 'Yes',
+  a_little: 'A little',
+  no: 'No',
+};
+
+/**
+ * What the journal says the answer back as, or `null` for the one it does not.
+ *
+ * A different vocabulary from the answers above on purpose: "Yes" is an answer
+ * to a question that is no longer on the screen, and the journal is a
+ * statement about a session somebody is reading back weeks later.
+ *
+ * `no` is `null` because there is nothing to say — an entry with no tag is a
+ * session that did not help, and printing "Did not feel calmer" on somebody's
+ * own journal is a judgement the designs do not make. The two that have a
+ * sentence are the phone's words, which were the only ones: the web's entry
+ * screen printed `yes` and silently dropped `a_little`, so a rating somebody
+ * gave was visible on one surface and not the other.
+ */
+export const CALMER_JOURNAL_LABEL: Readonly<Record<CalmerRating, string | null>> = {
+  yes: 'Felt calmer',
+  a_little: 'A little calmer',
+  no: null,
+};
+
+export function isCalmerRating(value: string): value is CalmerRating {
+  return (CALMER_RATINGS as readonly string[]).includes(value);
+}
+
+/**
+ * What the journal says about the rating the API sent, or `null` for nothing.
+ *
+ * It takes `string | null` because that is what the API's resource is typed
+ * as, and an unrecognised value gets the same answer as `no`: a word this
+ * version does not have is not a word to invent on somebody's own journal.
+ */
+export function calmerJournalLabel(value: string | null): string | null {
+  return value === null || !isCalmerRating(value) ? null : CALMER_JOURNAL_LABEL[value];
+}
+
 /**
  * Whether a session walked the whole protocol or was a short one.
  *

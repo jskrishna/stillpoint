@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACE } from '@stillpoint/design-tokens';
 import {
   SESSION_KIND_LABEL,
+  calmerJournalLabel,
   coachSharingFromStored,
   duration,
   mayShareEntry,
@@ -178,6 +179,11 @@ export default function Entry() {
 
   const noteChanged = note.trim() !== (entry.note ?? '');
 
+  // One tag from the domain, rather than one branch per rating. The web's
+  // entry screen had only the `yes` branch, so a session rated "a little" said
+  // nothing there while this screen said "A little calmer".
+  const calmerLabel = calmerJournalLabel(entry.calmerRating);
+
   return (
     <ScrollView
       style={s.screen}
@@ -205,8 +211,7 @@ export default function Entry() {
       </Text>
 
       <View style={{ flexDirection: 'row', gap: SPACE.sm, flexWrap: 'wrap' }}>
-        {entry.calmerRating === 'yes' ? <Tag text="Felt calmer" /> : null}
-        {entry.calmerRating === 'a_little' ? <Tag text="A little calmer" /> : null}
+        {calmerLabel === null ? null : <Tag text={calmerLabel} />}
         {entry.reachedFinalStep ? null : <Tag text="Stopped early" />}
       </View>
 

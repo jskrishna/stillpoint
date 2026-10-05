@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   FEELINGS,
   SESSION_KIND_LABEL,
+  calmerJournalLabel,
   coachSharingFromStored,
   duration,
   mayShareEntry,
@@ -157,6 +158,13 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     }
   };
 
+  // Was `calmerRating === 'yes' ? ' · FELT CALMER' : ''` — so an entry rated
+  // "a little" said nothing here, while the phone's entry screen showed
+  // "A little calmer". Measured: a demo entry rated `a_little` read
+  // "THURSDAY · 5 MIN · QUICK SESSION" and the rating the person gave was
+  // nowhere on the screen.
+  const calmerLabel = calmerJournalLabel(entry.calmerRating);
+
   const rows = [
     {
       label: 'WHAT YOU FELT',
@@ -180,7 +188,7 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         {now === null ? '' : relativeDay(new Date(entry.occurredAt), now).toUpperCase()} ·{' '}
         {duration(entry.durationMinutes).toUpperCase()}
         {entry.kind === 'quick' ? ` · ${SESSION_KIND_LABEL.quick.toUpperCase()} SESSION` : ''}
-        {entry.calmerRating === 'yes' ? ' · FELT CALMER' : ''}
+        {calmerLabel === null ? '' : ` · ${calmerLabel.toUpperCase()}`}
       </span>
       <h1 className={styles.title}>{entry.title}</h1>
 

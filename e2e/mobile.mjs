@@ -487,6 +487,17 @@ if ((await card.count()) === 0) {
   if (entry.includes('I am not good enough')) ok('it shows back what was said');
   else bad('it shows back what was said', entry.slice(0, 600));
 
+  // And the rating, which was "A little" a few lines up. This is the surface
+  // that had the sentence: the web's entry screen read
+  // `calmerRating === 'yes' ? ' · FELT CALMER' : ''`, so the same answer said
+  // nothing there. Both read `CALMER_JOURNAL_LABEL` now, and this is the half
+  // that proves the phone still does — a shared map with one call site left
+  // behind is the situation it was added to end.
+  if (/A little calmer/.test(entry)) ok('it names the rating that was given');
+  else bad('it names the rating that was given', entry.slice(0, 600));
+  if (!/Felt calmer/.test(entry)) ok('and not the unhedged one');
+  else bad('and not the unhedged one', entry.slice(0, 600));
+
   // The note. Unique per run, because filling the same text twice is not an
   // edit — the Save button is only offered while the field differs from the
   // entry — so a second run against one database would have nothing to save.

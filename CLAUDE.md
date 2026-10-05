@@ -1096,6 +1096,37 @@ that is the other check's job — and goes red when a label is applied to every
 kind. Both were checked by breaking them one at a time; without the second, a
 label on everything would have passed.
 
+**And the rating had the same shape with an answer missing.** The web's entry
+screen read `calmerRating === 'yes' ? ' · FELT CALMER' : ''`, so a session
+rated **"a little"** said nothing there at all — while the phone's entry screen
+said "A little calmer" about the same row. Measured on a demo entry rated
+`a_little`: "THURSDAY · 5 MIN · QUICK SESSION", with the answer the person gave
+nowhere on the screen. The summary offers the three side by side a moment
+earlier, so the one that is neither yes nor no is the one a screen is most
+likely to drop.
+
+Two maps, not one, and that is the part to keep. `CALMER_ANSWER_LABEL` is
+Yes / A little / No — answers to "Do you feel a bit calmer?", which both
+session screens had their own identical copy of, caught before they drifted
+rather than after. `CALMER_JOURNAL_LABEL` is "Felt calmer" / "A little calmer"
+/ `null`, which is a statement about a session somebody reads back weeks later.
+`no` is `null` because there is nothing to say: an entry with no tag is a
+session that did not help, and "Did not feel calmer" is a judgement on
+somebody's own journal the designs do not make. A protocol case asserts the two
+maps never agree on a rating, because a screen reaching for whichever it
+imported first is how they would collapse into one.
+
+`calmerJournalLabel()` takes `string | null`, because that is what the API
+resource is typed as, and reads an unrecognised value the same as `no` — a word
+this version does not have is not one to invent on somebody's journal.
+
+Left as it is: both journal **lists** and both home previews show only
+`yes`, and the two surfaces agree on that. A list row is a glance and the
+designs tag only the one; changing it is a design decision, not a false
+statement. The console's `RESULT_LABEL` is left too — "No change" is a result
+rather than an answer, and that column also carries `safety` and `unrated`,
+which are not ratings at all.
+
 `plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
 Note what that is and is not worth: both routes that take a body from the
 person it is about build their own array from validated fields, so naming a

@@ -4,6 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FEELING_COLOR, RADIUS, SPACE, TEXT } from '@stillpoint/design-tokens';
 import {
+  CALMER_ANSWER_LABEL,
+  CALMER_RATINGS,
   DEFAULT_COUNTRY,
   FEELINGS,
   MAX_FEELINGS,
@@ -22,11 +24,10 @@ import { guideVoiceFor, silentGuide, type GuideVoice } from '../voice';
 import { Button, Card, Field, Tag } from '../ui';
 import { useTheme } from '../use-theme';
 
-const RATINGS = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'a_little', label: 'A little' },
-  { value: 'no', label: 'No' },
-] as const;
+// One copy of the three answers, from the domain. Both session screens held
+// their own identical array of these, which is how the plan labels and the
+// console's word for a full session came to disagree.
+const RATINGS = CALMER_RATINGS.map((value) => ({ value, label: CALMER_ANSWER_LABEL[value] }));
 
 const LABEL = new Map(FEELINGS.map((f) => [f.id, f.label]));
 

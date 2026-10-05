@@ -563,6 +563,7 @@ const paging = await page.evaluate(async (n) => {
 
   // Quick sessions, finished the way a person would: the journal row is the
   // server's to write, not this script's.
+  const seeded = [];
   for (let i = 0; i < n; i += 1) {
     const started = await fetch('http://localhost:8000/api/sessions', {
       method: 'POST',
@@ -571,6 +572,7 @@ const paging = await page.evaluate(async (n) => {
     });
     if (!started.ok) return { error: `starting a session: ${String(started.status)}` };
     const session = await started.json();
+    seeded.push(session.id);
 
     for (const utterance of [
       `Seeded session ${String(i)} happened like this`,
@@ -604,6 +606,7 @@ const paging = await page.evaluate(async (n) => {
   if (bounded.error !== undefined) return bounded;
 
   return {
+    seeded,
     total: first.total,
     firstPage: first.items.length,
     secondPage: second.items.length,
@@ -672,6 +675,55 @@ await page.waitForTimeout(1500);
 const quickEntry = await text();
 if (/QUICK SESSION/.test(quickEntry)) ok('the entry screen names a quick session');
 else bad('the entry screen names a quick session', quickEntry.slice(0, 300));
+
+// And the rating it was given. The entry screen read
+// `calmerRating === 'yes' ? ' · FELT CALMER' : ''`, so a session rated "a
+// little" said nothing at all here while the phone's entry screen said "A
+// little calmer" about the same row — a rating somebody gave, visible on one
+// surface and not the other. The three answers are offered side by side on the
+// summary screen a moment earlier.
+//
+// Rated through the API on a session section 4b already seeded, rather than by
+// finishing another: a new journal row would shift the counts this section and
+// section 7b assert on.
+const rated =
+  paging.seeded === undefined || paging.seeded.length === 0
+    ? { error: 'no seeded session to rate' }
+    : await page.evaluate(async (id) => {
+        const token = window.localStorage.getItem('stillpoint.token.v1');
+        const r = await fetch(`http://localhost:8000/api/sessions/${id}/rating`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ rating: 'a_little' }),
+        });
+        if (!r.ok) return { error: `rating: ${String(r.status)}` };
+        const journal = await fetch('http://localhost:8000/api/journal?limit=20', {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+        }).then((x) => x.json());
+        const entry = journal.items.find((e) => e.calmerRating === 'a_little');
+        return entry === undefined
+          ? { error: 'no entry came back rated a_little' }
+          : { id: entry.id };
+      }, paging.seeded.at(-1));
+
+if (rated.error !== undefined) {
+  bad('a session can be rated “a little”', rated.error);
+} else {
+  await page.goto(`${WEB}/app/journal/${String(rated.id)}`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  const hedged = await text();
+  if (/A LITTLE CALMER/.test(hedged)) ok('the entry screen says a session helped a little');
+  else bad('the entry screen says a session helped a little', hedged.slice(0, 300));
+  // Not the other sentence: "a little" is its own answer, and showing the
+  // unhedged one would be putting words in somebody's mouth about their own
+  // session.
+  if (!/· FELT CALMER/.test(hedged)) ok('and does not call it calmer outright');
+  else bad('and does not call it calmer outright', hedged.slice(0, 300));
+}
 
 // The pricing page promises "3 full sessions a week" on Free, and that quick
 // sessions are unlimited. A promise the server does not keep is the same
