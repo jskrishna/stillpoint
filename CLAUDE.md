@@ -3017,6 +3017,64 @@ both default to `user`, and `isStaff()` reads a missing role as `user` — if th
 role cannot be determined, the answer to "may this person read the safety queue"
 is no.
 
+### A stranger holding somebody's id, on every route that takes one
+
+Each of those checks already existed: `authorizeOwnership()` on sessions and on
+the journal, `authorizePairing()` on the coach portal, a `coach_id` comparison
+on withdrawing an invitation, the addressee comparison on accepting one. What
+did not exist was coverage of all of them, and the one that was uncovered is
+why this is a sweep rather than a case.
+
+`SessionApiTest::test_a_user_cannot_touch_someone_elses_session` named three of
+that controller's four id-taking routes — `show`, `turn`, `stop` — and not
+`rating`. The guard is on `rate()` and always was, so nothing was wrong;
+what was missing was the thing that keeps it there. Measured: with
+`authorizeOwnership` taken out of `rate()`, **the entire 647-test suite
+notices through exactly one test, the new one.** And a rating is not the
+harmless one of the four — it is the single operation the reducer still accepts
+on an **ended** session, and it writes through to the journal entry, so it is
+the one route by which a stranger could have changed what somebody else reads
+back about their own session.
+
+`EveryOwnedRouteRefusesAStrangerTest` therefore asks the **route table** rather
+than listing routes, which is `PageSizesAreBoundedTest` reading the source and
+`ErasureLeavesNoAddressAnywhereTest` asking the schema. Two maps keyed on the
+route parameter: `OWNED`, which is what a stranger gets, and `NOT_OWNED`, which
+is why that parameter is not an ownership question — and a parameter in neither
+fails the test naming the route, so a route added tomorrow with `{entry}` in it
+is covered the day it is written. That is
+`RotateEncryptionKey::COLUMNS`'s direction: refuse what is not covered, so the
+next one has to be argued for.
+
+Four things in it are deliberate:
+
+- **Only `auth:sanctum` routes**, by construction rather than by exclusion:
+  "what does a stranger get" presupposes somebody signed in.
+  `GET /invites/{token}` is the one id-taking route without it, and it is
+  public on purpose.
+- **`{token}` expects 403, not 404**, and it is the only entry that does.
+  Whoever holds an invitation link was _given_ it — they are not somebody who
+  guessed an id, they are the wrong account for a real invitation — so they are
+  told which address to sign in as. Every other 404 here is this product's
+  standard, so a route does not confirm its own resource exists to somebody who
+  may not have it.
+- **The stranger's role is part of each fixture.** A coach route is behind
+  `EnsureCoach`, so sweeping it with an ordinary account would get a 404 from
+  the middleware and pass with no ownership check present at all.
+- **One request body carrying every field any of these routes validates**, so a
+  422 can never stand in for the refusal. A body per route would be the
+  hand-written list this replaces.
+
+And the way writing it went wrong is the usual shape: the first version
+returned the **owner** where the stranger goes, so three routes were swept by
+the account that owns the resource and `POST sessions/{session}/turns` answered
+**200** — which is what the owner correctly gets. It failed loudly against
+working code rather than passing against a bug, which is the better of the two
+ways for a check to be wrong, and it is why the assertion prints the status it
+got. Checked in all three directions: the rating guard removed, the
+invite-withdrawal guard removed, and a route added with an unaccounted
+parameter.
+
 **A coach is not an admin.** A coach reads the sessions a client chose to share.
 An admin reads the safety queue, which holds the user's own words at the moment
 they said they were not safe. Those are not the same trust, and `EnsureStaff`
