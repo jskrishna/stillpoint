@@ -36,9 +36,23 @@
  */
 
 const base = (process.argv[2] ?? 'http://localhost:8000/api').replace(/\/$/, '');
-/** Where the web app is served. See the note at the top about the default. */
-const webGiven = process.argv[3] !== undefined || process.env.WEB_URL !== undefined;
-const web = (process.argv[3] ?? process.env.WEB_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+/**
+ * Where the web app is served. See the note at the top about the default.
+ *
+ * **An empty value means "there is no web app to check"**, which is different
+ * from leaving it out (try the local default). Both are now distinguished from
+ * a URL, because an empty one used to reach `new URL('')` and take the whole
+ * script down with an unhandled `TypeError: Invalid URL` — after the API
+ * section had already passed. A deployment check that crashes on a blank
+ * environment variable loses the answers it had already earned, and
+ * `WEB_URL=` is exactly what a CI job or a wrapper script sets when it has no
+ * web app to point at. Found by `scripts/check-edge.mjs` doing that.
+ */
+const webAsked = process.argv[3] ?? process.env.WEB_URL;
+const webGiven = webAsked !== undefined && webAsked !== '';
+/** Whether to skip the web section entirely rather than try the default. */
+const webSkipped = webAsked === '';
+const web = (webGiven ? webAsked : 'http://localhost:3000').replace(/\/$/, '');
 const stamp = Date.now();
 const email = `smoke-test-delete-me+${String(stamp)}@example.invalid`;
 const password = 'smoke-test-not-a-real-password';
@@ -170,13 +184,15 @@ console.log('\n2. A browser would be allowed to use it');
  *    answer is a header.
  */
 const apiOrigin = new URL(base).origin;
-const webOrigin = new URL(web).origin;
+const webOrigin = webSkipped ? null : new URL(web).origin;
 
-const page = await fetch(`${web}/welcome`, { signal: AbortSignal.timeout(20000) }).catch(
-  () => null,
-);
+const page = webSkipped
+  ? null
+  : await fetch(`${web}/welcome`, { signal: AbortSignal.timeout(20000) }).catch(() => null);
 
-if (page === null || !page.ok) {
+if (webSkipped) {
+  note('no web app given (WEB_URL is empty) — this section needs one.');
+} else if (page === null || !page.ok) {
   const why = page === null ? 'nothing answered' : `got ${String(page.status)}`;
   if (webGiven) bad(`the web app answers at ${web}`, why);
   else note(`no web app at ${web} (${why}) — pass its URL to check this.`);

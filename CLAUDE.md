@@ -2795,6 +2795,60 @@ fixed at build or boot — which API the web app was built to call (from the
 whether a preflight from that origin is allowed — and each failure names its
 own fix. Both were checked by breaking them one at a time.
 
+**And most of that topology can be run here now: `pnpm run check:edge`.**
+`deploy/nginx.conf` and `deploy/php.ini` were two files nothing in this
+container had ever executed — the Docker CLI is present with no daemon — so
+they were configuration nobody had run while CI was held. `apt-get install
+nginx php8.3-fpm` works, the same way `mariadb-server` did.
+
+It runs the **real** `deploy/nginx.conf` with three lines substituted —
+`listen`, `root`, `fastcgi_pass`, each of which names the container's
+filesystem or a compose service — in front of PHP-FPM given `deploy/php.ini`'s
+own settings, with MySQL behind it. The substitution count is asserted, because
+a generated copy that silently stopped matching the real file would exercise
+something else while looking identical.
+
+Four things it measures that nothing else can:
+
+- **`X-Powered-By` absent with a real SAPI present.** `ApiOriginIsLockedDownTest`'s
+  ninth case "stays green in PHPUnit because there is no SAPI there to add
+  it", so that case has only ever been carried by an HTTP check. This is one.
+- **Each security header exactly once.** `deploy/nginx.conf` warns that putting
+  them back at the edge sends each twice, because `add_header` appends.
+  Counting is the only way to see it.
+- **`client_max_body_size`**, "the one limit on a turn the application cannot
+  see ... where no test reaches". Measured: a 6MB body reaches the application
+  and 13MB is refused 413 by nginx, before Laravel and so before the risk
+  screen.
+- **`deploy/smoke.mjs` end to end through the whole thing** — register,
+  consent, a session, a turn, and a crisis utterance that stops the session and
+  returns Canada's numbers.
+
+Checked in four directions, each failing with its own reason: a header added
+back at the edge ("2 copies"), `expose_php=On`, the limit tightened to 1m, and
+the `listen` line reshaped so the substitution no longer matches.
+
+**Two of this session's own mistakes are worth more than the script.** The
+first: with nginx's temp paths inside the session scratchpad — whose ancestors
+are `drwx------` root — the `www-data` worker could not spool a request body,
+and nginx answered **500 for every body over about 16KB**. It read exactly like
+a deployment that breaks on large requests, and the error was visible only in a
+server-level `error_log /dev/stderr` that a daemonised nginx discards. It was
+the sandbox. The script puts its run directory outside the scratchpad and says
+why.
+
+The second: the body-limit check first guarded on the literal `12m` and exited
+if it was missing, so **tightening the number made the script refuse to run
+rather than measure the tightened limit** — the measurement was never proved
+able to fail. The probe sizes come out of the config now, and the number is its
+own assertion with its own reason. Trying to break a check is what found that;
+reading it would not have.
+
+What it still does not cover, and these are not small: the three images are not
+built, `docker-compose.yml` is not exercised, the scheduler service does not
+run, and TLS terminates nowhere. A green run means the deployment's
+_configuration_ serves a session, not that the deployment does.
+
 The CI `docker` job builds all three images, brings the stack up, and then runs
 `deploy/smoke.mjs` against it — register, consent, a session, a turn, and a
 crisis utterance that must stop the session and return helplines, through nginx
