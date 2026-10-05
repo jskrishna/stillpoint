@@ -40,8 +40,25 @@ final class SafetyFlagController extends Controller
             $filtered->where('status', $request->string('status', 'open')->toString());
         }
 
+        /*
+         * No `->with('user')`, and it was there.
+         *
+         * `SafetyFlagResource` prints `UserHandle::for($flag->user_id)` — a
+         * salted hash of an integer — and nothing in the application reads
+         * `$flag->user` at all. The eager load therefore fetched the whole
+         * `users` row for every flag on the page, name, address and password
+         * hash included, to render the one screen whose rule is that the
+         * console never names anyone. Measured:
+         * `select * from "users" where "users"."id" in (1, 2)`.
+         *
+         * This is `CoachAttention`'s standard one screen over — that read
+         * selects two timestamp columns rather than the row, and the reason
+         * given there holds here: a request that does not ask for the column
+         * is a rule, where asking and not using it is a habit. On this screen
+         * the habit costs more, because the handle exists exactly so that
+         * whoever reads somebody's crisis words cannot also read their name.
+         */
         $page = (clone $filtered)
-            ->with('user')
             ->byUrgency()
             ->cursorPaginate(Paged::limit($request, 50));
 
@@ -50,9 +67,23 @@ final class SafetyFlagController extends Controller
         );
     }
 
+    /**
+     * One flag.
+     *
+     * No `->load('user')` either, for the reason in `index()` — measured the
+     * same way, `select * from "users" where "users"."id" in (1)`.
+     *
+     * **And no client reaches this route.** `packages/client` has
+     * `safetyFlags()` and `reviewSafetyFlag()` and no method for a single
+     * read; the queue's detail pane renders the row it already has, since the
+     * list and this route share one resource. It is kept because a reviewer
+     * deep-linked to a flag is the obvious next thing this screen grows, and
+     * it is noted because an unreached route is one whose guard no browser
+     * exercises.
+     */
     public function show(SafetyFlag $flag): SafetyFlagResource
     {
-        return new SafetyFlagResource($flag->load('user'));
+        return new SafetyFlagResource($flag);
     }
 
     /**
@@ -65,6 +96,9 @@ final class SafetyFlagController extends Controller
     {
         $flag->markReviewed($request->user())->save();
 
-        return new SafetyFlagResource($flag->refresh()->load('user'));
+        // `refresh()` for the stored `reviewed_at` and `status`, and no
+        // `load('user')` — the third of the three, and the one a sweep of the
+        // two reads would have missed. See `index()`.
+        return new SafetyFlagResource($flag->refresh());
     }
 }

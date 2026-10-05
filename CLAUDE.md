@@ -2637,6 +2637,41 @@ that it happened, and when. Never what was said: a safety-stopped session is
 never journalled, so it cannot be shared, and the words are the safety queue's.
 A coach is not a reviewer.
 
+**The safety queue was looking up who, on the screen whose rule is that it
+never does.** `SafetyFlagResource` prints `UserHandle::for($flag->user_id)` — a
+salted hash of an integer — and nothing in the application reads `$flag->user`
+at all; grepped, zero call sites. And the controller eager-loaded that relation
+on **three** reads: the list, the single flag, and the response to "Mark as
+reviewed". Measured by printing the SQL:
+`select * from "users" where "users"."id" in (1, 2)` on a two-flag page —
+`select *`, so the name, the address and the password hash, for every flag the
+reviewer can see, to render a screen built so that whoever reads somebody's
+crisis words cannot also read their name.
+
+Nothing leaked: the response was identical before and after, which is the
+reason this needed the SQL rather than a body assertion. It is
+`CoachAttention`'s standard one screen over, where the cost is higher.
+
+Two things about finding it, both the usual shape. **The grep found two of the
+three** — `review()`'s was `$flag->refresh()->load('user')` and only turned up
+on re-reading the file, so `TheQueueDoesNotLookUpWhoTest` has a case per route
+rather than two standing for the controller. And the **first version of the
+test passed with the eager load still in place**, twice over: it looked for
+`in (?, ?)` where Eloquent inlines integer keys as `in (1, 2)`, and its other
+case counted users reads expecting the bearer token's — but `Sanctum::actingAs`
+resolves without touching the database, so the single read it allowed for _was_
+the eager load. Printing the SQL settled both; guessing at its shape had
+produced a check that was not looking at the thing it named.
+
+**And no client reaches `GET /admin/safety-flags/{flag}`.** `packages/client`
+has `safetyFlags()` and `reviewSafetyFlag()` and no single read; the queue's
+detail pane renders the row it already has, since the list and that route share
+one resource. Kept, because a reviewer deep-linked to a flag is the obvious
+next thing this screen grows — and written down, because an unreached route is
+one whose guard no browser exercises. Swept the other way too: of
+`packages/client`'s 42 methods, that safety wording was the only one nothing
+called, and it has a caller now.
+
 That read **selects two timestamp columns**, not the row. `guided_sessions.data`
 is the most personal column in the schema, and a coach's request does not ask
 for it at all rather than asking and not using it. The encrypted cast is lazy,
