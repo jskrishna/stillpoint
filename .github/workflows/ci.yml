@@ -110,6 +110,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The whole history, because one test needs to know *when* a file
+          # last changed rather than only what is in it.
+          #
+          # `risk-review-is-current.test.ts` asserts that
+          # `docs/clinical-review/RISK-SCREEN-REVIEW.md` names the commit that
+          # last touched `packages/protocol/src/risk.ts`, so that the document
+          # somebody qualified is asked to judge cannot describe a screen two
+          # changes old. On `actions/checkout`'s default depth of 1 there is no
+          # history to ask, and that test skips — so without this line the
+          # check would run everywhere except the place it gates a change,
+          # which is worse than not having it, because the skip is quiet.
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
