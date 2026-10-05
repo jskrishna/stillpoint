@@ -1127,6 +1127,28 @@ statement. The console's `RESULT_LABEL` is left too — "No change" is a result
 rather than an answer, and that column also carries `safety` and `unrated`,
 which are not ratings at all.
 
+**And then the screen that grants a plan was found still naming them itself.**
+`apps/web/src/app/admin/users/Accounts.tsx` had its own `PLANS` list and its
+own `PLAN_LABEL` — written the same day the protocol's was added, and missed
+when the two settings screens were moved onto it. Nothing was wrong on screen,
+because the values agreed; what was wrong is that the console is where a plan
+is _granted_, so it is the screen a disagreement would start on. It reads
+`PLAN_IDS` and `PLAN_LABEL` now.
+
+So the rule is enforced rather than remembered:
+`apps/web/src/lib/one-name-per-domain-value.test.ts` reads every file in both
+surfaces and asserts that the only `*_LABEL` maps declared outside
+`packages/protocol` are the two the console needs, each with its reason in the
+test — a role, which the protocol has no notion of (`EnsureStaff` and
+`isStaff()` are the API's, and no other surface shows one), and the overview's
+result column, which is not a rating at all: it carries `safety` and `unrated`
+beside the three answers. It is `RotateEncryptionKey::COLUMNS` with the same
+shape, refusing what it does not cover so the next one has to be argued for.
+Its third case asserts the protocol still exports the five maps, because a
+green sweep would otherwise mean just as much if they had been deleted as if
+they had been consumed. Checked by declaring one more in the console: red,
+naming the file and the constant.
+
 `plan` is no longer in `User`'s `#[Fillable]`, for the reason `role` never was.
 Note what that is and is not worth: both routes that take a body from the
 person it is about build their own array from validated fields, so naming a

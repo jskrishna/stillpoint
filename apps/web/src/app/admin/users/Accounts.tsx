@@ -12,20 +12,28 @@ import {
 import { describe } from '../../../lib/describe';
 import { useStaleGuard } from '../../../lib/stale';
 import styles from '../admin.module.css';
-import { LOCALE } from '@stillpoint/protocol';
+import { LOCALE, PLAN_IDS, PLAN_LABEL, isPlanId } from '@stillpoint/protocol';
 import { TableScroll } from '../../../components/TableScroll';
 
+/**
+ * The three roles, and the one place in the product that names them.
+ *
+ * Not in `packages/protocol`, unlike the plans below: a role is the API's
+ * (`EnsureStaff`, `isStaff()`), no other surface shows one, and moving it here
+ * would be inventing a domain concern for one `<select>`. What is not done
+ * twice is the mapping — `ROLE_LABEL` is derived from this list rather than
+ * written out beside it, because two hand-written copies in one file is the
+ * same shape as two in two files with a shorter distance between them.
+ */
 const ROLES = [
   { value: 'user', label: 'User' },
   { value: 'coach', label: 'Coach' },
   { value: 'admin', label: 'Admin' },
 ] as const;
 
-const ROLE_LABEL: Readonly<Record<string, string>> = {
-  user: 'User',
-  coach: 'Coach',
-  admin: 'Admin',
-};
+const ROLE_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
+  ROLES.map((r) => [r.value, r.label]),
+);
 
 /**
  * The three plans, and the only way anybody is put on one.
@@ -36,17 +44,15 @@ const ROLE_LABEL: Readonly<Record<string, string>> = {
  * a coach being set up, a refund honoured by hand. It is not a purchase and
  * the screen says so rather than implying somebody paid.
  */
-const PLANS = [
-  { value: 'free', label: 'Free' },
-  { value: 'plus', label: 'Plus' },
-  { value: 'coach', label: 'Coach' },
-] as const;
-
-const PLAN_LABEL: Readonly<Record<string, string>> = {
-  free: 'Free',
-  plus: 'Plus',
-  coach: 'Coach',
-};
+/*
+ * The ids and the names are the protocol's. This file had its own copy of
+ * both, written the same day `PLAN_LABEL` was added to
+ * `packages/protocol/src/plans.ts` and missed when the two settings screens
+ * were moved onto it — so the screen that *grants* a plan was the one still
+ * holding its own idea of what the plans are called, which is the screen the
+ * disagreement would start on.
+ */
+const PLANS = PLAN_IDS.map((value) => ({ value, label: PLAN_LABEL[value] }));
 
 /**
  * Accounts, and what they are allowed to be.
@@ -304,7 +310,8 @@ export default function Accounts() {
                         // Nobody grants themselves an unlimited allowance, for
                         // the reason nobody grants themselves the safety queue.
                         <span className={styles.statLabel}>
-                          {PLAN_LABEL[user.plan] ?? user.plan} · ask another admin
+                          {isPlanId(user.plan) ? PLAN_LABEL[user.plan] : user.plan} · ask another
+                          admin
                         </span>
                       ) : (
                         <select
@@ -452,7 +459,8 @@ export default function Accounts() {
                   </td>
                   <td className={styles.td}>{c.userEmail}</td>
                   <td className={styles.td}>
-                    {PLAN_LABEL[c.fromPlan] ?? c.fromPlan} → {PLAN_LABEL[c.toPlan] ?? c.toPlan}
+                    {isPlanId(c.fromPlan) ? PLAN_LABEL[c.fromPlan] : c.fromPlan} →{' '}
+                    {isPlanId(c.toPlan) ? PLAN_LABEL[c.toPlan] : c.toPlan}
                   </td>
                   {/* Null would mean a change nobody made by hand. Nothing
                       writes one today; billing would. */}
