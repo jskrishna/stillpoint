@@ -260,6 +260,56 @@ const after = await text();
 if (/Did you feel calmer|calmer/i.test(after)) ok('the session reaches the summary');
 else bad('the session reaches the summary', after.slice(0, 300));
 
+/*
+ * The rating says which answer was chosen, which it did not.
+ *
+ * Measured through Chromium's accessibility tree, before and after pressing
+ * "A little": three buttons, `pressed` absent on all three in both snapshots.
+ * The chosen rating was a background colour and nothing else, so somebody on a
+ * screen reader answered the one question this screen asks and was told
+ * nothing about their own answer.
+ *
+ * It was a drift rather than a decision nobody made, which is what made it
+ * findable: the feeling chips at step 3 carry `aria-pressed`, and the phone's
+ * rating carries `accessibilityState={{ selected }}` — so the two surfaces
+ * agreed about the chips and disagreed here, with the web holding the wrong
+ * half.
+ *
+ * Asserted on `aria-pressed` on all three rather than only on the one pressed:
+ * the bug was the attribute being absent, and a check on the chosen button
+ * alone would pass against a version that marked every button pressed.
+ */
+const ratingState = () =>
+  page.evaluate(() =>
+    ['Yes', 'A little', 'No'].map((label) => {
+      const b = [...document.querySelectorAll('button')].find(
+        (x) => (x.textContent ?? '').trim() === label,
+      );
+      return `${label}=${b?.getAttribute('aria-pressed') ?? 'absent'}`;
+    }),
+  );
+
+const beforeRating = await ratingState();
+const little = page.getByRole('button', { name: 'A little' });
+if ((await little.count()) > 0) {
+  await little.click();
+  await page.waitForTimeout(500);
+  const afterRating = await ratingState();
+  const want = ['Yes=false', 'A little=true', 'No=false'];
+  if (
+    beforeRating.join(' ') === 'Yes=false A little=false No=false' &&
+    afterRating.join(' ') === want.join(' ')
+  )
+    ok('the calmer rating says which answer was chosen');
+  else
+    bad(
+      'the calmer rating says which answer was chosen',
+      `before: ${beforeRating.join(' ')} / after: ${afterRating.join(' ')}`,
+    );
+} else {
+  bad('the calmer rating says which answer was chosen', 'no rating buttons on the summary');
+}
+
 const yes = page.getByRole('button', { name: 'Yes' });
 if ((await yes.count()) > 0) {
   await yes.click();

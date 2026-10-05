@@ -161,6 +161,15 @@ if (!coachSignedIn) {
   if (!list.includes(PRIVATE)) ok('the list carries no private session');
   else bad('the list carries no private session');
 
+  // The sidebar's one link is styled as the current item and said nothing —
+  // measured `aria-current=null` where the console's nav answers `page`. One
+  // link, so this is consistency rather than a defect anybody hit.
+  const sidebarCurrent = await coach.evaluate(
+    () => document.querySelector('aside a')?.getAttribute('aria-current') ?? 'absent',
+  );
+  if (sidebarCurrent === 'page') ok('the sidebar says which page you are on');
+  else bad('the sidebar says which page you are on', `aria-current=${sidebarCurrent}`);
+
   const row = coach.locator('a[href^="/coach/"]').first();
   if ((await row.count()) === 0) {
     bad('the coach has a client to open', 'is the pairing made? see e2e/README.md');

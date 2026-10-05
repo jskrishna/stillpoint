@@ -272,6 +272,26 @@ export default function ProtocolEditor() {
               <button
                 key={s.id}
                 type="button"
+                /*
+                 * Which step's fields are on screen, said rather than only
+                 * drawn. Measured in the accessibility tree: six buttons with
+                 * no `pressed`, `checked`, `selected` or `current` on any of
+                 * them, so an admin editing the product's voice with a screen
+                 * reader could not tell which of the six they were in.
+                 *
+                 * `aria-current`, not `aria-pressed`: these are not toggles,
+                 * they select one of a set — the same thing `AdminNav` and
+                 * `BottomNav` already say with `aria-current="page"`, and
+                 * `"true"` here because this moves no page.
+                 *
+                 * A `tablist` of `tab`s would be the fuller answer and it
+                 * brings obligations: ARIA's pattern wants arrow-key
+                 * navigation and a `tabpanel` wired with `aria-controls`,
+                 * which is a keyboard redesign rather than a missing state.
+                 * This is one attribute that makes the current step
+                 * announceable, and it is what the two navs here do.
+                 */
+                aria-current={s.id === selected ? 'true' : undefined}
                 className={`${styles.stepTab} ${s.id === selected ? styles.stepTabOn : ''}`}
                 onClick={() => {
                   setSelected(s.id);

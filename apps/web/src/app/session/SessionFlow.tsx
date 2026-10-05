@@ -625,6 +625,31 @@ function Summary({
             <button
               key={r.value}
               type="button"
+              /*
+               * `aria-pressed`, which these had none of.
+               *
+               * Measured through Chromium's accessibility tree, before and
+               * after pressing "A little": three buttons, `pressed` absent on
+               * all three in both snapshots. The chosen rating was a
+               * background colour and nothing else, so a screen reader user
+               * answered the one question this screen asks and was told
+               * nothing about their own answer.
+               *
+               * It was a drift rather than an unmade decision, which is what
+               * made it findable: the feeling chips one step earlier do carry
+               * `aria-pressed`, and the phone's rating carries
+               * `accessibilityState={{ selected }}` — so the two surfaces
+               * agreed about the chips and disagreed about this, with the web
+               * holding the wrong half.
+               *
+               * A `radiogroup` of three `radio`s would say more — that they
+               * are exclusive — and it is not what this is. ARIA's own pattern
+               * for one asks for roving tabindex and arrow-key navigation,
+               * which is more surface than the bug, and it would make this
+               * control a different shape from the phone's and from the chips
+               * beside it. One rule per surface, as with `HelplineLink`.
+               */
+              aria-pressed={data.calmerRating === r.value}
               className={`${styles.ratingButton} ${data.calmerRating === r.value ? styles.ratingOn : ''}`}
               onClick={() => {
                 onRate(r.value);

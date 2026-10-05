@@ -697,6 +697,57 @@ if (!signedIn) {
   if (/Step prompts/.test(editor) && !editor.includes('Loading')) ok('the editor loads');
   else bad('the editor loads', editor.slice(0, 300));
 
+  /*
+   * Which of the six steps is open, said rather than only drawn.
+   *
+   * Measured in the accessibility tree: six buttons with no `pressed`,
+   * `checked`, `selected` or `current` on any of them, so an admin editing the
+   * product's voice with a screen reader could not tell which step they were
+   * in. `aria-current`, not `aria-pressed` — these are not toggles, they
+   * select one of a set, which is what `AdminNav` and `BottomNav` already say.
+   *
+   * Asserted on the **DOM attribute** and not through the accessibility tree,
+   * because Chromium's `Accessibility.getFullAXTree` does not report
+   * `aria-current` at all. Measured: it is absent from the property dump for
+   * these buttons *and* for the console's own nav link, which has carried
+   * `aria-current="page"` since it was written. So an AX-tree check here could
+   * not tell the fix from the bug, and the attribute is what the browser hands
+   * its accessibility layer — the same reason `mobile.mjs` reads
+   * `autoComplete` off the DOM.
+   *
+   * Both halves: exactly one tab carries it, and it follows the selection. One
+   * alone would pass against a version marking every tab current.
+   */
+  const currentTabs = () =>
+    admin.evaluate(() =>
+      [...document.querySelectorAll('button')]
+        .filter((b) => /^\d\. \w/.test((b.textContent ?? '').trim()))
+        .map(
+          (b) =>
+            `${(b.textContent ?? '').trim().split(/\s+/).slice(0, 2).join(' ')}=${b.getAttribute('aria-current') ?? 'absent'}`,
+        ),
+    );
+
+  const tabsAtFirst = await currentTabs();
+  await admin.getByRole('button', { name: /^4\. Remember/ }).click();
+  await admin.waitForTimeout(500);
+  const tabsAtFourth = await currentTabs();
+
+  const marked = (rows) => rows.filter((r) => r.endsWith('=true'));
+  if (
+    tabsAtFirst.length === 6 &&
+    marked(tabsAtFirst).length === 1 &&
+    marked(tabsAtFirst)[0]?.startsWith('1.') === true &&
+    marked(tabsAtFourth).length === 1 &&
+    marked(tabsAtFourth)[0]?.startsWith('4.') === true
+  )
+    ok('the editor says which step is open, and only that one');
+  else
+    bad(
+      'the editor says which step is open, and only that one',
+      `first: ${tabsAtFirst.join(' ')} / fourth: ${tabsAtFourth.join(' ')}`,
+    );
+
   // An earlier run may have left a draft open, so this does not assume either
   // way: with none open the editor is read-only and offers to open one.
   const openDraft = admin.getByRole('button', { name: 'Edit as a new draft' });
