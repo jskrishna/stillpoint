@@ -987,6 +987,98 @@ else
     dialable.join(' | ') || 'no labelled call button',
   );
 
+/*
+ * Two presses that settle something, and two that are a change of mind.
+ *
+ * Both measured here before they were fixed, and both invisible to three
+ * separate clicks: a round trip between presses is a React flush, so a guard
+ * reading its own `useState` refuses and the check passes whether or not the
+ * guard could work. These dispatch inside **one** `evaluate`, which is what a
+ * real double-tap is. `src/presses.ts` has the numbers.
+ */
+{
+  const seen = [];
+  const count = (request) => {
+    const u = request.url();
+    if (/\/api\/journal/.test(u)) seen.push('journal');
+    if (/\/api\/me$/.test(u) && request.method() === 'PATCH') seen.push('patch');
+  };
+  page.on('request', count);
+
+  // "Export everything": guarded `if (exporting) return`, which read the
+  // `false` the handler was built with — three whole-journal reads. The cost
+  // is not the round trips: `exportFile()` is one fixed path, overwritten, so
+  // a second export can be writing the file while the first hands it to the
+  // share sheet.
+  const exportBtn = await page
+    .getByRole('button', { name: /Export everything|Gathering it/ })
+    .elementHandle({ timeout: 8000 })
+    .catch(() => null);
+  if (exportBtn === null) bad('the export button is on the settings screen', 'not found');
+  else {
+    await exportBtn.evaluate((el) => {
+      el.click();
+      el.click();
+      el.click();
+    });
+    await page.waitForTimeout(2500);
+    const reads = seen.filter((x) => x === 'journal').length;
+    if (reads === 1) ok('three same-frame export presses read the journal once');
+    else bad('three same-frame export presses read the journal once', `read it ${String(reads)}x`);
+  }
+
+  // The sharing setting is the other rule: each press is a newer intention, so
+  // none is refused and the writes are ordered instead. Unordered, whichever
+  // request *arrived* last decided what the server held — measured, somebody
+  // who tapped "Share every session" and then "Never share" was left on
+  // `always`, with the screen agreeing so there was nothing to notice.
+  seen.length = 0;
+  let held = 0;
+  await page.route('**/api/me', async (route) => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    held += 1;
+    if (held === 1) await new Promise((r) => setTimeout(r, 2000));
+    await route.continue();
+  });
+  await page.getByText('Share every session', { exact: false }).first().click();
+  await page.waitForTimeout(120);
+  await page.getByText('Never share', { exact: false }).first().click();
+  await page.waitForTimeout(4500);
+  await page.unroute('**/api/me');
+
+  page.off('request', count);
+
+  const chosen = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="radio"]')]
+      .filter((el) => el.getAttribute('aria-checked') === 'true')
+      .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
+      .join(' ; '),
+  );
+  if (/Never share/.test(chosen)) ok('the screen ends on the sharing option tapped last');
+  else bad('the screen ends on the sharing option tapped last', chosen);
+
+  // And the server, which is the half a screen cannot show. Asked with this
+  // app's own token, so it is the account's stored value rather than a render.
+  const token = await page.evaluate(() => window.localStorage.getItem('stillpoint.token.v1'));
+  const me = await fetch(`${process.env.API_URL ?? 'http://localhost:8000/api'}/me`, {
+    headers: { Authorization: `Bearer ${String(token)}` },
+  })
+    .then((r) => r.json())
+    .catch(() => null);
+  if (me !== null && me.coachSharing === 'never')
+    ok('and so does the server, on the setting that decides who may read a session');
+  else
+    bad(
+      'and so does the server, on the setting that decides who may read a session',
+      `coachSharing = ${String(me === null ? 'unreadable' : me.coachSharing)}`,
+    );
+
+  // Put it back, so a second run against the same database starts where this
+  // one did — the reason the coach check's note is unique per run.
+  await page.getByText('Ask each time', { exact: false }).first().click();
+  await page.waitForTimeout(1500);
+}
+
 await audit('settings', '(tabs)/settings.tsx');
 
 // This is the screen that answers "who can read my sessions", and it set the

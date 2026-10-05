@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import {
 import * as Sharing from 'expo-sharing';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../api';
 import { describe } from '../../describe';
+import { inFlight, inOrder } from '../../presses';
 import { exportFile } from '../../exports';
 import { NO_EAR_REASON } from '../../voice';
 import { Button, Card, Field, HelplineButton, Tag, Waiting } from '../../ui';
@@ -90,14 +91,34 @@ export default function Settings() {
     }, [router]),
   );
 
-  const change = async (changes: Parameters<typeof api.updateMe>[0]) => {
-    try {
-      setProfile(await api.updateMe(changes));
-      setProblem(null);
-    } catch (e: unknown) {
-      setProblem(describe(e));
-    }
-  };
+  /*
+   * Serialised, so the server ends on the last option tapped rather than on
+   * whichever request happened to arrive last. Measured before it was: a
+   * person who chose "Share every session", changed their mind and tapped
+   * "Never share" was left with `coachSharing = "always"` on the server and
+   * "Share every session" on the screen — agreeing with each other, so
+   * nothing to notice, on the setting that decides who may read their
+   * sessions. `src/presses.ts` has the measurement and why ordering the
+   * writes beats filtering the answers.
+   */
+  const queueChange = useRef(inOrder()).current;
+
+  /*
+   * And two refusals, because a guard reading a state variable cannot refuse
+   * a same-frame second press — `src/presses.ts` has the measurements.
+   */
+  const onceExporting = useRef(inFlight()).current;
+  const onceErasing = useRef(inFlight()).current;
+
+  const change = (changes: Parameters<typeof api.updateMe>[0]) =>
+    queueChange(async () => {
+      try {
+        setProfile(await api.updateMe(changes));
+        setProblem(null);
+      } catch (e: unknown) {
+        setProblem(describe(e));
+      }
+    });
 
   /**
    * The user's own copy of their own data.
@@ -112,37 +133,52 @@ export default function Settings() {
    * `src/exports.ts`, which has why "the system empties the cache eventually"
    * was not good enough for a plaintext copy of somebody's whole journal.
    */
-  const exportData = async () => {
-    setExporting(true);
-    try {
-      const journal = await api.wholeJournal();
-      const file = exportFile();
-      if (file === null) {
-        setProblem('Saving a copy needs a filesystem this build does not have.');
+  const exportData = () =>
+    onceExporting(async () => {
+      /*
+       * The handler refuses, like `eraseAccount` below and unlike the version
+       * of this that shipped. `Button`'s own `disabled` is not the guard:
+       * measured in the running export with `GET /journal` held open, three
+       * taps inside one frame started **three** whole-journal reads — React had
+       * not re-rendered between them, which is what a real double-tap is and
+       * what three separate clicks a few milliseconds apart are not.
+       *
+       * The cost is not a wasted round trip. `exportFile()` is one fixed path,
+       * overwritten, so a second export can be writing the file while the first
+       * is handing it to the share sheet — a half-written plaintext copy of
+       * somebody's whole journal, shared. Three reads of the whole journal also
+       * spend an allowance shared with every other authenticated route.
+       */
+      setExporting(true);
+      try {
+        const journal = await api.wholeJournal();
+        const file = exportFile();
+        if (file === null) {
+          setProblem('Saving a copy needs a filesystem this build does not have.');
 
-        return;
-      }
-      file.create({ overwrite: true });
-      file.write(JSON.stringify({ account: profile, journal }, null, 2));
+          return;
+        }
+        file.create({ overwrite: true });
+        file.write(JSON.stringify({ account: profile, journal }, null, 2));
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, {
-          mimeType: 'application/json',
-          UTI: 'public.json',
-          dialogTitle: 'Your Stillpoint data',
-        });
-        setProblem(null);
-      } else {
-        // A device with nothing to share to. Saying where the file is beats
-        // saying nothing, and beats pretending the share happened.
-        setProblem(`Sharing is not available here. The file is at ${file.uri}`);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(file.uri, {
+            mimeType: 'application/json',
+            UTI: 'public.json',
+            dialogTitle: 'Your Stillpoint data',
+          });
+          setProblem(null);
+        } else {
+          // A device with nothing to share to. Saying where the file is beats
+          // saying nothing, and beats pretending the share happened.
+          setProblem(`Sharing is not available here. The file is at ${file.uri}`);
+        }
+      } catch (e: unknown) {
+        setProblem(describe(e));
+      } finally {
+        setExporting(false);
       }
-    } catch (e: unknown) {
-      setProblem(describe(e));
-    } finally {
-      setExporting(false);
-    }
-  };
+    });
 
   /**
    * Erases the account.
@@ -151,22 +187,26 @@ export default function Settings() {
    * it. The password and the typed confirmation are both the server's
    * requirement, not this screen's — so a client cannot skip either.
    */
-  const eraseAccount = async () => {
-    // The handler refuses, not the disabled state: React has not applied that
-    // yet when a second tap lands in the same tick. `endCoaching` needs none
-    // of this — it goes through `Alert.alert`, which dismisses on the first
-    // tap, so the phone cannot double-fire it the way the web can.
-    if (erasingBusy) return;
-    setErasingBusy(true);
-    setEraseProblem(null);
-    try {
-      await api.deleteAccount(erasePassword, eraseConfirm);
-      router.replace('/welcome');
-    } catch (e: unknown) {
-      setEraseProblem(describe(e));
-      setErasingBusy(false);
-    }
-  };
+  const eraseAccount = () =>
+    onceErasing(async () => {
+      // The handler refuses, not the disabled state — and not `erasingBusy`
+      // either, which is what this said and which cannot work: the handler
+      // closes over the value from the render it was built in, so a
+      // same-frame second tap read `false` and erased twice. The state is
+      // still what the label is drawn from; `inFlight` is the refusal.
+      // `endCoaching` needs none of this — it goes through `Alert.alert`,
+      // which dismisses on the first tap, so the phone cannot double-fire it
+      // the way the web can.
+      setErasingBusy(true);
+      setEraseProblem(null);
+      try {
+        await api.deleteAccount(erasePassword, eraseConfirm);
+        router.replace('/welcome');
+      } catch (e: unknown) {
+        setEraseProblem(describe(e));
+        setErasingBusy(false);
+      }
+    });
 
   const signOut = async () => {
     try {

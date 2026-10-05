@@ -494,12 +494,20 @@ jobs:
       # failure anybody is actually looking for.
       - name: Write the environment
         run: |
-          cat > .env <<'ENV'
-          # A real 32-byte key, because Laravel will not boot without one. It
-          # is in the repository on purpose and must never be used anywhere
-          # else: it encrypts an ephemeral database that is thrown away when
-          # this job ends.
-          APP_KEY=base64:Xgdsl6u1Rncati1S3SjwwbZ4AcJBUOBwyFGiipytm7Y=
+          # Laravel will not boot without a key, and this one is generated per
+          # run rather than written down. It used to be a literal, labelled
+          # "a real 32-byte key … must never be used anywhere else" — which
+          # was accurate and is not the hazard. The hazard is copy-paste: this
+          # repository is public, and `APP_KEY` is the whole journal (see the
+          # root `CLAUDE.md`), so a key sitting in it under that heading is
+          # one somebody pastes into a deployment. Generated, there is nothing
+          # to paste.
+          #
+          # `openssl` rather than `artisan key:generate`, because this job has
+          # no PHP on the runner — the API only exists inside the image it is
+          # about to build.
+          cat > .env <<ENV
+          APP_KEY=base64:$(openssl rand -base64 32)
           WEB_URL=http://localhost:3000
           API_URL=http://localhost:8000
           PUBLIC_API_URL=http://localhost:8000/api

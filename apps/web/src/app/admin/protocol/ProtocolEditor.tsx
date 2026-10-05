@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, type ApiProtocolVersion, type ApiStepEdit } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
 import { type SaveState } from '../../../components/SaveStatus';
+import { inFlight } from '../../../lib/presses';
 import styles from '../admin.module.css';
 import { LOCALE } from '@stillpoint/protocol';
 
@@ -131,38 +132,52 @@ export default function ProtocolEditor() {
     setPendingSafety((current) => ({ ...current, ...edit }));
   }, []);
 
-  const onPublish = async () => {
-    // In flight, because nothing else stops a second press: the guard below
-    // reads `readOnly` and `publishable`, neither of which changes until the
-    // response lands. Measured on the queue's equivalent button — three rapid
-    // clicks, three POSTs — and here it matters more. The server locks
-    // `protocol_versions` in id order, so a second publish cannot leave two
-    // live versions; what it does is answer 422 for a draft that is no longer
-    // open, so an admin who double-clicked a successful publish is shown a
-    // refusal.
-    if (publishing) return;
-    setPublishing(true);
-    try {
-      const published = await api.publishProtocolDraft();
-      setLive(published);
-      setDraft(null);
-      setProblem(null);
-    } catch (e: unknown) {
-      // No "The server refused:" prefix any more: it read as a refusal
-      // either way, and prefixing an empty message — which is what a bare
-      // `abort(404)` sends, reachable here if the admin's role was taken
-      // mid-edit — produced "The server refused: " and nothing after it.
-      setProblem(describe(e));
-      // Re-read, so the problems shown are the ones the server named.
-      const versions = await api.protocolVersions().catch(() => null);
-      if (versions !== null) {
-        setLive(versions.live);
-        setDraft(versions.draft);
+  const oncePublishing = useRef(inFlight()).current;
+
+  const onPublish = () =>
+    oncePublishing(async () => {
+      /*
+       * `inFlight`, because nothing React holds stops a second press. The
+       * `onClick` guard reads `readOnly` and `publishable`, neither of which
+       * changes until the response lands — and `if (publishing) return` did
+       * not help either, which is the finding: the handler closes over the
+       * `publishing` from the render it was built in, so every press inside
+       * one frame reads `false`.
+       *
+       * Re-measured that way with that guard in place, on the console's most
+       * consequential button: three `POST …/publish`, `[200, 500, 500]`. The
+       * server locks `protocol_versions` in id order, so a second publish
+       * cannot leave two live versions — what it leaves is a refusal rendered
+       * over the publish that just worked. (The 500s are sqlite's `database is
+       * locked` under concurrent write transactions, which is what the
+       * development and end-to-end stacks run; on MySQL the second and third
+       * are the 422 for a draft that is no longer open.)
+       *
+       * The earlier measurement used three separate clicks, which is a React
+       * flush between presses and so sends one. `lib/presses.ts` has the rest.
+       */
+      setPublishing(true);
+      try {
+        const published = await api.publishProtocolDraft();
+        setLive(published);
+        setDraft(null);
+        setProblem(null);
+      } catch (e: unknown) {
+        // No "The server refused:" prefix any more: it read as a refusal
+        // either way, and prefixing an empty message — which is what a bare
+        // `abort(404)` sends, reachable here if the admin's role was taken
+        // mid-edit — produced "The server refused: " and nothing after it.
+        setProblem(describe(e));
+        // Re-read, so the problems shown are the ones the server named.
+        const versions = await api.protocolVersions().catch(() => null);
+        if (versions !== null) {
+          setLive(versions.live);
+          setDraft(versions.draft);
+        }
+      } finally {
+        setPublishing(false);
       }
-    } finally {
-      setPublishing(false);
-    }
-  };
+    });
 
   const openDraft = async () => {
     try {

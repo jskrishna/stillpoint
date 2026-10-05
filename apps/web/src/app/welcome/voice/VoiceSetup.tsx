@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { GUIDE_VOICES, type GuideVoice } from '@stillpoint/protocol';
 import { ApiError, api } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { inFlight } from '../../../lib/presses';
 import { takeDestination } from '../../../lib/after-welcome';
 import { NO_EAR_REASON } from '../../../lib/voice';
 import styles from '../welcome.module.css';
@@ -22,7 +23,18 @@ export default function VoiceSetup() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const go = async (talkMode: 'hold' | 'type') => {
+  /*
+   * The refusal is this closure, not the `busy` the guard below reads: a
+   * handler closes over the value from the render it was built in, so three
+   * presses inside one frame all read `false`. Measured on three other
+   * controls, including Publish — `lib/presses.ts` has them. The state stays,
+   * because it is what the label and `aria-disabled` are drawn from.
+   */
+  const once = useRef(inFlight()).current;
+
+  const go = (talkMode: 'hold' | 'type') => once(() => runGo(talkMode));
+
+  const runGo = async (talkMode: 'hold' | 'type') => {
     if (busy) return;
     setBusy(true);
     setError(null);

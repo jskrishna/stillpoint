@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ApiError, api, hasToken, type ApiInvitation } from '../../../../lib/api';
 import { describe } from '../../../../lib/describe';
+import { inFlight } from '../../../../lib/presses';
 import { rememberDestination } from '../../../../lib/after-welcome';
 import styles from '../../welcome.module.css';
 
@@ -71,7 +72,18 @@ export default function AcceptInvite({ token }: { token: string }) {
     router.push('/welcome');
   };
 
-  const accept = async () => {
+  /*
+   * The refusal is this closure, not the `busy` the guard below reads: a
+   * handler closes over the value from the render it was built in, so three
+   * presses inside one frame all read `false`. Measured on three other
+   * controls, including Publish — `lib/presses.ts` has them. The state stays,
+   * because it is what the label and `aria-disabled` are drawn from.
+   */
+  const once = useRef(inFlight()).current;
+
+  const accept = () => once(() => runAccept());
+
+  const runAccept = async () => {
     // The button is `aria-disabled` rather than `disabled`, so that it keeps
     // the focus that pressed it — which means the handler is what refuses.
     // `invitation` is nullable here even though the button only renders once

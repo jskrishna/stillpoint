@@ -15,6 +15,7 @@ import {
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiJournalEntry } from '../../../../lib/api';
 import { describe } from '../../../../lib/describe';
+import { inFlight } from '../../../../lib/presses';
 import { SaveStatus, type SaveState } from '../../../../components/SaveStatus';
 import styles from '../../app.module.css';
 
@@ -114,7 +115,28 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     };
   }, [note, entryId]);
 
+  /*
+   * One `inFlight` for both, matching the one `busy` they shared — separate
+   * sequences would stop them excluding each other.
+   *
+   * `if (busy) return` could not refuse a same-frame second press: the handler
+   * closes over the `busy` from the render it was built in. That matters most
+   * on `remove`, which CLAUDE.md already records as a loop: three taps against
+   * eight entries sent **ten** deletes, the extra two answering 404.
+   * `lib/presses.ts` has the re-measurement.
+   *
+   * Above **every** early return, which is not where it first went: a hook
+   * after a conditional `return` is not reached on every render, so React
+   * throws "Rendered more hooks than during the previous render" and the
+   * screen renders as a blank "This page couldn't load". `flow.mjs` caught it,
+   * and then caught it again — the first move cleared the `entry === null`
+   * return and left it under the `entry === undefined` one a line above, with
+   * a comment claiming it was above them all.
+   */
+  const once = useRef(inFlight()).current;
+
   if (entry === undefined) return <p className={styles.loading}>Loading…</p>;
+
   if (entry === null) {
     return (
       <>
@@ -127,8 +149,9 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     );
   }
 
-  const toggleShare = async () => {
-    if (busy) return;
+  const toggleShare = () => once(runToggleShare);
+
+  const runToggleShare = async () => {
     setBusy(true);
     try {
       setEntry(await api.updateJournalEntry(entry.id, { sharedWithCoach: !entry.sharedWithCoach }));
@@ -143,8 +166,9 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
     }
   };
 
-  const remove = async () => {
-    if (busy) return;
+  const remove = () => once(runRemove);
+
+  const runRemove = async () => {
     setBusy(true);
     try {
       await api.deleteJournalEntry(entry.id);

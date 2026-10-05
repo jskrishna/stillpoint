@@ -291,14 +291,33 @@ if (!signedIn) {
       .getByRole('button', { name: 'Mark as reviewed' })
       .elementHandle();
     await reviewButton.focus();
-    await reviewButton.click();
-    await reviewButton.click({ force: true });
-    await reviewButton.click({ force: true });
+    /*
+     * Three presses inside **one** `evaluate`, which is the part that matters.
+     * Three separate `click()` calls — what this did — put a round trip
+     * between the presses, and a round trip is a React flush: the guard reads
+     * the state it has by then and refuses, so the check passed whether or not
+     * the guard could work. It could not. Re-measured this way with
+     * `if (reviewing !== null) return` in place: three POSTs, `[200, 200,
+     * 200]`.
+     *
+     * That is what a real double-tap is, and it is why the refusal is now a
+     * closure (`lib/presses.ts`) rather than a value the handler captured from
+     * the render it was built in.
+     */
+    await reviewButton.evaluate((el) => {
+      el.click();
+      el.click();
+      el.click();
+    });
     await admin.waitForTimeout(1200);
     admin.off('request', countReviews);
 
-    if (reviewRequests.length === 1) ok('a double-tapped review sends one request');
-    else bad('a double-tapped review sends one request', `sent ${String(reviewRequests.length)}`);
+    if (reviewRequests.length === 1) ok('three same-frame review presses send one request');
+    else
+      bad(
+        'three same-frame review presses send one request',
+        `sent ${String(reviewRequests.length)}`,
+      );
 
     const stayed = await admin.evaluate(() => {
       const a = document.activeElement;
@@ -809,14 +828,25 @@ if (!signedIn) {
 
   const publish = await admin.getByRole('button', { name: 'Publish' }).elementHandle();
   await publish.focus();
-  await publish.click();
-  await publish.click({ force: true });
-  await publish.click({ force: true });
+  // Same-frame, for the reason the review block above spells out: three
+  // separate clicks flush React between them and send one however the guard is
+  // written. Re-measured this way with `if (publishing) return` in place —
+  // three POSTs, `[200, 500, 500]` against sqlite (`database is locked` under
+  // concurrent write transactions; MySQL gives the 422 named above).
+  await publish.evaluate((el) => {
+    el.click();
+    el.click();
+    el.click();
+  });
   await admin.waitForTimeout(2500);
   admin.off('request', countPublish);
 
-  if (publishRequests.length === 1) ok('a double-tapped publish sends one request');
-  else bad('a double-tapped publish sends one request', `sent ${String(publishRequests.length)}`);
+  if (publishRequests.length === 1) ok('three same-frame publish presses send one request');
+  else
+    bad(
+      'three same-frame publish presses send one request',
+      `sent ${String(publishRequests.length)}`,
+    );
 
   const announced = (await liveLine.count()) > 0 ? await liveLine.innerText() : '(no live region)';
   const held = await admin.evaluate(() => {

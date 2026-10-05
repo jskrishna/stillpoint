@@ -19,6 +19,7 @@ import {
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiHelpline, type ApiSession } from '../api';
 import { describe } from '../describe';
+import { inOrder } from '../presses';
 import { FAMILY, leading } from '../theme';
 import { guideVoiceFor, silentGuide, type GuideVoice } from '../voice';
 import { Button, Card, Field, HelplineButton, Tag } from '../ui';
@@ -235,16 +236,27 @@ export default function Session() {
     }
   }, [session, voice]);
 
+  /*
+   * The same ordering the settings screen's choices needed, and for the same
+   * reason: the summary offers three answers side by side, so a second tap is
+   * a change of mind rather than a duplicate press, and nothing ordered the
+   * two `PATCH`es. The cost here is a label on somebody's own journal rather
+   * than who can read it, which is why `src/presses.ts` carries the
+   * measurement from the sharper case.
+   */
+  const queueRating = useRef(inOrder()).current;
+
   const rate = useCallback(
-    async (rating: (typeof RATINGS)[number]['value']) => {
-      if (session === null) return;
-      try {
-        setSession(await api.rateSession(session.id, rating));
-      } catch (e: unknown) {
-        setError(describe(e));
-      }
-    },
-    [session],
+    (rating: (typeof RATINGS)[number]['value']) =>
+      queueRating(async () => {
+        if (session === null) return;
+        try {
+          setSession(await api.rateSession(session.id, rating));
+        } catch (e: unknown) {
+          setError(describe(e));
+        }
+      }),
+    [session, queueRating],
   );
 
   const pad = {

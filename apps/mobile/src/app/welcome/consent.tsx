@@ -15,6 +15,7 @@ import { ApiError, api } from '../../api';
 import { Button } from '../../ui';
 import { useTheme } from '../../use-theme';
 import { describe } from '../../describe';
+import { inFlight } from '../../presses';
 
 /**
  * What someone agrees to before their first session.
@@ -80,28 +81,37 @@ export default function Consent() {
     );
   };
 
-  const accept = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.consent(accepted);
-      router.replace('/welcome/voice');
-    } catch (e: unknown) {
-      // Both halves of this were missing and the web's copy of this screen has
-      // had both: an expired token sent somebody to "check your connection"
-      // rather than to sign in, and a 422 naming the consent item they had
-      // not accepted said the same thing. On the screen that gates the whole
-      // product and names the crisis numbers.
-      if (e instanceof ApiError && e.isUnauthenticated) {
-        api.storeToken(null);
-        router.replace('/welcome');
+  const once = useRef(inFlight()).current;
 
-        return;
+  const accept = () =>
+    once(async () => {
+      // `inFlight` rather than `if (busy) return`, which cannot refuse a
+      // same-frame second tap: the handler closes over the `busy` from the
+      // render it was built in. Measured on the settings screen's export,
+      // where three same-frame taps started three requests. Here it would be
+      // a second `POST /me/consent` on the screen that gates the whole
+      // product. See `src/presses.ts`.
+      setBusy(true);
+      setError(null);
+      try {
+        await api.consent(accepted);
+        router.replace('/welcome/voice');
+      } catch (e: unknown) {
+        // Both halves of this were missing and the web's copy of this screen
+        // has had both: an expired token sent somebody to "check your
+        // connection" rather than to sign in, and a 422 naming the consent
+        // item they had not accepted said the same thing. On the screen that
+        // gates the whole product and names the crisis numbers.
+        if (e instanceof ApiError && e.isUnauthenticated) {
+          api.storeToken(null);
+          router.replace('/welcome');
+
+          return;
+        }
+        setError(describe(e));
+        setBusy(false);
       }
-      setError(describe(e));
-      setBusy(false);
-    }
-  };
+    });
 
   return (
     <ScrollView

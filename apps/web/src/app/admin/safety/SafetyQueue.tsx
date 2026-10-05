@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { firstCharacters } from '@stillpoint/protocol';
 import { ApiError, api, type ApiSafetyFlag } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
 import { useStaleGuard } from '../../../lib/stale';
+import { inFlight } from '../../../lib/presses';
 import { ago, describeAge, exact } from '../../../lib/ago';
 import styles from '../admin.module.css';
 import { TableScroll } from '../../../components/TableScroll';
@@ -89,25 +90,34 @@ export default function SafetyQueue() {
   const ordered = flags ?? [];
   const selected = ordered.find((f) => f.id === selectedId) ?? ordered[0];
 
-  const review = async (id: string) => {
-    // In flight, because nothing else stops a second press. Both `disabled`
-    // and `aria-disabled` here read `selected.status`, which only becomes
-    // `reviewed` once the response lands — so three rapid clicks sent three
-    // POSTs, measured, and did so before this screen used `aria-disabled` too.
-    // Re-marking a reviewed flag is harmless; sending it twice is still a
-    // request nobody wanted, and the same shape on Publish is not harmless.
-    if (reviewing !== null) return;
-    setReviewing(id);
-    try {
-      const updated = await api.reviewSafetyFlag(id);
-      setFlags((current) => (current ?? []).map((f) => (f.id === updated.id ? updated : f)));
-      setProblem(null);
-    } catch (e: unknown) {
-      setProblem(describe(e));
-    } finally {
-      setReviewing(null);
-    }
-  };
+  const onceReviewing = useRef(inFlight()).current;
+
+  const review = (id: string) =>
+    onceReviewing(async () => {
+      // In flight, because nothing else stops a second press. Both `disabled`
+      // and `aria-disabled` here read `selected.status`, which only becomes
+      // `reviewed` once the response lands — so three rapid clicks sent three
+      // POSTs, measured, and did so before this screen used `aria-disabled` too.
+      // Re-marking a reviewed flag is harmless; sending it twice is still a
+      // request nobody wanted, and the same shape on Publish is not harmless.
+      //
+      // And `if (reviewing !== null) return` was not the fix, which is the
+      // finding: the handler closes over the value from the render it was built
+      // in, so three presses inside one frame all read `null`. Re-measured that
+      // way with the guard in place — three POSTs, `[200, 200, 200]`. The
+      // earlier measurement used three separate clicks, and a round trip
+      // between presses is a React flush. `lib/presses.ts` has the rest.
+      setReviewing(id);
+      try {
+        const updated = await api.reviewSafetyFlag(id);
+        setFlags((current) => (current ?? []).map((f) => (f.id === updated.id ? updated : f)));
+        setProblem(null);
+      } catch (e: unknown) {
+        setProblem(describe(e));
+      } finally {
+        setReviewing(null);
+      }
+    });
 
   if (problem !== null && flags === null) {
     return (

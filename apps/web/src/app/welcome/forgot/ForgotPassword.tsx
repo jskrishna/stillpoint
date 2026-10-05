@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { inFlight } from '../../../lib/presses';
 import styles from '../welcome.module.css';
 
 /**
@@ -21,7 +22,18 @@ export default function ForgotPassword() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const ask = async () => {
+  /*
+   * The refusal is this closure, not the `busy` the guard below reads: a
+   * handler closes over the value from the render it was built in, so three
+   * presses inside one frame all read `false`. Measured on three other
+   * controls, including Publish — `lib/presses.ts` has them. The state stays,
+   * because it is what the label and `aria-disabled` are drawn from.
+   */
+  const once = useRef(inFlight()).current;
+
+  const ask = () => once(() => runAsk());
+
+  const runAsk = async () => {
     if (email.trim() === '' || busy) return;
     setBusy(true);
     setProblem(null);

@@ -641,6 +641,89 @@ the surviving loop's success path cleared it. Which loop finishes last decides
 it, so the count is what to trust and
 `tests/Feature/NotFoundSaysNothingTest.php` is where the wording is pinned.
 
+### And not one of those guards could refuse a same-frame second press
+
+Everything above about in-flight guards was measured with three separate
+`click()` calls, and that is the wrong measurement. A round trip between
+presses is a React flush, so the handler is rebuilt with the state the
+response or the `setState` has already produced — and `if (busy) return` then
+refuses, whether or not it could have. A real double-tap on a phone is two
+touches inside one frame, where the handler is the **same closure**, holding
+the `false` it was built with.
+
+Re-measured with three presses dispatched inside one `evaluate`, with each
+guard in place:
+
+| control                          | guard                            | sent                       |
+| -------------------------------- | -------------------------------- | -------------------------- |
+| the phone's "Export everything"  | `if (exporting) return`          | **3** whole-journal reads  |
+| the console's "Mark as reviewed" | `if (reviewing !== null) return` | 3 POSTs, `[200, 200, 200]` |
+| the console's **Publish**        | `if (publishing) return`         | 3 POSTs, `[200, 500, 500]` |
+
+So this file's own note that the web's Accept "sends one request … so this one
+was never reachable from the screen" is about the wrong thing. It is reachable;
+the check could not see it.
+
+The export is the one with a cost beyond a wasted round trip. `exportFile()` is
+**one fixed path, overwritten**, so a second export can be writing the file
+while the first hands it to the share sheet — a half-written plaintext copy of
+somebody's whole journal, shared. The Publish 500s are sqlite's `database is
+locked` under concurrent write transactions, which is what the development and
+end-to-end stacks run; on MySQL the second and third are the 422 for a draft
+that is no longer open, which is the refusal this file already records being
+rendered over the publish that worked.
+
+**And the sharper one is not a duplicate press at all.** A settings radio and
+the summary's rating are a _choice somebody can change their mind about_, so
+each press is a `PATCH` and a second press is a newer intention. Nothing
+ordered those writes, so whichever request **arrived** last decided what the
+server held. Measured in the running export with the first `PATCH /me` held
+for 2.5 seconds — somebody choosing "Share every session", changing their
+mind, and tapping "Never share" last:
+
+    the screen now shows: Share every session
+    the server holds:     coachSharing = "always"
+
+Their last choice was "Never share", and every session they finish from then on
+goes to their coach. The screen agrees with the server, so there is nothing to
+notice — on the setting whose whole job is to decide who may read somebody's
+sessions. It is the _reassuring_ direction of the two: taps the other way round
+keep "Never share", so measuring one direction only would have said this was
+fine. This is the console's stale-answer class with the arrow pushed one step
+further in: there a superseded response only **displayed** the wrong rows, here
+it is **written**, so a guard that merely ignores the stale answer leaves the
+server holding it.
+
+Two rules, in `apps/web/src/lib/presses.ts` and `apps/mobile/src/presses.ts`,
+byte-for-byte the same file with `presses.test.ts` asserting it — the
+`describe()` arrangement, for the same reason: this is logic rather than copy,
+and a tested function with a drifted twin is what it replaced.
+
+- **`inFlight()` refuses** while one press is being answered, for a control
+  whose press _settles_ something: publish, review, export, delete, accept,
+  sign in. Held across renders with `useRef(inFlight()).current`. The `useState`
+  stays, because it is what the label and `aria-disabled` are drawn from; the
+  closure is the refusal.
+- **`inOrder()` orders and refuses nothing**, for a choice. Ordering at the
+  source needs no stale guard after it: the responses then arrive in press
+  order, so the last applied is the last chosen. It does not stop on a failure
+  — a later press is a newer intention whether or not an earlier one worked.
+
+Twelve call sites on the web and four on the phone. `admin.mjs`, `mobile.mjs`
+and the unit test together cover both rules, and the browser presses are
+same-frame now with the reason at the line — a check that puts a round trip
+between presses measures nothing. All five browser assertions go red by name
+with the two mechanisms neutered: `sent 3`, `read it 3x`,
+`coachSharing = always`.
+
+**The fix broke the journal entry screen twice, the same way.** `useRef` went
+in below a conditional `return`, so the hook was not reached on every render
+and React threw "Rendered more hooks than during the previous render" — which
+renders as a blank "This page couldn't load". `flow.mjs` caught it; the first
+move cleared one early return and left it under another a line above, **with a
+comment claiming it was above them all**. A hook belongs above every early
+return, and a comment asserting a property is not the property.
+
 **And the session screen — which that first bullet calls the sharpest case —
 never got the rule.** `aria-disabled` was applied to Publish, to "Mark as
 reviewed" and to the journal's "Load older", and the session screen's Continue

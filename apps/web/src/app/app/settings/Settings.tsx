@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -19,6 +19,7 @@ import {
 } from '@stillpoint/protocol';
 import { ApiError, api, type ApiMyCoach, type Profile } from '../../../lib/api';
 import { describe } from '../../../lib/describe';
+import { inFlight } from '../../../lib/presses';
 import HelplineLink from '../../../components/HelplineLink';
 import styles from '../app.module.css';
 
@@ -86,11 +87,27 @@ export default function Settings() {
     }
   };
 
-  const exportData = async () => {
-    // `aria-disabled` on the button, so this is the refusal. Without it a
-    // second press while the first export is gathering would start another
-    // walk of the whole journal.
-    if (exporting) return;
+  /*
+   * Four refusals, in closures rather than in React state.
+   *
+   * `if (exporting) return` and its three neighbours could not refuse a
+   * same-frame second press: the handler closes over the value from the
+   * render it was built in. Measured on the phone's equivalent export button
+   * with `GET /journal` held open — three presses inside one frame, **three**
+   * whole-journal reads. The state stays, because it is what each label and
+   * `aria-disabled` is drawn from; `inFlight` is the refusal.
+   *
+   * `lib/presses.ts` has the measurements, including why three separate
+   * clicks send one and say nothing.
+   */
+  const onceExporting = useRef(inFlight()).current;
+  const onceDeletingJournal = useRef(inFlight()).current;
+  const onceEnding = useRef(inFlight()).current;
+  const onceErasing = useRef(inFlight()).current;
+
+  const exportData = () => onceExporting(runExport);
+
+  const runExport = async () => {
     // The user's own copy of their own data. The whole journal is fetched here
     // and nowhere else — it is the one place that genuinely needs all of it,
     // and it goes straight to a file on their machine, not to any service.
@@ -112,8 +129,9 @@ export default function Settings() {
     }
   };
 
-  const deleteEverything = async () => {
-    if (deletingJournal) return;
+  const deleteEverything = () => onceDeletingJournal(runDeleteEverything);
+
+  const runDeleteEverything = async () => {
     setDeletingJournal(true);
     try {
       // One request per entry, because each delete is authorised on its own.
@@ -146,8 +164,9 @@ export default function Settings() {
    * choice and stays where the user put it. What ends is anyone being able to
    * read them.
    */
-  const endCoaching = async (coach: ApiMyCoach) => {
-    if (endingBusy) return;
+  const endCoaching = (coach: ApiMyCoach) => onceEnding(() => runEndCoaching(coach));
+
+  const runEndCoaching = async (coach: ApiMyCoach) => {
     setEndingBusy(true);
     try {
       await api.endCoaching(coach.id);
@@ -168,11 +187,9 @@ export default function Settings() {
    * it. The password and the typed confirmation are both the server's
    * requirement, not this screen's — so a client cannot skip either.
    */
-  const eraseAccount = async () => {
-    // The button is `disabled` on `erasingBusy`, which React has not applied
-    // yet when a second click arrives in the same tick. The handler is what
-    // actually refuses.
-    if (erasingBusy) return;
+  const eraseAccount = () => onceErasing(runEraseAccount);
+
+  const runEraseAccount = async () => {
     setErasingBusy(true);
     setEraseProblem(null);
     try {

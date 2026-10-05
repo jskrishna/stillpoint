@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '../../../../lib/api';
 import { describe } from '../../../../lib/describe';
+import { inFlight } from '../../../../lib/presses';
 import styles from '../../welcome.module.css';
 
 /**
@@ -32,7 +33,18 @@ export default function ResetPassword({ token }: { token: string }) {
   const mismatch = again !== '' && password !== again;
   const canSubmit = password !== '' && password === again && !busy;
 
-  const submit = async () => {
+  /*
+   * The refusal is this closure, not the `busy` the guard below reads: a
+   * handler closes over the value from the render it was built in, so three
+   * presses inside one frame all read `false`. Measured on three other
+   * controls, including Publish — `lib/presses.ts` has them. The state stays,
+   * because it is what the label and `aria-disabled` are drawn from.
+   */
+  const once = useRef(inFlight()).current;
+
+  const submit = () => once(() => runSubmit());
+
+  const runSubmit = async () => {
     if (!canSubmit) return;
     setBusy(true);
     setProblem(null);
