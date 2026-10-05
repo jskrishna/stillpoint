@@ -317,6 +317,19 @@ export default function Accounts() {
                         <select
                           className={styles.input}
                           value={user.plan}
+                          /*
+                           * `disabled` on both of these selects, where the
+                           * buttons in this console use `aria-disabled`. Two
+                           * reasons, and the second decides it.
+                           *
+                           * `aria-disabled` is advisory on a form control: it
+                           * reports the state and does not stop the control
+                           * being opened and changed. And what a second change
+                           * would send here is a *different* role or plan for
+                           * the same account while the first is still in
+                           * flight, which is worth refusing in the browser
+                           * rather than only in the handler.
+                           */
                           disabled={saving === user.id}
                           aria-label={`Plan for ${user.name}`}
                           onChange={(e) => {
@@ -343,6 +356,8 @@ export default function Accounts() {
                         <select
                           className={styles.input}
                           value={user.role}
+                          // `disabled` rather than `aria-disabled`, for the
+                          // reason beside the plan select above.
                           disabled={saving === user.id}
                           aria-label={`Role for ${user.name}`}
                           onChange={(e) => {
@@ -372,7 +387,7 @@ export default function Accounts() {
           onClick={() => {
             void loadMore();
           }}
-          disabled={loadingMore}
+          aria-disabled={loadingMore}
         >
           {loadingMore ? 'Loading…' : `Load more (${String(rows.length)} of ${String(total)})`}
         </button>

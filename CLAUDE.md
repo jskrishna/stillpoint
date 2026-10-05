@@ -576,6 +576,69 @@ the surviving loop's success path cleared it. Which loop finishes last decides
 it, so the count is what to trust and
 `tests/Feature/NotFoundSaysNothingTest.php` is where the wording is pinned.
 
+**And the session screen — which that first bullet calls the sharpest case —
+never got the rule.** `aria-disabled` was applied to Publish, to "Mark as
+reviewed" and to the journal's "Load older", and the session screen's Continue
+kept `disabled={!canContinue || busy}`. Measured in a real browser with the
+turn held open: pressing Continue made `document.activeElement` **`<body>`**
+while the request was out, and on a **failed** turn it stayed there — because
+there is no advance to put it back. So somebody on a keyboard or a screen
+reader presses Continue, the turn fails, and they are at the top of the
+document with an error on screen and their answer still in a box they can no
+longer find.
+
+It was twelve controls, not one, and that is the part worth keeping: the
+auth flow's six buttons (sign-in, consent, voice setup's two, forgot, reset),
+the invitation's Accept, the coach's "Create invitation", settings' "Export my
+data" and "Delete my account", and the console's **two** "Load more" buttons —
+the same control the journal's was fixed as, in the place the fix did not
+reach. A one-place rule applied in one place is the finding this file keeps
+making about itself.
+
+Every one of those handlers already refused the press on its own state, except
+two: `AcceptInvite`'s and settings' `exportData`, which went straight to
+`setBusy(true)`. They guard now, because `aria-disabled` is advisory and the
+handler is the refusal.
+
+`flow.mjs` asserts the focus where it is worst, and the assertion reads the
+**element** rather than a selector, because the button's name changing under
+the focus is the whole mechanism: it prints `button:Sending…` during the turn
+and `button:Continue` after it fails. Two more beside it — the failure is on
+screen, and what was typed is still in the box — stay green when the attribute
+is restored, which is the right independence. The two focus ones go red naming
+`body`.
+
+**And it turned section 6b of `flow.mjs` red, which was the more useful half.**
+That section spends the guide budget and then asserts a crisis turn is still
+screened, stopped and given helplines — and it had been passing on **leftovers**.
+The budget is 30 a minute keyed on the account; the section opened one quick
+session and sent up to forty thin answers into it, and one session's turns are
+bounded: once a step's guide turns are used the session moves on, and once it
+is finished every further turn is a 409 rather than a 429. So whether the
+budget ran out inside that session depended entirely on how much of it earlier
+sections had spent in the same minute.
+
+Adding a section above it cost about twenty-five seconds of wall clock, that
+window rolled over, and 6b started with a full budget it could not spend: zero
+refusals, and a check reporting "the budget was never spent" about a budget
+that was working perfectly. Passing for a reason other than the one it names is
+the failure this file keeps finding, and the only reason it surfaced is that
+something unrelated changed the timing.
+
+A 409 opens another quick session now rather than ending the loop — quick
+sessions are unlimited by design, so it costs the account nothing — and the
+assertion prints what it took: **2 refusals after 33 turns across 2 sessions**,
+which is the measurement that says one session could never have done it.
+
+**Three controls keep the native attribute, and the reasons are not
+symmetry.** Settings' "Delete my journal" is unavailable at rest, when there is
+nothing to delete, so no press ever moves focus off it. And the console's two
+`<select>`s are form controls rather than buttons: `aria-disabled` reports a
+state without preventing the control being opened and changed, and what a
+second change would send there is a _different_ role or plan for the same
+account while the first is in flight — worth refusing in the browser and not
+only in the handler.
+
 **The journal's "Load older" was the same bug in the ordinary part of the
 app.** The console's buttons were audited; this one was not, and it is the same
 two failures at once. Measured with the page request held open: focus was on

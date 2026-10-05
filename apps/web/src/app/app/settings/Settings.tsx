@@ -87,6 +87,10 @@ export default function Settings() {
   };
 
   const exportData = async () => {
+    // `aria-disabled` on the button, so this is the refusal. Without it a
+    // second press while the first export is gathering would start another
+    // walk of the whole journal.
+    if (exporting) return;
     // The user's own copy of their own data. The whole journal is fetched here
     // and nowhere else — it is the one place that genuinely needs all of it,
     // and it goes straight to a file on their machine, not to any service.
@@ -323,7 +327,7 @@ export default function Settings() {
         onClick={() => {
           void exportData();
         }}
-        disabled={exporting}
+        aria-disabled={exporting}
       >
         <span>{exporting ? 'Gathering your data…' : 'Export my data'}</span>
         <span className={styles.settingValue}>
@@ -338,6 +342,14 @@ export default function Settings() {
         onClick={() => {
           setConfirming(true);
         }}
+        /*
+         * `disabled`, deliberately, where every other button in this flow uses
+         * `aria-disabled`. That rule is about a button whose own press
+         * disables it, because then the focus that pressed it has nowhere to
+         * go. This one is unavailable at rest — there is nothing to delete —
+         * so no press ever moves the focus off it, and the native attribute is
+         * the plainer answer.
+         */
         disabled={entryCount === 0}
       >
         <span className={styles.danger}>Delete my journal</span>
@@ -485,7 +497,7 @@ export default function Settings() {
                 color: 'var(--sp-color-danger)',
                 boxShadow: 'var(--sp-shadow-button)',
               }}
-              disabled={
+              aria-disabled={
                 erasingBusy ||
                 erasePassword === '' ||
                 eraseConfirm.trim() !== api.DELETE_CONFIRMATION

@@ -131,7 +131,7 @@ export default function SignInForm() {
           <button
             type="submit"
             className={`${styles.button} ${styles.primary}`}
-            disabled={!canSubmit}
+            aria-disabled={!canSubmit}
           >
             {busy ? 'One moment…' : creating ? 'Create my account' : 'Sign in'}
           </button>

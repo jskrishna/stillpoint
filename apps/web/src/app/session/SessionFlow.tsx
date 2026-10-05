@@ -480,11 +480,30 @@ export default function SessionFlow() {
       )}
 
       <div className={styles.actions}>
+        {/*
+          `aria-disabled`, not `disabled`, and this is the screen the rule was
+          written for and then not applied to. A `disabled` button leaves the
+          tab order, so the focus that was on it has nowhere to go: measured
+          here, pressing Continue dropped `document.activeElement` to `<body>`
+          while the turn was out, and on a **failed** turn it stayed there —
+          there is no advance to move it back, so somebody using a keyboard or
+          a screen reader is returned to the top of the document with an error
+          on screen.
+
+          The console's Publish and "Mark as reviewed" and the journal's "Load
+          older" were all fixed this way and the session screen was not, which
+          is the one-place rule applied in one place. The label already changes
+          to "Sending…", so the announcement is the button's own name; what
+          this adds is that the name changes under the user's focus instead of
+          the focus disappearing. `send` refuses while `busy`, and the guard
+          below is for the other half of the condition.
+        */}
         <button
           type="button"
           className={`${styles.button} ${styles.primary}`}
-          disabled={!canContinue || busy}
+          aria-disabled={!canContinue || busy}
           onClick={() => {
+            if (!canContinue || busy) return;
             if (onFeelStep) {
               void send(feelings.join(' '), feelings.map((id) => LABEL.get(id) ?? id).join(', '));
             } else {

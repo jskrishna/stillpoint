@@ -197,7 +197,14 @@
   color: var(--sp-color-accent-ink);
 }
 
-.primary:disabled {
+/*
+ * Both spellings. `Continue` uses `aria-disabled` rather than `disabled`,
+ * because a `disabled` button cannot hold focus and pressing it dropped
+ * `document.activeElement` to `<body>` — measured, and on a failed turn it
+ * stayed there. See the note at the button.
+ */
+.primary:disabled,
+.primary[aria-disabled='true'] {
   opacity: 0.4;
   cursor: not-allowed;
 }

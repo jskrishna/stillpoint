@@ -133,7 +133,7 @@ export default function ResetPassword({ token }: { token: string }) {
           <button
             type="submit"
             className={`${styles.button} ${styles.primary}`}
-            disabled={!canSubmit}
+            aria-disabled={!canSubmit}
           >
             {busy ? 'One moment…' : 'Change my password'}
           </button>

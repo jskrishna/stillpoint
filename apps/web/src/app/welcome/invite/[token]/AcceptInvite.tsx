@@ -72,6 +72,12 @@ export default function AcceptInvite({ token }: { token: string }) {
   };
 
   const accept = async () => {
+    // The button is `aria-disabled` rather than `disabled`, so that it keeps
+    // the focus that pressed it — which means the handler is what refuses.
+    // `invitation` is nullable here even though the button only renders once
+    // it has loaded: `null` is this screen's word for "unrecognised", so it is
+    // the same refusal.
+    if (invitation === null || invitation === undefined || !invitation.usable || busy) return;
     // Sign in first, and come back — which it did not, before this. The push
     // carried `?next=` and nothing read it, so the invitee signed in and
     // landed on the consent screen with the invitation gone.
@@ -202,7 +208,7 @@ export default function AcceptInvite({ token }: { token: string }) {
           onClick={() => {
             void accept();
           }}
-          disabled={!invitation.usable || busy}
+          aria-disabled={!invitation.usable || busy}
         >
           {busy ? 'One moment…' : `Accept, and share with ${invitation.coachName}`}
         </button>

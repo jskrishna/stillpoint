@@ -97,7 +97,7 @@ export default function InviteClient({ onAccepted }: { onAccepted?: () => void }
           onClick={() => {
             void invite();
           }}
-          disabled={email.trim() === '' || busy}
+          aria-disabled={email.trim() === '' || busy}
         >
           {busy ? 'One moment…' : 'Create invitation'}
         </button>

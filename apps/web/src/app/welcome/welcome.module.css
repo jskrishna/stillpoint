@@ -159,7 +159,14 @@
   color: var(--sp-color-accent-ink);
 }
 
-.primary:disabled {
+/*
+ * Both spellings. Every primary button in this flow uses `aria-disabled`
+ * rather than `disabled`, because a `disabled` button leaves the tab order and
+ * the press that disables it drops focus to `<body>` — measured on the session
+ * screen, where it is worst. Their handlers are what refuse.
+ */
+.primary:disabled,
+.primary[aria-disabled='true'] {
   opacity: 0.4;
   cursor: not-allowed;
 }

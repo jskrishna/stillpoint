@@ -101,7 +101,7 @@ export default function ForgotPassword() {
           <button
             type="submit"
             className={`${styles.button} ${styles.primary}`}
-            disabled={email.trim() === '' || busy}
+            aria-disabled={email.trim() === '' || busy}
           >
             {busy ? 'One moment…' : 'Email me a link'}
           </button>

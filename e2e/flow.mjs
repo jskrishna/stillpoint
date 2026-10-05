@@ -417,6 +417,91 @@ else bad('and it did cost another', JSON.stringify(onlyOne));
 
 await leftOff.close();
 
+// ------------------------------------------------- 3b2. where the focus goes
+//
+// `aria-disabled`, not `disabled`, on Continue — the rule this repository
+// already applied to the console's Publish and "Mark as reviewed" and to the
+// journal's "Load older", and not to the screen the same section calls the
+// sharpest case. A `disabled` button leaves the tab order, so the press that
+// disables it has nowhere to leave the focus.
+//
+// Measured before the fix: pressing Continue made `document.activeElement`
+// `<body>` while the turn was out, and on a **failed** turn it stayed there —
+// there is no advance to put it back, so somebody on a keyboard or a screen
+// reader is returned to the top of the document with an error on screen.
+//
+// The label already changes to "Sending…", so the announcement is the
+// button's own name. What this asserts is that the name changes under the
+// focus rather than the focus vanishing.
+console.log('\n3b2. A press does not throw the focus away');
+
+const focusPage = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const focusEmail = `focus+${String(Date.now())}@example.com`;
+await focusPage.goto(`${WEB}/welcome`, { waitUntil: 'networkidle' });
+await focusPage.getByRole('button', { name: 'Create an account instead' }).click();
+await focusPage.getByLabel('Name').fill('Keyboard');
+await focusPage.getByLabel('Email').fill(focusEmail);
+await focusPage.getByLabel('Password').fill(PASSWORD);
+await focusPage.getByRole('button', { name: 'Create my account' }).click();
+await focusPage.waitForURL('**/welcome/consent', { timeout: 20000 });
+const focusBoxes = focusPage.locator('input[type=checkbox]');
+await focusBoxes.nth(0).check();
+await focusBoxes.nth(1).check();
+await focusPage.getByRole('button', { name: /Continue|Saving/ }).click();
+await focusPage.waitForURL('**/welcome/voice', { timeout: 20000 });
+
+await focusPage.goto(`${WEB}/session`, { waitUntil: 'networkidle' });
+await focusPage.waitForTimeout(2500);
+
+// Where focus is, by what it is rather than by a selector: the button's text
+// changes to "Sending…" under it, which is the point.
+const focusedOn = () =>
+  focusPage.evaluate(() => {
+    const el = document.activeElement;
+    if (el === null) return 'null';
+    return `${el.tagName.toLowerCase()}:${(el.textContent ?? '').trim().slice(0, 20)}`;
+  });
+
+await focusPage.locator('textarea').first().fill('Something happened and it stayed with me');
+
+// Held open, so the in-flight state can be looked at rather than guessed.
+let heldTurn = null;
+await focusPage.route('**/turns', (route) => {
+  heldTurn = route;
+});
+
+const continueButton = focusPage.locator('button', { hasText: /^Continue$/ }).first();
+await continueButton.focus();
+await continueButton.click();
+await focusPage.waitForTimeout(1200);
+
+const during = await focusedOn();
+if (/^button:/.test(during)) ok(`the focus stays on the button while the turn is out (${during})`);
+else bad('the focus stays on the button while the turn is out', during);
+
+// And the half that does not heal itself. A turn that advances moves focus to
+// the new question; a turn that fails has nowhere to move it, so if the press
+// threw it away it is gone.
+if (heldTurn !== null) await heldTurn.abort().catch(() => undefined);
+await focusPage.unroute('**/turns');
+await focusPage.waitForTimeout(2500);
+
+const afterFailure = await focusedOn();
+if (/^button:/.test(afterFailure)) ok(`and after the turn fails (${afterFailure})`);
+else bad('and after the turn fails', afterFailure);
+
+const saidSo = await focusPage.locator('body').innerText();
+if (/not been sent|Could not reach|try again/i.test(saidSo)) ok('with the failure on screen');
+else bad('with the failure on screen', saidSo.slice(0, 300));
+
+// The answer is still in the box to retry, which is the other half of a failed
+// turn and is what makes keeping the focus worth anything.
+const stillInTheBox = await focusPage.locator('textarea').first().inputValue();
+if (stillInTheBox.includes('stayed with me')) ok('and what was typed still there to retry');
+else bad('and what was typed still there to retry', JSON.stringify(stillInTheBox));
+
+await focusPage.close();
+
 // A reply dropped on the way back used to cost the user a whole step: the
 // client re-sent the same words, nothing in the request said which question
 // they answered, and they were recorded against the *next* step — whose
@@ -945,35 +1030,74 @@ const spent = await page.evaluate(async () => {
     Authorization: `Bearer ${token}`,
   };
 
-  const session = await fetch('http://localhost:8000/api/sessions', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ kind: 'quick' }),
-  }).then((r) => r.json());
+  const open = async () =>
+    fetch('http://localhost:8000/api/sessions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ kind: 'quick' }),
+    }).then((r) => r.json());
 
-  const turn = (utterance) =>
-    fetch(`http://localhost:8000/api/sessions/${session.id}/turns`, {
+  const turn = (id, utterance) =>
+    fetch(`http://localhost:8000/api/sessions/${id}/turns`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ utterance }),
     });
 
-  // Spend it: ordinary answers until the server starts refusing.
+  /*
+   * Spend it, across as many sessions as that takes.
+   *
+   * This used to open one quick session and send up to forty thin answers into
+   * it, and it **passed on leftovers**: the budget is 30 a minute keyed on the
+   * account, and one session's turns are bounded — after a step's guide turns
+   * are used the session moves on, and once it is finished every further turn
+   * is a 409, not a 429. So whether the budget ran out inside one session
+   * depended entirely on how much of it earlier sections of this script had
+   * already spent in the same minute.
+   *
+   * It went red the day a new section was added above, which added about
+   * twenty-five seconds of wall clock and let that window roll over: a full
+   * budget of 30, a session that cannot spend 30, zero refusals, and a check
+   * reporting "the budget was never spent" about a budget that was working.
+   * Passing for a reason other than the one it names is the failure this whole
+   * file keeps finding.
+   *
+   * So a 409 opens another quick session rather than ending the loop. Quick
+   * sessions are unlimited by design, so this costs the account nothing, and
+   * `POST /sessions` ending whatever was open is exactly what is wanted here.
+   */
+  let id = (await open()).id;
   let refusals = 0;
-  for (let i = 0; i < 40; i += 1) {
-    const r = await turn('no');
-    if (r.status === 429) refusals += 1;
-    if (r.status === 409) break;
-    if (refusals >= 2) break;
-  }
-  if (refusals === 0) return { error: 'the budget was never spent' };
+  let sent = 0;
+  let sessions = 1;
 
-  // And now the one request that must not be refused.
-  const crisis = await turn('I want to kill myself');
+  while (sent < 80 && refusals < 2) {
+    const r = await turn(id, 'no');
+    sent += 1;
+    if (r.status === 429) {
+      refusals += 1;
+      continue;
+    }
+    if (r.status === 409) {
+      id = (await open()).id;
+      sessions += 1;
+    }
+  }
+
+  if (refusals === 0)
+    return {
+      error: `the budget was never spent: ${String(sent)} turns across ${String(sessions)} sessions`,
+    };
+
+  // And now the one request that must not be refused. The 429s above do not
+  // end a session, so this goes into the one that is still open.
+  const crisis = await turn(id, 'I want to kill myself');
   const body = await crisis.json();
 
   return {
     refusals,
+    sent,
+    sessions,
     status: crisis.status,
     ended: body.ended,
     endReason: body.endReason,
@@ -984,7 +1108,9 @@ const spent = await page.evaluate(async () => {
 if (spent.error !== undefined) {
   bad('the budget can be spent', spent.error);
 } else {
-  ok(`ordinary answers are refused once the budget is spent (${String(spent.refusals)} refusals)`);
+  ok(
+    `ordinary answers are refused once the budget is spent (${String(spent.refusals)} refusals after ${String(spent.sent)} turns across ${String(spent.sessions)} sessions)`,
+  );
   if (spent.status === 200) ok('the crisis utterance is not refused');
   else bad('the crisis utterance is not refused', String(spent.status));
   if (spent.ended === true && spent.endReason === 'safety_stop')

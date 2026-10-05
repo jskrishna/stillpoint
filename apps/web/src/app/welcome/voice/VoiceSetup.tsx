@@ -90,7 +90,7 @@ export default function VoiceSetup() {
           onClick={() => {
             void go('hold');
           }}
-          disabled={busy}
+          aria-disabled={busy}
         >
           Let the guide speak
         </button>
@@ -100,7 +100,7 @@ export default function VoiceSetup() {
           onClick={() => {
             void go('type');
           }}
-          disabled={busy}
+          aria-disabled={busy}
         >
           Keep it silent
         </button>

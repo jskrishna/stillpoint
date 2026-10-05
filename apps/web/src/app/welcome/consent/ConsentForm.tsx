@@ -135,7 +135,7 @@ export default function ConsentForm() {
           onClick={() => {
             void accept();
           }}
-          disabled={!canContinue || busy}
+          aria-disabled={!canContinue || busy}
         >
           {busy ? 'Saving…' : 'Continue'}
         </button>

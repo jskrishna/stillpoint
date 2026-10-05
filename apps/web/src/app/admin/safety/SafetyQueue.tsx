@@ -202,7 +202,7 @@ export default function SafetyQueue() {
               onClick={() => {
                 void loadMore();
               }}
-              disabled={loadingMore}
+              aria-disabled={loadingMore}
             >
               {loadingMore
                 ? 'Loading…'
