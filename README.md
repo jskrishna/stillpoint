@@ -48,7 +48,7 @@ reached step 6, the feelings chosen most, and the belief that keeps coming back.
 | **Coach portal**  | `apps/web/src/app/coach` | Built: client list and detail, shared sessions only.                           |
 
 **`pnpm run demo`** brings the whole thing up, seeded, and prints the accounts
-and URLs. **`pnpm run e2e`** runs the six end-to-end checks against it.
+and URLs. **`pnpm run e2e`** runs the end-to-end checks against it — `ls e2e/*.mjs | grep -vE 'browser|report|run'` is the list, and there are seven.
 
 **[`LAUNCH.md`](LAUNCH.md) is what stands between this and a stranger
 finishing a session safely**, in order, with what each item actually needs. The
@@ -78,9 +78,9 @@ clients, shared sessions and notes). Help in a crisis is always free.
 ├── packages/
 │   ├── protocol/            @stillpoint/protocol — the domain, in TypeScript
 │   ├── design-tokens/       @stillpoint/design-tokens — Warm & Clear colour, type, space
-│   └── client/              @stillpoint/client — the typed API client, one for every surface
+│   └── client/              @stillpoint/client — the typed API client, one for all the surfaces
 ├── parity/                  the cross-language fixture both test suites assert against
-├── e2e/                     four browser checks against a running stack
+├── e2e/                     seven browser checks against a running stack
 ├── deploy/                  Dockerfiles, nginx, and what running this actually needs
 └── .github/workflows/ci.yml
 ```
@@ -94,8 +94,10 @@ Three rules hold this together:
 - **`packages/protocol` is free of I/O and of presentation** — no network, no
   storage, no speech, no framework, no colours. Feeling ids and labels are
   domain; feeling colours are presentation and live in `design-tokens`.
-- **`packages/client` is the only API client.** Four surfaces consume it, so the
-  paths and field names cannot drift apart. It takes the two things that
+- **`packages/client` is the only API client.** Two workspaces consume it —
+  `apps/web` and `apps/mobile`, which is every workspace that talks to the API,
+  since `apps/desktop` depends on `@stillpoint/web` and implements nothing
+  itself — so the paths and field names cannot drift apart. It takes the two things that
   genuinely differ as arguments: the base URL and where the token is kept.
 
 ## Getting started
@@ -261,20 +263,23 @@ and an unpublished draft:
   with the expected risk grade and capture, asserted by both the TypeScript and
   the PHP suite. Regenerating it to turn a red test green records the
   divergence instead of fixing it.
-- **`e2e/`** — six scripts driving a real browser against the real stack: the
+- **`e2e/`** — seven scripts driving a real browser against the real stack: the
   whole user journey including the safety stop, the console and who may read a
-  flag, the coach portal and what a coach cannot see, axe-core at WCAG 2.1 AA
+  flag, the coach portal and what a coach cannot see, axe-core at WCAG 2.2 AA
   over every route in both palettes at 390 and 1440, a check that no request
   leaves this origin and that the page's own Content-Security-Policy refuses an
-  attempt to send the token elsewhere, and the mobile app's journey through its
-  web export. They run in CI, against a seeded database.
+  attempt to send the token elsewhere, the mobile app's journey through its web
+  export, and the desktop shell launched under Xvfb. They run in CI, against a
+  seeded database.
 - **CI also** runs the migrations up and back down against MySQL 8.4, and
   builds the deployment images and brings the stack up.
 
 ## Accessibility
 
-Every route passes axe-core at WCAG 2.1 AA, in light and dark at both 390px and
-1440px. `pnpm run check` separately asserts the contrast of every text role
+Every route passes axe-core at WCAG 2.2 AA, in light and dark at both 390px and
+1440px — 2.2 rather than 2.1 for one criterion, 2.5.8 Target Size, which is the
+one a phone-first product should be measured against and which the tags left out
+until recently. `pnpm run check` separately asserts the contrast of every text role
 against every surface, so a colour change that drops a pair below AA fails the
 build rather than reaching someone who cannot read it.
 
