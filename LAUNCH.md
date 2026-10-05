@@ -288,8 +288,20 @@ changing the copy changes what Plus is for. Both options are in
 
 ## 8. The desktop app has never been packaged
 
-It runs — `node e2e/desktop.mjs` launches it under Xvfb and asserts that a
-session survives a relaunch, and `pnpm run build` passes. That is a command
+It runs — `node e2e/desktop.mjs` launches it under Xvfb and asserts that the
+bundled server starts, the renderer has no Node, the navigation pin holds in
+the real main process, `window.open` cannot hand the OS a `file:` URL, a
+session survives a relaunch, the security headers survive the standalone
+build, **somebody can sign in from this origin**, every path its menu
+navigates to is a real screen, and the Help item's own promise — three
+`tel:` links, 9-8-8 and 911 — is on the screen it loads. And `pnpm run build`
+passes.
+
+That sign-in assertion is worth naming, because everything above it was true
+with the API refusing this origin outright: the window is its own origin, so
+every call it makes is cross-origin, and dropping `:8735` from
+`CORS_ALLOWED_ORIGINS` means **nobody can sign in to the desktop app at all**
+while every other desktop check stays green. Measured. That is a command
 rather than a claim about CI on purpose: the sentence used to say "on every CI
 run", which is a thing a reader cannot check from here and which was false for
 twenty-seven consecutive pushes while the account's Actions billing was on
@@ -325,9 +337,12 @@ honest about both halves:
   palettes, and axe-core clean across 20 routes at two widths in both — at
   **2.2** AA, which matters for one criterion: 2.5.8 Target Size, the one a
   phone-first product should be measured against. The focus ring is held to
-  1.4.11 against every surface too. And the phone's ten walked screens are
-  audited in both palettes by `mobile.mjs`, which is the only thing that can
-  reach them.
+  1.4.11 against every surface too. And every one of the phone's **eleven**
+  screens is audited in both palettes by `mobile.mjs`, which is the only thing
+  that can reach them — including the gate, which redirects too fast to arrive
+  at and is audited with `GET /me` held open, the state a slow connection
+  leaves somebody on. That one was not clean: an unnamed progress indicator on
+  the first screen the app draws.
 - The session screen announced rather than only drawn: the crisis numbers on an
   answer that never sent, and the safety pause, reach a screen reader instead
   of appearing silently. Verified in a real browser on web; on the phone the
@@ -337,23 +352,28 @@ honest about both halves:
 - A cross-language parity fixture both suites assert against, and seven
   end-to-end scripts — `pnpm run e2e`. Every one of the phone's eleven screens
   is rendered by one of them, and every one of the web app's twenty routes is
-  audited by `a11y.mjs`; both of those sentences were false until recently.
+  audited by `a11y.mjs`.
 
-  **And the first one went false again**, which is this document's running
-  joke arriving on schedule. It was ten of eleven: nothing reached
-  `welcome/forgot.tsx`, because the phone check pressed straight through
-  registration and the forgotten-password screen is the one branch off the
-  welcome screen it never took. Caught by listing the eleven files against
-  what the script visits — the same way it was caught the first time, which is
-  the only method that has ever worked on this sentence. `mobile.mjs` section
-  1b walks it now and holds it to the rule that matters there: the answer is
-  the same whether or not the address has an account, compared across one that
-  has one and one that does not.
+  **Those two sentences were false twice each, and they are not sentences any
+  more.** Both scripts compare their own coverage against the files on disk now
+  and fail if a screen is missing: `a11y.mjs` against every `page.tsx` under
+  `apps/web/src/app`, and `mobile.mjs` against every non-`_layout` screen under
+  `apps/mobile/src/app`, with each `audit()` call naming the file it covered.
+  Each was checked both ways — removing a route from the list goes red naming
+  it, and pointing the finder at a directory with no screens goes red on "0
+  files", which is the half where a check with an empty input stops checking in
+  silence.
 
-  The test counts used to be written out here, and they went stale in the one
-  bullet that warns "a count in a list like this is exactly the kind nothing
-  checks" — which is the joke this document keeps telling at its own expense.
-  So they are commands instead, and each prints its own number:
+  Which retires the joke this document kept telling at its own expense. The
+  claim used to be a count in prose that nothing checked, and it went stale on
+  schedule every time: ten of eleven when nothing reached `welcome/forgot.tsx`,
+  ten of eleven again when nothing audited the home screen, nineteen of twenty
+  when `/app/journal/[entryId]` needed a row to exist and so was left out. It
+  is now an assertion in the run rather than a sentence in a file.
+
+  Be exact about what that covers: that every screen is reached and audited,
+  not that every screen is _well_ tested. The commands below still print the
+  numbers, and they are the manual fallback rather than the claim:
 
   ```bash
   pnpm run test            # the TypeScript suites
