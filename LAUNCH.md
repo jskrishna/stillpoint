@@ -58,8 +58,13 @@ this item is about. `DemoContentSeeder` is the demo's own content, run by
 deliberately not.
 
 Then `docs/clinical-review/RISK-SCREEN-REVIEW.md`, which is generated from
-the code (`pnpm run clinical:review`), so it cannot drift from what actually
-runs. It lists every phrase, every grade, the worked examples, and the seven
+the code (`pnpm run clinical:review`) and now **checked** against it: being
+generated made drift easy to fix, not impossible, and the instruction to
+regenerate after changing the screen was one nothing enforced — so the document
+somebody qualified is handed could have described a screen two changes old with
+every gate green. `risk-review-is-current.test.ts` is what closes that, and it
+is worth more here than for most generated files, because a reviewer can only
+judge the version they were given. It lists every phrase, every grade, the worked examples, and the seven
 questions a reviewer needs to answer. Give it to someone qualified — a
 registered psychologist, a crisis-line clinical lead, a safeguarding
 consultant. In Canada, a provincial college's referral list or a crisis-line
@@ -114,8 +119,29 @@ account exists.
 nginx, Laravel's scheduler and the Next.js app. CI builds all three images,
 starts the stack and then runs `deploy/smoke.mjs` against it, which registers
 an account, runs a session, says something that must stop one, and asserts the
-server stopped it and sent helplines. So the stack is known to build, start and
-serve a session.
+server stopped it and sent helplines.
+
+**Read that in the past tense, and check the date.** That job has not run since
+the account went on a billing hold — every run since finishes in seconds with
+no logs, which is not a result (see "A red CI badge is not a result" in
+`CLAUDE.md`). So "the stack builds and starts" is true as of the last run
+before the hold and unverified for everything after it. Clearing the hold is
+the only thing that changes that, and it is a billing setting rather than
+anything in the repository.
+
+**What can be checked without it: `pnpm run check:edge`.** It runs the real
+`deploy/nginx.conf` — three lines substituted, all of them naming the
+container's filesystem or a compose service — in front of PHP-FPM with
+`deploy/php.ini`'s own settings, against MySQL, and then `deploy/smoke.mjs`
+through the whole thing. It also measures the two things only HTTP can see:
+each security header exactly once (nginx's `add_header` appends, so a header
+put back at the edge arrives twice) and `client_max_body_size` — 6MB reaches
+the application, 13MB is refused 413 before Laravel and so before the risk
+screen.
+
+That is the deployment's _configuration_ verified, not the deployment. The
+three images are not built, `docker-compose.yml` is not exercised, the
+scheduler service does not run, and TLS still terminates nowhere.
 
 **Run that against your own deployment the moment it is up**, with both URLs:
 `node deploy/smoke.mjs https://your-api/api https://your-site`. It is plain
@@ -149,6 +175,17 @@ reasoning and `TrustedProxiesTest` pins both halves.
   lose. `stillpoint:rotate-key --dry-run` reads every encrypted row and writes
   nothing, which makes it the check for "can this deployment still read what it
   holds".
+
+  **A full rotation has been driven end to end**, which nothing had ever done —
+  the command's own test runs on sqlite with its own fixtures. On a real
+  MySQL-family server with 22 encrypted rows: dry run clean, rotate, then the
+  same journal title, safety-flag excerpt and session `data` read back
+  byte-identical under the new key **alone**, and the old key answering
+  `DecryptException`. That last part is what makes the rest mean anything —
+  without it, "the new key reads everything" would be equally true of a command
+  that wrote nothing. It is evidence about the mechanism, not about how long a
+  rotation takes on a year-old journal.
+
 - **`NEXT_PUBLIC_API_URL` is fixed when the web image is built**, because the
   browser is what calls the API. Pointing a built image at a different API is
   not possible; rebuild it.
@@ -387,6 +424,40 @@ honest about both halves:
 
   The three with a number beside them are the claims above, and they are
   checkable in a second rather than believable.
+
+**And a set of things that were described rather than verified, now driven.**
+These are not features; they are claims this repository made about itself that
+nobody had tested, and the reason they are listed here is that each one was
+previously waiting on CI, which has been held:
+
+- **The migrations run up, back down and up again on a real MySQL-family
+  server**, and the whole PHP suite passes against it — 646 of 647, one
+  skipped because the two rows it needs are the ones MySQL's unique index
+  refuses, which is the fact that test exists to state. `pnpm run check:mysql`.
+  `CLAUDE.md` said apt could not install a MySQL here, and that was simply
+  false.
+- **The seven browser checks pass against MySQL too**, 462 assertions, which is
+  the first time the row locks have actually been taken by a browser run:
+  `lockForUpdate()` is a no-op on sqlite, so every local run had been skipping
+  them. Be exact about the limit — it shows the locks are issued against a
+  server that honours them, not that the pair they exist for (a safety stop and
+  an ordinary turn arriving together) has been reproduced. No single browser
+  can drive that.
+- **A full `APP_KEY` rotation**, with the old key provably dead afterwards —
+  item 3 has the detail.
+- **The deployment's own nginx and `php.ini`**, serving a session and stopping
+  one, with the headers and the body limit measured over HTTP. `pnpm run
+check:edge`.
+- **A session completed with the keyboard alone**, no clicks anywhere: every
+  answer box reachable by Tab, Continue operable at each step, focus landing on
+  the new question and then the summary heading, the feelings grid and the
+  rating both operable. What is _asserted_ is narrower than that, and
+  `flow.mjs` says which part and why.
+
+In each case the gap was between a sentence and a measurement, and in several
+the measurement found the sentence wrong. That is the same pattern as the two
+counts in the bullet above, and the reason this page is worth re-reading rather
+than trusted.
 
 A green build means "this will start". It does not mean "this is ready", and
 items 1 to 3 are why.
