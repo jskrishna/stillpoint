@@ -304,10 +304,36 @@ set, so scanning the QR is the whole install — no development build, no EAS
 account. That is read off the dependency list rather than run, because
 nothing in the container can run Expo Go.
 
-Then walk the journey once. The `tel:` links are the thing to check
-deliberately: tap a
-crisis number on the pause screen and confirm the dialler opens with the right
-number.
+Then walk the journey once, and check the five things this item says are
+unproven — the list above and this one used to disagree, naming five and then
+telling you to look at one.
+
+- **A `tel:` link.** Type "I want to kill myself" into a session; the server
+  stops it and the pause screen appears. Tap **9-8-8** and confirm the dialler
+  opens with that number in it. Then tap one on **Settings → If you need
+  someone now**, which is the screen somebody reaches outside a session. Three
+  numbers on a Canadian account: 9-8-8, Québec's 1-866-277-3553, and 911.
+  Failing looks like a tap that does nothing.
+- **The keychain.** Sign in, force-quit the app from the app switcher, reopen
+  it. You should land in the app, not on the welcome screen. That is
+  `expo-secure-store` holding the token; a browser's `localStorage` is what
+  stands in for it everywhere a check has run.
+- **Text-to-speech.** Choose a voice at **Welcome → voice setup** and press the
+  preview, then start a session with that voice. The guide should read each
+  question aloud. Failing is silence, which is also what a muted phone and the
+  iOS ringer switch look like — check those before believing it.
+- **The splash screen.** Cold-start from the app switcher, not a reload. It
+  should appear and hand over without a white or black frame between.
+- **Safe-area insets**, which need a notched or Dynamic Island phone. The
+  session screen's Continue button and the tab bar must not sit under the home
+  indicator, and nothing may hide under the notch in landscape.
+
+Two more worth a look while you are there, because no check here can see
+them: whether the app is usable one-handed on a small phone, and what
+backgrounding mid-session does — leave a session half-answered, switch away
+for a minute, come back. It should still be there; `POST /sessions` ends an
+open session, so the failure to watch for is being offered a fresh start
+rather than the one you were in.
 
 **Cost.** An hour and a phone. A store release additionally needs an Apple
 Developer account and a Google Play account.
