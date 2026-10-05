@@ -10,6 +10,9 @@ import { LOCALE } from '@stillpoint/protocol';
 /** How long after the last keystroke an edit is sent. */
 const SAVE_AFTER_MS = 600;
 
+/** What `PATCH /admin/protocol-versions/draft/safety` takes. */
+type SafetyEdit = { pauseTitle?: string; pauseBody?: string };
+
 /**
  * The step-prompt editor.
  *
@@ -35,6 +38,17 @@ export default function ProtocolEditor() {
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
 
+  /**
+   * The safety pause's wording, same treatment.
+   *
+   * Kept apart from `pending` because it belongs to the version rather than to
+   * a step, and `pending` is keyed by step id — a reserved key in there would
+   * be a step id that is not one.
+   */
+  const [pendingSafety, setPendingSafety] = useState<SafetyEdit | null>(null);
+  const pendingSafetyRef = useRef(pendingSafety);
+  pendingSafetyRef.current = pendingSafety;
+
   useEffect(() => {
     api
       .protocolVersions()
@@ -56,7 +70,7 @@ export default function ProtocolEditor() {
   // runs, not in a render that may happen twice.
   useEffect(() => {
     const steps = Object.keys(pending);
-    if (steps.length === 0) return;
+    if (steps.length === 0 && pendingSafety === null) return;
 
     // Typing again means the last "saved" is about older text.
     setSaveState('idle');
@@ -70,8 +84,12 @@ export default function ProtocolEditor() {
             if (edit === undefined) continue;
             latest = await api.editProtocolStep(stepId, edit);
           }
+          // After the steps, so one timer and one status line cover both.
+          const wording = pendingSafetyRef.current;
+          if (wording !== null) latest = await api.editProtocolSafety(wording);
           if (latest !== null) setDraft(latest);
           setPending({});
+          setPendingSafety(null);
           setProblem(null);
           setSaveState('saved');
         } catch (e: unknown) {
@@ -92,7 +110,7 @@ export default function ProtocolEditor() {
     return () => {
       clearTimeout(timer);
     };
-  }, [pending]);
+  }, [pending, pendingSafety]);
 
   const change = useCallback((stepId: string, edit: ApiStepEdit) => {
     // Applied locally at once so the field does not fight the typist, and
@@ -106,6 +124,11 @@ export default function ProtocolEditor() {
           },
     );
     setPending((current) => ({ ...current, [stepId]: { ...current[stepId], ...edit } }));
+  }, []);
+
+  const changeSafety = useCallback((edit: SafetyEdit) => {
+    setDraft((current) => (current === null ? current : { ...current, ...edit }));
+    setPendingSafety((current) => ({ ...current, ...edit }));
   }, []);
 
   const onPublish = async () => {
@@ -332,6 +355,52 @@ export default function ProtocolEditor() {
             </div>
           </div>
         )}
+      </div>
+
+      {/*
+        The safety pause's own words, which this screen did not have.
+        **The route, the validation, a test, the client method and the type all
+        existed; the screen was the only missing link** — `editProtocolSafety`
+        was a method nothing called, so the one piece of copy on the crisis
+        screen that an admin is meant to own could only be changed with a
+        hand-written PATCH. `publishProblems()` refuses a draft whose title or
+        body is empty, so the screen could already *report* a problem with this
+        copy in the list below and offered no way to fix it.
+
+        It is version-level rather than per-step, so it sits outside the step
+        editor rather than in the tab that happens to be selected.
+      */}
+      <div className={styles.fields}>
+        <strong className={styles.problemsTitle}>The safety pause</strong>
+        <p className={styles.sub}>
+          What somebody sees when a session stops because they may be in danger. The helplines below
+          it come from their own country and are not editable here.
+        </p>
+
+        <label className={styles.field}>
+          Title
+          <input
+            className={styles.input}
+            value={editing.pauseTitle}
+            readOnly={readOnly}
+            onChange={(e) => {
+              changeSafety({ pauseTitle: e.target.value });
+            }}
+          />
+        </label>
+
+        <label className={styles.field}>
+          What it says
+          <textarea
+            className={styles.textarea}
+            rows={3}
+            value={editing.pauseBody}
+            readOnly={readOnly}
+            onChange={(e) => {
+              changeSafety({ pauseBody: e.target.value });
+            }}
+          />
+        </label>
       </div>
 
       {live !== null && live.status === 'live' ? (

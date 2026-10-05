@@ -940,6 +940,42 @@ empty and never touches copy somebody wrote; `DemoSeeder` publishes it so a
 demo and the end-to-end checks have a guide that speaks, and production
 publishes nothing by itself.
 
+**And the safety pause's own words were not on that screen.** The whole chain
+existed except the one link a person uses: the route
+(`PATCH /admin/protocol-versions/draft/safety`), its validation, a feature test
+asserting it can be edited and not emptied, `api.editProtocolSafety()` in
+`packages/client`, and `pauseTitle` / `pauseBody` on `ApiProtocolVersion`. The
+editor had fields for `main`, two backups, `doneWhen` and `maxGuideTurns`, and
+none for those two — so `editProtocolSafety` was a client method **nothing
+called**, and the one piece of copy on the crisis screen that an admin is meant
+to own could only be changed with a hand-written PATCH.
+
+Which is the mirror image of the classes this file already names: not a setting
+the server ignores, but a server capability no screen reaches. The sharp detail
+is that `publishProblems()` refuses a draft whose title or body is empty, so
+the editor could already **report** a problem with that copy in its problems
+list and offered no way to fix it.
+
+Two fields now, outside the step editor because the wording belongs to the
+version rather than to whichever step tab is selected, on the same autosave
+timer and the same `role="status"` line so one region still covers everything
+this screen does. Emptying the title is **refused by the server** and the
+screen shows its sentence — "The pause title field must have a value." —
+rather than the field being hidden or the empty value silently dropped: this is
+the one field here where clearing it is not a saveable state, and an admin who
+clears it should be told instead of left thinking it saved.
+
+`e2e/admin.mjs` asserts the fields exist, that an edit round-trips through a
+reload, and that an emptied title comes back refused in the server's own words,
+then puts the wording back so the draft stays publishable. Checked by removing
+the fields: red, naming "0 fields".
+
+Note what the pause screens were already doing right, which is why this is a
+missing control rather than a broken one: both read `safety.title` and
+`safety.body` from the response, which `SessionResource` fills from the version
+the session is **pinned** to. Grepped before writing any of this, because the
+likelier bug would have been a screen hardcoding its own copy.
+
 **That copy was written by Claude, not by a clinician and not from a PRD.** It
 follows the voice of the three questions the designs do give and each step's
 own summary from the marketing site, and it is rows in a table with an editor

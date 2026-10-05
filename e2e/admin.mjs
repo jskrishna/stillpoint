@@ -820,6 +820,59 @@ if (!signedIn) {
   // Put the step back, so the draft is publishable again.
   await admin.locator('textarea').first().fill(copy);
   await admin.waitForTimeout(1800);
+
+  // ---- the safety pause's own words --------------------------------------
+  //
+  // This screen had no field for them. The route
+  // (`PATCH /admin/protocol-versions/draft/safety`), its validation, a feature
+  // test, `api.editProtocolSafety()` and `ApiProtocolVersion.pauseTitle` all
+  // existed — and `editProtocolSafety` was a method **nothing called**, so the
+  // one piece of copy on the crisis screen that an admin is meant to own could
+  // only be changed with a hand-written PATCH. `publishProblems()` refuses a
+  // draft whose title or body is empty, so this screen could already report a
+  // problem with that copy and gave no way to fix it.
+  const pauseTitle = admin.getByLabel('Title', { exact: true });
+  if ((await pauseTitle.count()) === 1) ok('the safety pause’s wording is on the screen');
+  else
+    bad(
+      'the safety pause’s wording is on the screen',
+      `${String(await pauseTitle.count())} fields`,
+    );
+
+  const wording = `Let’s pause here. (${String(Date.now())})`;
+  await pauseTitle.fill(wording);
+  await admin.waitForTimeout(1800);
+  await admin.reload({ waitUntil: 'networkidle' });
+  await admin.waitForTimeout(1800);
+
+  const keptWording = await admin.getByLabel('Title', { exact: true }).inputValue();
+  if (keptWording === wording) ok('and an edit to it survives a reload');
+  else bad('and an edit to it survives a reload', keptWording);
+
+  // Emptied, it is refused — by the server, in the server's own words. The
+  // field is `sometimes|filled`, so this is the one field on the screen where
+  // clearing it is not a saveable state, and an admin who clears it should be
+  // told rather than left thinking it saved. Nothing is hidden to prevent it.
+  await admin.getByLabel('Title', { exact: true }).fill('');
+  const emptyRefused = await admin
+    .waitForFunction(
+      () => /pause title field must have a value/i.test(document.body.innerText),
+      null,
+      {
+        timeout: 15000,
+      },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  const saidOnEmpty = await admin.locator('body').innerText();
+  if (emptyRefused) ok('an emptied pause title is refused in the server’s own words');
+  else bad('an emptied pause title is refused in the server’s own words', saidOnEmpty.slice(-400));
+
+  // And back, so the draft is left publishable for the next run.
+  await admin.getByLabel('Title', { exact: true }).fill('Let’s pause here.');
+  await admin.waitForTimeout(1800);
 }
 await admin.close();
 
