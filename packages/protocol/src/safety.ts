@@ -78,10 +78,38 @@ export function openFlags(flags: readonly SafetyFlag[]): readonly SafetyFlag[] {
   return flags.filter((f) => f.status === 'open');
 }
 
-/** Most severe first, then most recent — the order the queue should work in. */
+/**
+ * Most severe first, then most recent, then by id — the order the queue works
+ * in.
+ *
+ * **The third key is the one that was missing**, and the docstring here used to
+ * stop at "then most recent" and read as if that were the whole rule.
+ * `SafetyFlag::scopeByUrgency()` orders `severity DESC, raised_at DESC, id
+ * DESC`, and the `id` is not decoration: the queue is cursor-paged, a cursor is
+ * built from the ordering columns, and a tie with no tiebreaker makes a page
+ * repeat a row or skip one. On this list skipping one means a reviewer never
+ * seeing a flag, which is the reason `CLAUDE.md` says every paged ordering ends
+ * in `id`.
+ *
+ * Nothing calls this function — the queue is paged by the server and the
+ * console renders what it is told — so the omission was never a live defect.
+ * What it was is the second place in one sweep where the unconsumed half of the
+ * protocol had quietly drifted from the half that runs, on a rule this
+ * repository writes about at length. Somebody reading this to learn the
+ * queue's ordering would have learnt the version without the tiebreaker.
+ *
+ * Ids are ULIDs, which sort lexicographically in creation order, so comparing
+ * them as strings descending is the same order as the database's `id DESC`.
+ * The ranks differ in expression and not in value: this reads `RANK[level]`
+ * where the query reads the stored `severity` column, which the model keeps in
+ * step with `SafetyLevel::rank()` on write.
+ */
 export function byUrgency(flags: readonly SafetyFlag[]): readonly SafetyFlag[] {
   return [...flags].sort(
-    (a, b) => RANK[b.level] - RANK[a.level] || b.raisedAt.getTime() - a.raisedAt.getTime(),
+    (a, b) =>
+      RANK[b.level] - RANK[a.level] ||
+      b.raisedAt.getTime() - a.raisedAt.getTime() ||
+      b.id.localeCompare(a.id),
   );
 }
 

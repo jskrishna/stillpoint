@@ -2034,6 +2034,28 @@ implementation of a rule whose PHP twin is the one every surface actually
 renders, called by nothing, compared against nothing. Reading the TypeScript
 to learn a rule is reliable only where the fixture covers it.
 
+**The same sweep found a second one, on the queue.** `byUrgency` in
+`packages/protocol/src/safety.ts` sorted by severity and then recency and
+stopped there, where `SafetyFlag::scopeByUrgency()` orders `severity DESC,
+raised_at DESC, id DESC`. The third key is the one the paging section of this
+file is about: a cursor is built from the ordering columns, a tie with no
+tiebreaker makes a page repeat a row or skip one, and on this list a skipped
+row is a flag no reviewer sees. Its docstring stopped at "then most recent" and
+read as if that were the whole rule.
+
+Nothing calls it, so it was never a live defect — the queue is paged by the
+server and the console renders what it is told. What it was is the second place
+in one sweep where the unconsumed half of the protocol had drifted from the
+half that runs, on a rule this file writes about at length. Two is enough to
+stop calling it a slip: it is what "unconsumed and uncompared" costs.
+
+It has the third key now, and a case for a same-second tie that passes the list
+in both orders — because `Array.prototype.sort` is stable, so without a
+tiebreaker the answer was the caller's input order, which is not a settled order
+across two requests. Red without it, checked. Ids are ULIDs, which sort
+lexicographically in creation order, so descending by string is the database's
+`id DESC`.
+
 Both sides count characters now — `firstCharacters()` in
 `packages/protocol/src/utterance.ts`, which `recordable()` also uses, against
 `mb_substr` — and the fixture has the astral cases. Note what catching it looks

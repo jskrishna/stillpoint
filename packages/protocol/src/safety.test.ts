@@ -102,6 +102,34 @@ describe('the flag queue', () => {
     expect(byUrgency(list).map((f) => f.id)).toEqual(['newer', 'older']);
   });
 
+  /*
+   * The third key, which this had no case for and the function had no code
+   * for. `SafetyFlag::scopeByUrgency()` ends in `id DESC` because the queue is
+   * cursor-paged and a tie with no tiebreaker makes a page repeat a row or
+   * skip one — and on this list a skipped row is a flag no reviewer sees.
+   *
+   * Two flags raised in the same second is the case: `Array.prototype.sort` is
+   * stable, so without the tiebreaker these came back in whatever order the
+   * caller happened to pass them, which is not a settled order across two
+   * requests.
+   *
+   * Ids are ULIDs here, which sort lexicographically in creation order, so
+   * descending by id is the newest of the two first — the same answer the
+   * database gives.
+   */
+  it('breaks a same-second tie by id, as the query does', () => {
+    const same = at('2026-10-02T08:00:00Z');
+    const list = [
+      flag({ id: '01m45a', level: 'high', raisedAt: same }),
+      flag({ id: '01m45c', level: 'high', raisedAt: same }),
+      flag({ id: '01m45b', level: 'high', raisedAt: same }),
+    ];
+    expect(byUrgency(list).map((f) => f.id)).toEqual(['01m45c', '01m45b', '01m45a']);
+    // And passed the other way round it is the same order, which is the whole
+    // point: stable-sort order is the caller's, not the rule's.
+    expect(byUrgency([...list].reverse()).map((f) => f.id)).toEqual(['01m45c', '01m45b', '01m45a']);
+  });
+
   it('does not reorder the caller’s list', () => {
     const list = [flag({ id: 'low', level: 'low' }), flag({ id: 'high', level: 'high' })];
     byUrgency(list);
