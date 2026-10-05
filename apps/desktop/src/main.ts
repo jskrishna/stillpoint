@@ -11,7 +11,7 @@ import {
 } from 'electron';
 import { PortTakenError, haveBundledWeb, startWeb, type RunningServer } from './server.js';
 import { DEFAULT_STATE, MINIMUM, readState, writeState } from './window-state.js';
-import { mayOpenExternally, sameOrigin } from './navigation.js';
+import { APP_PATHS, mayOpenExternally, sameOrigin } from './navigation.js';
 
 /**
  * Stillpoint on the desktop.
@@ -35,15 +35,6 @@ import { mayOpenExternally, sameOrigin } from './navigation.js';
 const DEV_URL = process.env['STILLPOINT_DEV_URL'];
 
 const ACCELERATOR = 'CommandOrControl+Shift+S';
-
-/**
- * Where the window opens.
- *
- * The app, not the marketing site. Somebody who has installed this has already
- * been sold to, and `/app` sends them to sign in by itself if they are not
- * signed in — so this is the right answer in both cases.
- */
-const START_PATH = '/app';
 
 let window: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -70,7 +61,7 @@ function show(): void {
  */
 function startSession(): void {
   show();
-  void window?.loadURL(`${origin}/session`);
+  void window?.loadURL(`${origin}${APP_PATHS.session}`);
 }
 
 function createWindow(): BrowserWindow {
@@ -155,14 +146,14 @@ function buildMenu(): void {
             label: 'Journal',
             click: () => {
               show();
-              void window?.loadURL(`${origin}/app/journal`);
+              void window?.loadURL(`${origin}${APP_PATHS.journal}`);
             },
           },
           {
             label: 'Settings',
             click: () => {
               show();
-              void window?.loadURL(`${origin}/app/settings`);
+              void window?.loadURL(`${origin}${APP_PATHS.settings}`);
             },
           },
           { type: 'separator' as const },
@@ -204,7 +195,7 @@ function buildMenu(): void {
             label: 'If you need someone now',
             click: () => {
               show();
-              void window?.loadURL(`${origin}/app/settings`);
+              void window?.loadURL(`${origin}${APP_PATHS.settings}`);
             },
           },
         ],
@@ -289,7 +280,7 @@ async function boot(): Promise<void> {
 
   buildMenu();
   window = createWindow();
-  await window.loadURL(`${origin}${START_PATH}`);
+  await window.loadURL(`${origin}${APP_PATHS.start}`);
   buildTray();
 
   // Registering can fail when another app already holds the combination.

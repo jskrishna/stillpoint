@@ -2,7 +2,8 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { ACCOUNTS, PASSWORD } from './browser.mjs';
 import { reporter } from './report.mjs';
 
 const require = createRequire(import.meta.url);
@@ -68,6 +69,15 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 /** The API, which section 3 needs as a host that actually resolves. */
 const API = process.env.API_URL ?? 'http://localhost:8000/api';
+
+/**
+ * The paths the app's own menu navigates to, from the app's own built module.
+ *
+ * Imported rather than listed here, because a second copy of them in this
+ * file is the duplication `APP_PATHS` was extracted to end. `dist/` exists
+ * whenever this script can run at all: `electron .` runs `dist/main.js`.
+ */
+const { APP_PATHS } = await import(pathToFileURL(join(DESKTOP, 'dist', 'navigation.js')).href);
 
 const { ok, bad, finish, watchForThrows } = reporter('the desktop shell');
 watchForThrows();
@@ -337,5 +347,91 @@ for (const [header, want] of [
   if (served[header] === want) ok(`${header}: ${want}`);
   else bad(`${header}: ${want}`, served[header] ?? '(absent)');
 }
+
+// ---------------------------------------------------------------------------
+console.log('\n7. Signed in, and the screens the menu promises');
+
+/*
+ * Nothing here had ever signed in, which hid two things behind one gap.
+ *
+ * The first is whether a person can use this app at all. The window is its
+ * own origin — `http://127.0.0.1:8735`, fixed for exactly that reason — so
+ * every call it makes to the API is cross-origin, and the API answers a list
+ * and never `*`. `CORS_ALLOWED_ORIGINS` carries this port, and if it ever
+ * stopped carrying it **nobody could sign in to the desktop app** and every
+ * check above would still be green: they assert the window, the pin, the
+ * headers and the port, and none of them needs the API to answer.
+ *
+ * The second is the Help menu's own promise. Its one item is labelled "If you
+ * need someone now" and loads `/app/settings`, and that screen had no crisis
+ * number on it at all until recently — the label was written against the
+ * phone's settings screen. `apps/web` renders the numbers there now, and
+ * `e2e/flow.mjs` asserts them — but against `next start` and `.next`. This
+ * window is served by a **different build** from a different directory, which
+ * is the same reason section 6 re-checks the headers here.
+ */
+await win.goto(`${ORIGIN}/welcome`, { waitUntil: 'domcontentloaded' });
+await win.waitForTimeout(2500);
+
+await win.locator('input[type="email"]').fill(ACCOUNTS.user);
+await win.locator('input[type="password"]').fill(PASSWORD);
+await win.getByRole('button', { name: /Sign in/i }).click();
+await win.waitForTimeout(4000);
+
+// Asserted on the token rather than on the URL: signing in carries on through
+// the welcome flow, so which screen it lands on is not the question. A token
+// in `localStorage` is the API having answered this origin.
+const signedIn = await win.evaluate(() => window.localStorage.getItem('stillpoint.token.v1'));
+if (typeof signedIn === 'string' && signedIn !== '')
+  ok('somebody can sign in from this origin, so the API allows it');
+else bad('somebody can sign in from this origin', `token is ${JSON.stringify(signedIn)}`);
+
+/*
+ * Every path the menu can reach, loaded in the real window.
+ *
+ * `navigation.test.ts` asserts each one has a `page.tsx`; this asserts the
+ * built server serves it. A renamed route would be Next's not-found page
+ * **inside** this frame, which the navigation pin allows because the origin is
+ * the same — so "the window did not leave" is not the check here, the content
+ * is.
+ */
+for (const [name, path] of Object.entries(APP_PATHS)) {
+  await win.goto(`${ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
+  await win.waitForTimeout(2500);
+  const shown = await win.locator('body').innerText();
+
+  if (/404|This page could not be found|could not be found/i.test(shown))
+    bad(`the menu's ${name} path is a real screen (${path})`, shown.slice(0, 120));
+  else if (shown.trim() === '')
+    bad(`the menu's ${name} path is a real screen (${path})`, 'the page rendered nothing');
+  else ok(`the menu's ${name} path is a real screen (${path})`);
+}
+
+// And the Help item's whole reason, on the screen it loads. Counted on the
+// `tel:` links rather than on the words, because a number that is not a link
+// is not something the system can dial — and `tel:` is in `mayOpenExternally`
+// precisely so this works.
+await win.goto(`${ORIGIN}${APP_PATHS.settings}`, { waitUntil: 'domcontentloaded' });
+await win.waitForTimeout(3500);
+const settings = await win.locator('body').innerText();
+
+if (/IF YOU NEED SOMEONE NOW/i.test(settings))
+  ok('the Help item’s screen carries the crisis section it is labelled for');
+else bad('the Help item’s screen carries the crisis section', settings.slice(-400));
+
+const dialable = await win.locator('a[href^="tel:"]').count();
+if (dialable >= 3) ok(`and each number is dialable (${String(dialable)} tel: links)`);
+else bad('and each number is dialable', `${String(dialable)} tel: links`);
+
+// This account is Canadian — `users.country` defaults to `CA` — so these are
+// the numbers, and another market's must not be here. The same pair
+// `flow.mjs` asserts on the web, because the one thing worse than no number
+// is a number that does not answer where somebody is.
+if (/9-?8-?8/.test(settings) && /911/.test(settings))
+  ok('and they are this account’s own — 988 and 911');
+else bad('and they are this account’s own', settings.slice(-400));
+
+if (!/14416|Tele-MANAS|\b112\b/.test(settings)) ok('and not another market’s');
+else bad('and not another market’s', settings.slice(-400));
 
 await finish(() => stop(app));

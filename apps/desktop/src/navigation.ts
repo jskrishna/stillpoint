@@ -45,6 +45,42 @@
 const OPENABLE: ReadonlySet<string> = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 
 /**
+ * Every path this app navigates its own window to.
+ *
+ * They were written out at five call sites in `main.ts` — the start path, the
+ * global shortcut, two menu items and the Help item — so this shell held its
+ * own copy of another app's route names, with nothing comparing the two.
+ * `apps/desktop` does not depend on `apps/web` at all: it is a window around
+ * a built server, so a renamed route is a menu item that loads Next's
+ * not-found page **inside the window signed in to somebody's journal**, and
+ * the navigation pin allows it because it is the same origin.
+ *
+ * The Help item is why this is a list rather than a comment. Its label — "If
+ * you need someone now" — was written against the phone's settings screen and
+ * pointed at the web's, which had no crisis number on it at all. That is the
+ * same class as a rename: a target that resolves and is the wrong screen.
+ * `navigation.test.ts` asserts each of these is a real route of `apps/web`,
+ * and `e2e/desktop.mjs` loads every one of them in the real window.
+ */
+export const APP_PATHS = {
+  /**
+   * Where the window opens. The app, not the marketing site: somebody who has
+   * installed this has already been sold to, and `/app` sends them to sign in
+   * by itself when they are not.
+   */
+  start: '/app',
+  /** The global shortcut, straight into a session. */
+  session: '/session',
+  journal: '/app/journal',
+  /**
+   * Two menu items share this one: Session → Settings, and Help → "If you
+   * need someone now", which is there for the crisis numbers that screen
+   * renders.
+   */
+  settings: '/app/settings',
+} as const;
+
+/**
  * Is this URL the app's own origin?
  *
  * Compared as origins, by the URL parser, rather than as strings. Anything

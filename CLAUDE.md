@@ -1523,6 +1523,50 @@ Five things only a running app shows, and the third is the one that matters:
 - **`localStorage` survives a relaunch**, which is the whole reason the port is
   fixed rather than whatever the operating system offers.
 
+**And nothing had ever signed in, which hid the one failure that makes this
+app unusable.** Every assertion above holds with the API refusing this origin
+outright: they check the window, the pin, the schemes, the port and the
+headers, and not one of them needs the API to answer. The window _is_ its own
+origin — `http://127.0.0.1:8735`, fixed for exactly that reason — so every
+call it makes is cross-origin and `CORS_ALLOWED_ORIGINS` is a list that never
+says `*`.
+
+Measured by taking `:8735` out of that list and re-running: the token comes
+back **null**, nobody can sign in at all, and `/app/settings` reads "Could not
+reach Stillpoint. Check your connection and try again." — the connection
+sentence, about a configuration line, on the screen the Help menu sends
+somebody to when they are upset. Every other desktop assertion stayed green.
+So section 7 signs in through the app's own screens and asserts the token,
+which is the API having answered this origin.
+
+It also loads **every path the menu can reach**, in the real window. Those
+were written out at five call sites in `main.ts` — the start path, the global
+shortcut, two menu items and the Help item — so the shell held its own copy of
+`apps/web`'s route names with nothing comparing them, and `apps/desktop` does
+not depend on `apps/web` at all. A renamed route is a menu item that loads
+Next's not-found page **inside** the window signed in to somebody's journal,
+which the navigation pin allows because the origin is the same: "the window
+did not leave" is not the check, the content is. `APP_PATHS` in
+`navigation.ts` is the one list now, `navigation.test.ts` asserts each entry
+has a `page.tsx` under `apps/web/src/app` (checked by renaming one: red,
+naming the path), and `desktop.mjs` imports that same list from the app's own
+`dist/` rather than keeping a second copy.
+
+The Help item is why it is a list rather than a comment. Its label — "If you
+need someone now" — was written against the phone's settings screen and
+pointed at the web's, which had no crisis number on it at all: a target that
+resolves and is the wrong screen, which is the same class as a rename. So the
+last three assertions are that item's whole promise, in the build only the
+desktop serves: the section is there, there are three `tel:` links, and they
+are 9-8-8 and 911 rather than another market's. `flow.mjs` asserts those on
+the web — against `next start` and `.next`, a different build from a different
+directory, which is the same reason section 6 re-checks the headers here.
+
+The two halves are independent, which is what makes them worth having
+separately: reverting the web screen's helpline block turns the crisis
+assertions red with sign-in still green, and dropping the origin from CORS
+turns sign-in red first. Both were checked.
+
 It needs a display, so `run.mjs` wraps it in `xvfb-run` and CI does the same.
 
 **The first version of it hung in CI for the job's whole 25-minute limit**, and

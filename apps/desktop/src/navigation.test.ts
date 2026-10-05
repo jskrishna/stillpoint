@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { mayOpenExternally, sameOrigin } from './navigation.js';
+import { APP_PATHS, mayOpenExternally, sameOrigin } from './navigation.js';
 
 /** What the shell actually runs on. `server.ts` explains why it is fixed. */
 const ORIGIN = 'http://127.0.0.1:8735';
@@ -86,5 +88,49 @@ describe('what may be handed to the system', () => {
     expect(mayOpenExternally('data:text/html,<script>alert(1)</script>')).toBe(false);
     expect(mayOpenExternally('not a url')).toBe(false);
     expect(mayOpenExternally('')).toBe(false);
+  });
+});
+
+/**
+ * The paths this shell navigates its own window to are `apps/web`'s routes.
+ *
+ * Nothing compared the two. `apps/desktop` does not depend on `apps/web` — it
+ * is a window around a built server — so a renamed route is a menu item that
+ * loads Next's not-found page inside the window signed in to somebody's
+ * journal, and the navigation pin allows it because the origin is the same.
+ *
+ * Checked against the `page.tsx` files rather than against a list, for the
+ * reason every hand-written list in this repository has gone stale.
+ */
+describe('the paths the menu navigates to', () => {
+  const web = (path: string) =>
+    fileURLToPath(new URL(`../../web/src/app${path}/page.tsx`, import.meta.url));
+
+  it('are routes apps/web actually has', () => {
+    const missing = Object.entries(APP_PATHS).filter(([, path]) => !existsSync(web(path)));
+
+    expect(
+      missing.map(([name, path]) => `${name}: ${path}`),
+      'no page.tsx for',
+    ).toEqual([]);
+  });
+
+  it('and there are paths to check, so this cannot pass by being empty', () => {
+    // A source-reading check whose input is empty stops checking in silence.
+    // Four today: the start path, the shortcut's session, and the two the
+    // Session and Help menus share.
+    expect(Object.keys(APP_PATHS).length).toBeGreaterThanOrEqual(4);
+    // And the resolver has to be able to say no, or the case above is vacuous.
+    expect(existsSync(web('/app/there-is-no-such-screen'))).toBe(false);
+  });
+
+  it('are app paths, not absolute URLs', () => {
+    // They are concatenated onto the origin, so a full URL here would make
+    // `${origin}${path}` a string that does not parse — and the pin refuses
+    // anything that does not parse, so the window would silently not move.
+    for (const [name, path] of Object.entries(APP_PATHS)) {
+      expect(path.startsWith('/'), name).toBe(true);
+      expect(sameOrigin(`${ORIGIN}${path}`, ORIGIN), name).toBe(true);
+    }
   });
 });
