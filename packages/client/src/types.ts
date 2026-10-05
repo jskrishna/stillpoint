@@ -350,4 +350,15 @@ export interface ApiInsights {
   readonly reachedFinalStep: number;
   readonly feelings: readonly { id: string; label: string; count: number }[];
   readonly recurringBelief: { belief: string; sessions: number } | null;
+  /**
+   * Whether these numbers are of everything in the window.
+   *
+   * The server bounds how many journal entries it will read, because the
+   * window bounds days rather than sessions and the rows are decrypted one
+   * at a time — `InsightsService::MAX_ROWS` carries the measurement. No
+   * account anybody is using reaches it; a screen still has to be able to
+   * say so rather than showing a number of a subset as a number of
+   * everything.
+   */
+  readonly partial: boolean;
 }

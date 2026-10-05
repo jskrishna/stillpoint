@@ -215,10 +215,15 @@ final readonly class CoachService
      * `parity/cases.json` pins against the TypeScript port, which takes plain
      * strings.
      *
-     * **And it is still unbounded**: a client's whole journal, no window and
-     * no page, because the sharing rule needs all of it. Measured at 2,000
-     * entries — 470 ms and 84 MB — of which 200 were shared. Paging a coach's
-     * view is a design decision, not a refactor.
+     * **And it is still unbounded**, which since `InsightsService` was given a
+     * ceiling makes it the only read here that is. The reason is better than
+     * that one's was: the sharing rule needs the whole journal, so there is no
+     * window to bound and no page to take. Measured at 2,000 entries — 470 ms
+     * and 84 MB — of which 200 were shared. It also grows differently: the
+     * insights ceiling bounds what one account can do to its own screen, where
+     * this grows with how much a client has written and shared, over all time
+     * rather than thirty days. Paging a coach's view is a design decision, not
+     * a refactor.
      *
      * @return list<array<string, mixed>>
      */

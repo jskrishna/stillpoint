@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FEELING_SWATCHES, RADIUS, SPACE, TEXT } from '@stillpoint/design-tokens';
-import { DEFAULT_WINDOW_DAYS } from '@stillpoint/protocol';
+import { DEFAULT_WINDOW_DAYS, LOCALE } from '@stillpoint/protocol';
 import { ApiError, api, type ApiInsights } from '../../api';
 import { FAMILY } from '../../theme';
 import { Card } from '../../ui';
@@ -84,7 +84,26 @@ export default function Insights() {
   return (
     <ScrollView style={s.screen} contentContainerStyle={pad}>
       <Text style={s.title}>Noticing</Text>
-      <Text style={s.caption}>Last {result.windowDays} days</Text>
+      {/*
+       * The window, and whether the numbers are of all of it.
+       *
+       * `partial` is true only when the account holds more journal entries inside
+       * the window than the server will read — `InsightsService::MAX_ROWS`, 5,000,
+       * which is about sixteen times a heavy user's month and so a sentence nobody
+       * using the product sees. It exists because the alternative to saying so is
+       * presenting a number of a subset as a number of everything, which is this
+       * repository's rule about a screen reporting what it does not know, and
+       * because an unbounded read died at roughly 44,000 entries.
+       *
+       * The count comes from `sessions`, which *is* the ceiling when the read was
+       * truncated, so no second number crosses the wire and no surface writes
+       * 5,000 down.
+       */}
+      <Text style={s.caption}>
+        {result.partial
+          ? `Last ${String(result.windowDays)} days, counted from your most recent ${result.sessions.toLocaleString(LOCALE)} sessions.`
+          : `Last ${String(result.windowDays)} days`}
+      </Text>
 
       <View style={{ flexDirection: 'row', gap: SPACE.md }}>
         <Stat value={result.sessions} label="sessions" />

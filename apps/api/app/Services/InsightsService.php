@@ -47,6 +47,7 @@ final class InsightsService
      * column here; the test that pins this list is what says so.
      */
     private const COLUMNS = [
+        'id',
         'feelings',
         'belief',
         'calmer_rating',
@@ -54,15 +55,74 @@ final class InsightsService
         'occurred_at',
     ];
 
-    public function forUser(User $user, int $windowDays = Insights::DEFAULT_WINDOW_DAYS, ?Carbon $now = null): Insights
-    {
-        $now ??= Carbon::now();
+    /**
+     * The most entries this will read, and where the number comes from.
+     *
+     * Naming the columns moved the ceiling about five times and did not make
+     * this bounded — the window bounds days, not sessions, and a quick session
+     * is always allowed. Measured on a seeded account, peak process memory
+     * against `deploy/php.ini`'s `memory_limit=256M`, which is ~24 MB of
+     * bootstrap before this runs:
+     *
+     *   2,000 rows → 34 MB      10,000 rows → 76 MB
+     *   5,000 rows → 50 MB      20,000 rows → 130 MB
+     *   45,000 rows → 262 MB, which does not fit: the request dies inside
+     *   `Illuminate\Collections\Collection`, fetching, before anything is
+     *   reduced. About 5.3 MB per thousand entries, so the limit is reached at
+     *   roughly **44,000 entries inside the window**.
+     *
+     * So the failure was never going to reach a person: 44,000 entries in
+     * thirty days is about 1,450 sessions a day. It is a number a script
+     * reaches, and the cost falls on that one account's own screen, because
+     * the read is per-user. That is why this is a ceiling rather than paging
+     * or plaintext counters — the second would trade the encryption for a
+     * query, which this file's own rule refuses.
+     *
+     * 5,000 is picked so that the ceiling is real and the caveat is
+     * unreachable. A heavy user at ten sessions a day for thirty days has 300
+     * entries, so there is about sixteen times that in headroom, and the peak
+     * stays near 50 MB. Nobody who is actually using the product sees a
+     * partial number; what changes is that the server's work per request is
+     * now bounded rather than merely improbable.
+     */
+    public const MAX_ROWS = 5_000;
 
+    /**
+     * `$maxRows` is a test seam, for the reason `$now` is one: the branch
+     * where the window is truncated needs five thousand and one journal rows
+     * to reach otherwise, and a test that seeds those is a test nobody runs.
+     * Nothing in the application passes it.
+     */
+    public function forUser(
+        User $user,
+        int $windowDays = Insights::DEFAULT_WINDOW_DAYS,
+        ?Carbon $now = null,
+        ?int $maxRows = null,
+    ): InsightsRead {
+        $now ??= Carbon::now();
+        $maxRows ??= self::MAX_ROWS;
+
+        // One row more than the ceiling, so truncation is visible without a
+        // second `count()` over the same window.
+        //
+        // Newest first, because the entries worth keeping when there are too
+        // many are the recent ones — and `id` after `occurred_at`, for the
+        // reason every paged ordering here ends in `id`: `occurred_at` is not
+        // unique, and a tie with no tiebreaker makes which rows survive the
+        // cut depend on the storage engine.
         $rows = JournalEntry::query()
             ->select(self::COLUMNS)
             ->where('user_id', $user->id)
             ->whereBetween('occurred_at', [$now->copy()->subDays($windowDays), $now])
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->limit($maxRows + 1)
             ->get();
+
+        $partial = $rows->count() > $maxRows;
+        if ($partial) {
+            $rows = $rows->take($maxRows);
+        }
 
         $entries = $rows->map(fn (JournalEntry $e) => [
             'feelings' => $e->feelingIds(),
@@ -76,6 +136,6 @@ final class InsightsService
         // itself now, so a caller that forgot to scope cannot produce a
         // window that lies. This one scopes anyway, because that is what keeps
         // the set small enough to reduce in PHP.
-        return Insights::from(array_values($entries), $now, $windowDays);
+        return new InsightsRead(Insights::from(array_values($entries), $now, $windowDays), $partial);
     }
 }

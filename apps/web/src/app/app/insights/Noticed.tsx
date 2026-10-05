@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { DEFAULT_WINDOW_DAYS } from '@stillpoint/protocol';
+import { DEFAULT_WINDOW_DAYS, LOCALE } from '@stillpoint/protocol';
 import { FEELING_SWATCHES } from '@stillpoint/design-tokens';
 import { ApiError, api, type ApiInsights } from '../../../lib/api';
 import { describeLoad } from '../../../lib/describe';
@@ -66,7 +66,26 @@ export default function Noticed() {
   return (
     <>
       <h1 className={styles.title}>Insights</h1>
-      <p className={styles.subtitle}>Last {result.windowDays} days</p>
+      {/*
+       * The window, and whether the numbers are of all of it.
+       *
+       * `partial` is true only when the account holds more journal entries inside
+       * the window than the server will read — `InsightsService::MAX_ROWS`, 5,000,
+       * which is about sixteen times a heavy user's month and so a sentence nobody
+       * using the product sees. It exists because the alternative to saying so is
+       * presenting a number of a subset as a number of everything, which is this
+       * repository's rule about a screen reporting what it does not know, and
+       * because an unbounded read died at roughly 44,000 entries.
+       *
+       * The count comes from `sessions`, which *is* the ceiling when the read was
+       * truncated, so no second number crosses the wire and no surface writes
+       * 5,000 down.
+       */}
+      <p className={styles.subtitle}>
+        {result.partial
+          ? `Last ${String(result.windowDays)} days, counted from your most recent ${result.sessions.toLocaleString(LOCALE)} sessions.`
+          : `Last ${String(result.windowDays)} days`}
+      </p>
 
       <div className={styles.stats}>
         <Stat value={result.sessions} label="sessions" />

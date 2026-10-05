@@ -2313,15 +2313,68 @@ cast is lazy so they were never decrypted, which is exactly the difference
 `CoachAttention` selects two timestamp columns rather than the row, and this
 read was the habit.
 
-**It is still not bounded, and naming the columns did not make it so** — it
-moved the ceiling about five times. A real bound is a decision rather than a
-refactor: cap the rows and say on the screen that the number is partial, or
-keep plaintext aggregate counters, which is trading the encryption for a
-query. `InsightsReadsOnlyWhatItNeedsTest` asserts the columns on the SQL —
-there is nothing in the response to see it by, since the version that fetched
-everything printed identical numbers — and asserts the numbers beside them,
-because a `select` that dropped a column the reduction reads would make this
-screen quietly wrong rather than fail.
+**It is bounded now, and the number is what decided how.** That paragraph
+ended "it is still not bounded, and naming the columns did not make it so",
+with two candidate fixes and no measurement of how much headroom was left. So
+it was measured to the failure rather than extrapolated, peak process memory
+against `deploy/php.ini`'s own 256M (about 24 MB of which is bootstrap):
+
+| rows   | peak   |                                                       |
+| ------ | ------ | ----------------------------------------------------- |
+| 2,000  | 34 MB  |                                                       |
+| 5,000  | 50 MB  |                                                       |
+| 10,000 | 76 MB  |                                                       |
+| 20,000 | 130 MB |                                                       |
+| 45,000 | 262 MB | **does not fit** — dies inside `Collection`, fetching |
+
+About 5.3 MB a thousand entries, so the limit is reached at roughly **44,000
+entries inside the window** — and that changes what the fix should be. 44,000
+entries in thirty days is about 1,450 sessions a day: not a number a person
+reaches, a number a script reaches, and the read is per-user so the cost falls
+on that one account's own screen. Which rules out the second candidate
+immediately: plaintext aggregate counters would trade the encryption for a
+query to defend against something nobody using the product can do.
+
+So it is the first one. `InsightsService::MAX_ROWS` is **5,000**, newest first,
+applied as a `limit` on the query rather than a slice after everything arrives
+— with `id` after `occurred_at` for the reason every paged ordering here ends
+in `id`. One row more than the ceiling is fetched, so truncation is visible
+without a second `count()`. The account that used to 500 now answers in 677 ms
+at 50 MB.
+
+5,000 is picked so the ceiling is real and the caveat is unreachable: a heavy
+user at ten sessions a day for thirty days has 300 entries, so there is about
+sixteen times that in headroom. **Nobody actually using the product sees a
+partial number**; what changed is that the server's work per request is bounded
+rather than merely improbable.
+
+The screen says so when it happens, because the alternative is presenting a
+number of a subset as a number of everything — the rule one section down about
+a screen reporting what it does not know. `partial` rides on the insights
+response and both screens read it, and the count in the sentence comes from
+`sessions`, which **is** the ceiling when the read was truncated, so no second
+number crosses the wire and neither surface writes 5,000 down. Measured in a
+browser at both branches: "Last 30 days, counted from your most recent 5,000
+sessions." against 45,000 entries, and "Last 30 days" on an ordinary account.
+
+`partial` is deliberately **not** on `App\Domain\Insights`: it is a fact about
+the read rather than about the journal, and `packages/protocol/src/insights.ts`
+summarises whatever it is handed. Putting a storage decision inside the domain
+would give the two ports different shapes for one rule, which is the asymmetry
+`Insights::from()` taking `$now` was added to remove. `App\Services\InsightsRead`
+carries the pair.
+
+`InsightsReadsOnlyWhatItNeedsTest` asserts the columns on the SQL — there is
+nothing in the response to see it by, since the version that fetched everything
+printed identical numbers — and asserts the numbers beside them, because a
+`select` that dropped a column the reduction reads would make this screen
+quietly wrong rather than fail. It now also asserts the `limit` and the
+ordering on the SQL, for the same reason: a version that fetched every row and
+sliced in PHP would print identical numbers and have exactly the memory profile
+the ceiling exists to prevent. The truncation branch itself is reached through
+a `$maxRows` seam, which is a test seam for the reason `$now` is one — five
+thousand and one journal rows is a test nobody runs — and what the seam cannot
+prove is the number, which is what the table above is for.
 
 A user can erase their own account, and it has to actually take everything:
 `AccountDeletionService`. Most of the removal is the schema's — sessions,
@@ -3000,9 +3053,15 @@ quietly remove the reason the rule lives in one place. Making it lazy instead
 means changing a contract `parity/cases.json` pins against the TypeScript port,
 which takes plain strings.
 
-**It is still unbounded**, like insights and for a better reason: the sharing
-rule needs the whole journal, so there is no window and no page. Paging a
-coach's view is a design decision, not a refactor.
+**It is still unbounded**, and it is now the only read that is. Insights has a
+ceiling; this has a better reason not to — the sharing rule needs the whole
+journal, so there is no window to bound and no page to take. Which also makes
+its exposure different in kind: insights was reached by one account's own
+scripting, where a coach's view grows with how much a _client_ has written and
+shared, over all time rather than thirty days. Paging it is a design decision
+rather than a refactor, and it is written down at the method rather than in
+`DECISIONS.md` — grepped, that page has no entry for it, which is worth
+knowing before describing it as tracked.
 
 Both `openDraft()` and `publishDraft()` lock `protocol_versions` in id order
 inside their transaction — the same lock in the same order, so they cannot
