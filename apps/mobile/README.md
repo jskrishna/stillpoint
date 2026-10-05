@@ -65,6 +65,47 @@ Be plain about the cost: `--lan` puts three development servers and a demo
 database on the local network. That is why it is a flag rather than the
 default, and the banner says so where somebody will read it.
 
+## Building an APK
+
+It has never been done, so treat the first one as a test build. What is here
+is the setup: `eas.json`, and `app.config.js`, which refuses a build that
+could not work.
+
+```bash
+# once
+npx eas-cli@latest login
+cd apps/mobile && npx eas-cli@latest init     # links this app to your Expo account
+
+# each time: put the API's address in eas.json, under build.preview.env, then
+npx eas-cli@latest build -p android --profile preview
+```
+
+That builds on Expo's servers and answers with a link to an `.apk` you can
+install directly. `production` builds an `.aab` for the Play Store instead,
+which needs a Google Play account and a signing key EAS can hold for you.
+
+Three things decide whether the app that comes out can do anything:
+
+- **The address is built in.** `EXPO_PUBLIC_API_URL` is inlined into the
+  bundle, and its default is `localhost`, which on a phone is the phone. So
+  `eas.json` carries it per profile, empty until you fill it in, and
+  `app.config.js` stops the build while it is empty, is `localhost`, or does
+  not end in `/api`. A variable typed in front of `eas build` does not reach
+  the machine that builds; `eas.json` does.
+- **`http://` only works in a preview build.** Android refuses plain HTTP in a
+  release build unless the manifest allows it. A preview build pointed at an
+  `http://` address gets that allowance, because a laptop on the same network
+  is the only API there is to test against today. A production build pointed
+  at one is refused: every request carries a bearer token.
+- **The server has to be reachable from the phone.** For a laptop that is
+  `pnpm run demo --lan`, which binds every server to the network and prints
+  the address to use. The API's `CORS_ALLOWED_ORIGINS` does not matter to the
+  installed app, which sends no `Origin`.
+
+The workspace packages are built on the build machine by the
+`eas-build-post-install` script, since this app resolves `@stillpoint/*` to
+their built output.
+
 ## What is verified, and what is not
 
 `pnpm run typecheck` and `expo export --platform web` both run in CI's image

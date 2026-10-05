@@ -2,7 +2,7 @@
   "name": "@stillpoint/mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Stillpoint for iOS and Android \u2014 Expo, consuming the shared protocol, tokens and client",
+  "description": "Stillpoint for iOS and Android — Expo, consuming the shared protocol, tokens and client",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -11,7 +11,8 @@
     "web": "expo start --web",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "expo export --platform web --output-dir dist --clear",
-    "clean": "rm -rf dist .expo"
+    "clean": "rm -rf dist .expo",
+    "eas-build-post-install": "cd ../.. && pnpm run build:packages"
   },
   "dependencies": {
     "@expo-google-fonts/hanken-grotesk": "^0.4.3",
@@ -20,6 +21,7 @@
     "@stillpoint/design-tokens": "workspace:*",
     "@stillpoint/protocol": "workspace:*",
     "expo": "~57.0.26",
+    "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.20",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
