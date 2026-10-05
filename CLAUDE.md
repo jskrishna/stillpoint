@@ -2640,6 +2640,28 @@ a check with a gap after it — the same sentence as
 Not a lock, because there is nothing to serialise: the row is either there or
 it is not, and either answer is the one the caller asked for.
 
+**Opening one needed the lock, though, and for the opposite reason.** "One
+open invite per address" was read-then-insert too, so two requests together
+both found none and both opened one — two pending invitations for one address,
+each with its own token, which is exactly what that rule exists to prevent.
+Here there is no unique index to lean on and there cannot be: the table keeps
+withdrawn, expired and accepted invites for the record, so inviting the same
+address again later is legitimate, and "one _pending_ per address" is a partial
+index, which MySQL 8 does not have. So it reads under `lockForUpdate()` inside
+a transaction, which gap-locks the range the other insert would land in — the
+`(coach_id, status)` and `(email, status)` indexes are what give it a gap.
+
+**And that lock cannot be asserted from this suite**, which took two wrong
+tests to establish. Looking for `for update` in the executed SQL goes red
+against the fix, because sqlite's grammar omits it entirely — `lockForUpdate()`
+is a no-op there, which is `ConcurrentTurnTest`'s problem one layer out. So it
+reads the source, the way `PageSizesAreBoundedTest` does. And **the first
+source-reading version passed with the lock removed**, because the docblock
+above the call explains what `lockForUpdate()` is for, so the check matched the
+prose about the mechanism rather than the mechanism. It strips comments first
+now. Both of those were caught by reverting the fix to watch the check go red,
+which is the only thing that catches them.
+
 Three things about verifying it. The existing "accepting twice is one pairing"
 test does **not** reach the insert — the second accept is refused with a 409 by
 `isUsable()`, so it stops well short — which is why a new case was needed. That

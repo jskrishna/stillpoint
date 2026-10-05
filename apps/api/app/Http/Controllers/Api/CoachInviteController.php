@@ -68,19 +68,46 @@ final class CoachInviteController extends Controller
             );
         }
 
-        // One open invite per address: a second would be the same invitation
-        // with a different token, and two links for one decision is confusing.
-        $open = CoachInvite::query()
-            ->where('coach_id', $coach->id)
-            ->where('email', $email)
-            ->usable()
-            ->first();
+        /*
+         * One open invite per address: a second would be the same invitation
+         * with a different token, and two links for one decision is confusing.
+         *
+         * Read **and** written under one lock, because it was read-then-insert
+         * and the rule was therefore a check with a gap after it: two requests
+         * together both found no open invite and both opened one, leaving two
+         * pending invitations for one address. There is no unique index to
+         * lean on here and there cannot be — the table keeps withdrawn,
+         * expired and accepted invites for the record, so inviting the same
+         * address again later is legitimate, and "one *pending* per address"
+         * is a partial index, which MySQL 8 does not have.
+         *
+         * `lockForUpdate()` over a range that matches nothing still works on
+         * MySQL: the `(coach_id, status)` and `(email, status)` indexes give
+         * it a gap to lock, which is what blocks the other insert. On sqlite
+         * it does nothing, as everywhere else in this application — see
+         * `ConcurrentTurnTest` for how that is reasoned about rather than
+         * papered over.
+         *
+         * The shipped screen cannot produce the race: the form returns early
+         * on `busy`, measured. Two tabs or a second client can, and this is
+         * the same shape `openDraft()` carries a lock for.
+         */
+        [$invite, $opened] = DB::transaction(function () use ($coach, $email): array {
+            $open = CoachInvite::query()
+                ->where('coach_id', $coach->id)
+                ->where('email', $email)
+                ->usable()
+                ->lockForUpdate()
+                ->first();
 
-        $invite = $open ?? CoachInvite::open($coach, $email);
+            return $open === null
+                ? [CoachInvite::open($coach, $email), true]
+                : [$open, false];
+        });
 
         return response()->json(
             self::forCoach($invite),
-            $open === null ? Response::HTTP_CREATED : Response::HTTP_OK,
+            $opened ? Response::HTTP_CREATED : Response::HTTP_OK,
         );
     }
 

@@ -204,6 +204,76 @@ final class CoachInviteApiTest extends TestCase
         $this->assertSame(1, $coach->clients()->count());
     }
 
+    /**
+     * And opening one holds a lock while it decides.
+     *
+     * "One open invite per address" was read-then-insert, so two requests
+     * together both found none and both opened one — two pending invitations
+     * for one address, each with its own token, which is exactly what the rule
+     * exists to prevent. There is no unique index to lean on and there cannot
+     * be: the table keeps withdrawn, expired and accepted invites, so inviting
+     * the same address again later is legitimate, and "one *pending* per
+     * address" is a partial index, which MySQL 8 does not have.
+     *
+     * So it is a lock — and this suite cannot see one. The first version of
+     * this test looked for `for update` in the executed SQL and went red
+     * against the fix: sqlite's grammar **omits it entirely**, because
+     * `lockForUpdate()` is a no-op there. That is the same gap
+     * `ConcurrentTurnTest` is written around, arriving one layer further out.
+     *
+     * So it reads the source, the way `PageSizesAreBoundedTest` does for the
+     * same reason: the mechanism cannot be exercised here, and its absence is
+     * silent. It asserts the transaction too, because a lock outside one is
+     * released immediately and buys nothing.
+     */
+    public function test_opening_an_invitation_reads_under_a_lock(): void
+    {
+        $source = file_get_contents(app_path('Http/Controllers/Api/CoachInviteController.php'));
+        $this->assertIsString($source);
+
+        $store = substr($source, (int) strpos($source, 'public function store('));
+        $store = substr($store, 0, (int) strpos($store, 'public function destroy('));
+
+        /*
+         * Comments stripped first, and that is not tidiness.
+         *
+         * The first version searched the slice as written and **passed with
+         * the lock removed**, because the docblock above the call explains
+         * what `lockForUpdate()` is doing there — so the check matched the
+         * prose about the mechanism instead of the mechanism. Caught by
+         * reverting the fix to watch it go red, which is the only reason it
+         * was caught at all, and the second time in one session that a
+         * source-reading check has read its own explanation.
+         */
+        $code = (string) preg_replace(['#/\*.*?\*/#s', '#//[^\n]*#'], '', $store);
+
+        $this->assertStringContainsString(
+            'lockForUpdate()',
+            $code,
+            'the open-invite check can lose a race to another one, leaving two pending invitations for one address',
+        );
+        $this->assertStringContainsString(
+            'DB::transaction(',
+            $code,
+            'a lock outside a transaction is released at once and buys nothing',
+        );
+
+        // And it still behaves: a second invitation to the same address is the
+        // same one, answered 200 rather than 201.
+        $coach = User::factory()->coach()->create();
+        Sanctum::actingAs($coach);
+
+        $first = $this->postJson('/api/coach/invites', ['email' => 'asha@example.com'])
+            ->assertCreated()
+            ->json('token');
+        $second = $this->postJson('/api/coach/invites', ['email' => 'asha@example.com'])
+            ->assertOk()
+            ->json('token');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, CoachInvite::query()->where('coach_id', $coach->id)->count());
+    }
+
     public function test_somebody_else_cannot_accept_an_invite_they_hold(): void
     {
         $coach = User::factory()->coach()->create();
