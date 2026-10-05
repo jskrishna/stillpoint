@@ -1994,6 +1994,46 @@ whose job it was. `Insights::from()` takes `$now` and narrows now, the SQL
 PHP, and the fixture has the case. Checked by taking the filter back out: the
 two window cases go red, and nothing else does.
 
+**And there is one part of the protocol the fixture structurally cannot
+reach**, which is worth knowing before trusting it as the whole comparison.
+The journal's display rules live on an Eloquent model on the PHP side —
+`JournalEntry::listSummary()` — rather than in `app/Domain`, and
+`tests/Unit/ParityTest.php` is a plain `PHPUnit\Framework\TestCase` with no
+application booted. So the fixture compares the Domain and the journal's rules
+sit outside it.
+
+They had already diverged. `listSummary` in TypeScript guarded on `undefined`
+and the PHP guards on `null` **and** `''`, so an empty belief read `“”` — a
+pair of quotation marks with nothing between them — on the client and
+"Session" on the server. Four surface sites rendered the same `“”`, and the row
+filter beside them drops an empty value rather than quotation marks around
+one. Measured, and then measured the other way: a whitespace-only answer is
+refused **422** before anything is recorded, because the route validates
+`utterance` as `required` and Laravel trims — so the input is not reachable
+through a turn today.
+
+Fixed anyway, and pinned on both sides, for the reason `'ca'` is in that
+fixture: two implementations of one rule disagreeing is the thing that is
+wrong, and whether a current client can produce the input is a separate and
+more fragile question. Each case goes red against the other language's old
+behaviour — checked both directions. Whether the journal's rules should move
+into `app/Domain` so the fixture can reach them is a change to where a rule
+lives rather than to what it says, and it is written at the function rather
+than in `DECISIONS.md` — grepped, that page has no entry for it, and by its own
+definition it holds what is blocked on somebody _choosing_ something. This is
+an engineering call nobody is waiting on.
+
+**It was found by asking which protocol exports nothing consumes.** Measured:
+**53 of the 114** exports of `packages/protocol` have no caller in either
+surface, the desktop shell, `packages/client`, the `e2e` scripts or
+`parity/generate.mjs` — they are exercised only by their own TypeScript tests.
+Much of that is the port's specification doing its job, and some is covered
+transitively (`mustStop` and `mustFlag` through the risk cases, `nextStep`
+through the step cases). But it is also the shape of `listSummary`: a second
+implementation of a rule whose PHP twin is the one every surface actually
+renders, called by nothing, compared against nothing. Reading the TypeScript
+to learn a rule is reliable only where the fixture covers it.
+
 Both sides count characters now — `firstCharacters()` in
 `packages/protocol/src/utterance.ts`, which `recordable()` also uses, against
 `mb_substr` — and the fixture has the astral cases. Note what catching it looks

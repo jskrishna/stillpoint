@@ -173,7 +173,11 @@ export default function Entry() {
             ? entry.memory.description
             : `${entry.memory.description} (around ${String(entry.memory.age)})`,
     },
-    { label: 'Old belief', value: entry.belief === null ? null : `“${entry.belief}”` },
+    {
+      label: 'Old belief',
+      // An empty belief is no belief — see `packages/protocol/src/journal.ts`.
+      value: entry.belief === null || entry.belief === '' ? null : `“${entry.belief}”`,
+    },
     { label: 'Forgiveness', value: entry.forgiveness },
   ].filter((r): r is { label: string; value: string } => r.value !== null && r.value !== '');
 

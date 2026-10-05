@@ -126,6 +126,33 @@ describe('listSummary', () => {
   it('falls back for a full session with no belief', () => {
     expect(listSummary(base!)).toBe('Session');
   });
+
+  /*
+   * An empty belief is no belief, which this did not say and
+   * `JournalEntry::listSummary()` in the PHP always did — it guards on `null`
+   * *and* `''`. Measured before the fix: this returned `“”`, a pair of
+   * quotation marks with nothing between them, where the server returned
+   * "Session" for the same row.
+   *
+   * It is not reachable through a turn — the route's `required` rule on
+   * `utterance` trims, so a whitespace-only answer is refused 422 before
+   * anything is recorded — and the case is here anyway, for the reason `'ca'`
+   * is in `parity/cases.json`: two implementations of one rule disagreeing is
+   * what is wrong, and whether a current client can produce the input is a
+   * separate and more fragile question.
+   *
+   * The fixture cannot carry this one: the PHP half lives on an Eloquent model
+   * rather than in `app/Domain`, and `ParityTest` is a plain PHPUnit case with
+   * no application booted. That asymmetry is why this went unnoticed, and it
+   * is written down at the function.
+   */
+  it('treats an empty belief as no belief, like the PHP does', () => {
+    expect(listSummary({ ...base!, belief: '' })).toBe('Session');
+    expect(listSummary({ ...base!, belief: '', kind: 'quick' })).toBe('Quick session');
+    // And a belief that is only whitespace is a belief, in both: neither side
+    // trims, and the one place trimming happens is the route's validation.
+    expect(listSummary({ ...base!, belief: ' ' })).toBe('“ ”');
+  });
 });
 
 describe('notes and sharing', () => {

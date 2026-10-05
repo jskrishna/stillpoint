@@ -173,6 +173,46 @@ final class JournalApiTest extends TestCase
         $this->getJson('/api/journal')->assertJsonPath('items.0.summary', 'Quick session');
     }
 
+    /**
+     * An empty belief is no belief, and this side always said so.
+     *
+     * `listSummary()` guards on `null` **and** `''` while `listSummary` in
+     * `packages/protocol/src/journal.ts` guarded only on `undefined` — so the
+     * same row read "Session" here and `“”` there, a pair of quotation marks
+     * with nothing between them. The TypeScript half is fixed and has its own
+     * case; this is the other half, so a later tidy of this condition cannot
+     * recreate the disagreement from the opposite direction.
+     *
+     * The input is not reachable through a turn: the route validates
+     * `utterance` as `required`, which trims, so a whitespace-only answer is
+     * refused 422 before anything is recorded. Pinned anyway, for the reason
+     * `'ca'` is in `parity/cases.json`.
+     *
+     * `parity/cases.json` cannot carry it: this method is on an Eloquent model
+     * rather than in `app/Domain`, and `ParityTest` is a plain PHPUnit case
+     * with no application booted — so the journal's display rules are the one
+     * part of the protocol that comparison structurally cannot reach, which is
+     * why nothing caught the divergence.
+     */
+    public function test_an_empty_belief_is_no_belief_in_the_list_summary(): void
+    {
+        $user = User::factory()->create();
+        $this->entry($user, ['belief' => '', 'kind' => SessionKind::Quick]);
+
+        Sanctum::actingAs($user);
+        $this->getJson('/api/journal')->assertJsonPath('items.0.summary', 'Quick session');
+    }
+
+    /** And whitespace is a belief, in both: the only trimming is the route's. */
+    public function test_a_belief_of_whitespace_is_still_quoted(): void
+    {
+        $user = User::factory()->create();
+        $this->entry($user, ['belief' => ' ']);
+
+        Sanctum::actingAs($user);
+        $this->getJson('/api/journal')->assertJsonPath('items.0.summary', '“ ”');
+    }
+
     public function test_cannot_read_someone_elses_entry(): void
     {
         $theirs = $this->entry(User::factory()->create());

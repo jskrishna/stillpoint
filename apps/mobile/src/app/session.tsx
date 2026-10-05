@@ -578,7 +578,11 @@ function Summary({
           ? data.feelings.map((id) => LABEL.get(id as FeelingId) ?? id).join(', ')
           : null,
     },
-    { label: 'Old belief', value: data.belief === null ? null : `“${data.belief}”` },
+    {
+      label: 'Old belief',
+      // An empty belief is no belief — see `packages/protocol/src/journal.ts`.
+      value: data.belief === null || data.belief === '' ? null : `“${data.belief}”`,
+    },
     { label: 'Forgiveness', value: data.forgiveness },
   ].filter((r): r is { label: string; value: string } => r.value !== null && r.value !== '');
 

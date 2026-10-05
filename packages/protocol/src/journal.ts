@@ -89,9 +89,33 @@ export function entryFrom(session: Session, ctx: EntryContext): JournalEntry | u
   };
 }
 
-/** The summary line the journal list shows under the title and date. */
+/**
+ * The summary line the journal list shows under the title and date.
+ *
+ * **An empty belief is no belief**, which this did not say and its PHP twin
+ * did. `JournalEntry::listSummary()` guards on `null` *and* `''`; this guarded
+ * only on `undefined`, so measured: an empty belief gave `“”` here — a pair of
+ * quotation marks with nothing between them — and "Session" there.
+ *
+ * It is not reachable through a turn: the route validates `utterance` as
+ * `required`, which Laravel trims, so a whitespace-only answer is refused 422
+ * before anything is recorded (measured against the running API). It is fixed
+ * anyway for the reason `'ca'` is in `parity/cases.json`: the two languages
+ * disagreeing is the thing that is wrong, and whether today's clients can
+ * produce the input is a separate and more fragile question.
+ *
+ * **And note where the PHP half lives**, because it is why the parity fixture
+ * never caught this: `listSummary()` is a method on `App\Models\JournalEntry`,
+ * an Eloquent model, rather than on anything in `app/Domain`. The fixture
+ * compares the Domain, and `tests/Unit/ParityTest.php` is a plain
+ * `PHPUnit\Framework\TestCase` with no application booted — so the journal's
+ * display rules are the one part of the protocol the comparison structurally
+ * cannot reach. Moving them into the Domain is a change to where a rule lives
+ * rather than to what it says, and nobody is waiting on it; what is fixed here
+ * is the disagreement.
+ */
 export function listSummary(entry: JournalEntry): string {
-  if (entry.belief !== undefined) return `“${entry.belief}”`;
+  if (entry.belief !== undefined && entry.belief !== '') return `“${entry.belief}”`;
   return entry.kind === 'quick' ? 'Quick session' : 'Session';
 }
 

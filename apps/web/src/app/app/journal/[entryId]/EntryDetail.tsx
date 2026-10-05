@@ -175,7 +175,14 @@ export default function EntryDetail({ entryId }: { entryId: string }) {
         entry.memory?.age === undefined ? 'MEMORY' : `MEMORY (AGE ${String(entry.memory.age)})`,
       value: entry.memory?.description ?? null,
     },
-    { label: 'OLD BELIEF', value: entry.belief === null ? null : `“${entry.belief}”` },
+    {
+      label: 'OLD BELIEF',
+      // An empty belief is no belief. Without the second half this renders
+      // `“”` — and the row filter below drops an empty value, not a pair of
+      // quotation marks around one. `listSummary` in the protocol says the
+      // same thing, and its PHP twin always did.
+      value: entry.belief === null || entry.belief === '' ? null : `“${entry.belief}”`,
+    },
     { label: 'FORGIVENESS', value: entry.forgiveness },
   ].filter((r): r is { label: string; value: string } => r.value !== null && r.value !== '');
 
